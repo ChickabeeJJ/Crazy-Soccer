@@ -31,10 +31,9 @@ export class UI {
     this.tipI = Math.floor(Math.random() * TIPS.length);
     this.wheelType = null;
     this.wheelSel = -1;
-    this.isTouch = SDK.isMobile;
+    this.isTouch = false; // decided after SDK init (see setupTouch)
     this.bindButtons();
     this.previewCache = new Map();
-    if (this.isTouch) document.body.classList.add('is-touch');
   }
 
   // ---------------------------------------------------------------- screens
@@ -653,6 +652,7 @@ export class UI {
       <div class="set-sec">Gameplay</div>
       ${toggle('assistedPasses', 'Assisted Passes', 'Passes auto-target the best teammate')}
       ${toggle('autoCurve', 'Auto Curve', 'Strafe while shooting to bend the ball')}
+      ${this.isTouch ? toggle('aimAssist', 'Aim Assist', 'Touch: shots near the goal snap inside the frame') : ''}
       <div class="set-sec">Interface</div>
       ${toggle('showControls', 'Show Controls', 'Display the key and button prompts')}
       ${toggle('showHints', 'Show Hints', 'Display tips on how to play')}
@@ -690,18 +690,32 @@ export class UI {
 
   // --------------------------------------------------------------- touch
   setupTouch(input) {
+    if (this.touchReady) return;
+    this.touchReady = true;
+    this.isTouch = true;
+    document.body.classList.add('is-touch');
     const touch = $('touch');
-    touch.classList.add('show');
+    // iOS Safari: block pinch-zoom gestures over the game
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
     const stick = $('stick'), knob = $('stickKnob');
     let stickId = null, cx = 0, cy = 0, R = 1;
     const setKnob = (dx, dy) => { knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; };
-    stick.addEventListener('touchstart', (e) => {
+    // Floating joystick: touch anywhere on the left side and the stick appears under your thumb
+    const home = () => { stick.style.left = ''; stick.style.top = ''; stick.style.bottom = ''; stick.classList.remove('live'); };
+    $('stickZone').addEventListener('touchstart', (e) => {
       e.preventDefault();
+      if (stickId !== null) return;
       const t = e.changedTouches[0];
       stickId = t.identifier;
       const r = stick.getBoundingClientRect();
-      cx = r.left + r.width / 2; cy = r.top + r.height / 2; R = r.width / 2;
+      R = r.width / 2;
+      const margin = 8;
+      cx = clamp(t.clientX, R + margin, window.innerWidth * 0.45);
+      cy = clamp(t.clientY, R + margin, window.innerHeight - R - margin);
+      stick.style.left = `${cx - R}px`; stick.style.top = `${cy - R}px`; stick.style.bottom = 'auto';
+      stick.classList.add('live');
       this.app.audio.unlock();
+      moveStick(e);
     }, { passive: false });
     const moveStick = (e) => {
       for (const t of e.changedTouches) {
@@ -720,6 +734,7 @@ export class UI {
         if (t.identifier !== stickId) continue;
         stickId = null;
         setKnob(0, 0);
+        home();
         input.touch.mx = 0; input.touch.mz = 0; input.touch.active = false; input.touch.sprint = false;
       }
     };
@@ -729,15 +744,18 @@ export class UI {
     // Look zone
     const look = $('lookZone');
     let lookId = null, lx = 0, ly = 0;
-    look.addEventListener('touchstart', (e) => { const t = e.changedTouches[0]; lookId = t.identifier; lx = t.clientX; ly = t.clientY; }, { passive: true });
+    look.addEventListener('touchstart', (e) => { const t = e.changedTouches[0]; lookId = t.identifier; lx = t.clientX; ly = t.clientY; input.touch.looking = true; input.touch.lookT = performance.now(); }, { passive: true });
     window.addEventListener('touchmove', (e) => {
       for (const t of e.changedTouches) {
         if (t.identifier !== lookId) continue;
         input.mdx += (t.clientX - lx) * 1.6; input.mdy += (t.clientY - ly) * 1.6;
+        input.touch.lookT = performance.now();
         lx = t.clientX; ly = t.clientY;
       }
     }, { passive: true });
-    window.addEventListener('touchend', (e) => { for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null; });
+    const endLook = (e) => { for (const t of e.changedTouches) if (t.identifier === lookId) { lookId = null; input.touch.looking = false; } };
+    window.addEventListener('touchend', endLook);
+    window.addEventListener('touchcancel', endLook);
     // Buttons
     touch.querySelectorAll('.tb').forEach((b) => {
       const act = b.dataset.act;
@@ -753,6 +771,15 @@ export class UI {
     });
   }
 
-  touchVisible(on) { $('touch').classList.toggle('show', !!on && this.isTouch); }
-  setTackleLabel(dive) { const b = document.querySelector('.tb-tackle'); if (b) b.textContent = dive ? 'DIVE' : 'TACKLE'; }
+  touchVisible(on) { this.cache.touchclass = null; $('touch').classList.toggle('show', !!on && this.isTouch); }
+  setTackleLabel(dive) { if (this.setVal('tbTackleLbl', 'v', dive)) document.querySelector('.tb-tackle span').textContent = dive ? 'DIVE' : 'TACKLE'; }
+  // Context-sensitive touch buttons: ball actions when you have the ball, defending actions without
+  setTouchState(hasBall, dive, item) {
+    if (!this.isTouch) return;
+    const cls = `touch show ${hasBall ? 'has-ball' : 'no-ball'} ${item ? 'item' : ''}`;
+    this.setVal('touch', 'class', cls);
+    if (this.setVal('tbDribLbl', 'v', hasBall)) document.querySelector('.tb-dribble span').textContent = hasBall ? 'SKILL' : 'JUMP';
+    if (this.setVal('tbKickLbl', 'v', item)) document.querySelector('.tb-kick span').textContent = item ? 'USE' : 'KICK';
+    this.setTackleLabel(dive);
+  }
 }

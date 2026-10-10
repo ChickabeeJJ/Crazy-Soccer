@@ -8,7 +8,7 @@ import { UI } from './ui/ui.js';
 import { Session, inOwnBox } from './game/session.js';
 import { Training, TRAINING_INFO } from './game/training.js';
 import { Net, randomCode, roomPeerId } from './net/net.js';
-import { GAME_VERSION, TEAMS, QUICK_CHAT, ITEMS, MATCH, PLAYER, KICK } from './config.js';
+import { GAME_VERSION, TEAMS, QUICK_CHAT, ITEMS, MATCH, PLAYER, KICK, FIELD } from './config.js';
 import { CATALOG } from './cosmetics.js';
 import { clamp, len2 } from './util/math.js';
 import * as THREE from 'three';
@@ -62,6 +62,14 @@ class App {
     this.applySettings();
     this.ui.refreshProfile();
     if (SDK.isMobile) this.ui.setupTouch(this.input);
+    // Touch laptops / tablets reported as desktop: switch to touch controls on the first touch
+    window.addEventListener('touchstart', () => {
+      if (this.ui.isTouch) return;
+      SDK.isMobile = true;
+      this.ui.setupTouch(this.input);
+      this.input.exitLock();
+      if (this.state === 'game') this.ui.touchVisible(true);
+    }, { passive: true });
     this.ui.touchVisible(false);
     this.ui.setLoading(1, 'Ready!');
     await nextFrame();
@@ -717,6 +725,13 @@ class App {
     let mx = fx * fwd + rx * right, mz = fz * fwd + rz * right;
     const ml = len2(mx, mz);
     if (ml > 1) { mx /= ml; mz /= ml; }
+    // Touch: the camera gently swings behind the direction you run (unless you're steering it)
+    if (touch && active && inp.touch.active && ml > 0.35 && !inp.touch.looking && performance.now() - (inp.touch.lookT || 0) > 900 && !(me && me.charging)) {
+      const heading = Math.atan2(mx, mz);
+      let d = heading - rig.yaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      if (Math.abs(d) < 2.6) rig.yaw += d * Math.min(1, dt * 1.5 * Math.min(1, ml));
+    }
     s.setInput({ mx, mz, sprint, yaw: rig.yaw, pitch: rig.pitch });
 
     const aim = { yaw: rig.yaw, pitch: rig.pitch };
@@ -784,13 +799,13 @@ class App {
     // HUD
     const hasBall = s.hasBall();
     const nearBall = me && ball && ball.owner < 0 && len2(ball.x - me.x, ball.z - me.z) < KICK.hitRange;
-    const inBox = me && me.keeper && s.mode !== 'practice' && inOwnBox(me);
+    const inBox = me && me.keeper && inOwnBox(me, 0.6);
     const xh = document.getElementById('crosshair');
     xh.classList.toggle('show', !!me && v.phase !== 'replay');
     xh.classList.toggle('charging', !!(me && me.charging));
     const equip = me && me.equip >= 0 && me.items[me.equip] ? me.items[me.equip] : null;
     this.ui.buildControls({ hasBall: !!hasBall, item: !!equip, inBox: !!inBox && !hasBall, nearBall: !!nearBall });
-    this.ui.setTackleLabel(!!inBox);
+    if (this.ui.isTouch) this.ui.setTouchState(!!hasBall, !!inBox, !!equip);
     this.ui.updateHud({
       view: v, localTeam: me ? me.team : 0, practice: s.mode === 'practice', items: me ? me.items : [null, null], equip: me ? me.equip : -1,
       stamina: me ? me.stamina : 100, exhausted: me ? me.exhausted : false, charging: !!(me && me.charging), charge: me ? me.charge : 0,
@@ -823,6 +838,21 @@ class App {
     if (v.y < -0.01) d = Math.min(60, Math.max(minD, (o.y - 0.4) / -v.y));
     let tx = o.x + v.x * d, ty = o.y + v.y * d, tz = o.z + v.z * d;
     if (ty < 0.4) ty = 0.4;
+    // Touch aim assist: aiming roughly at the rival goal snaps the shot inside the frame
+    if (this.ui.isTouch && Save.p.settings.aimAssist !== false) {
+      const gx = me.team === 0 ? FIELD.halfL : -FIELD.halfL;
+      const dist = Math.abs(gx - me.x);
+      if (dist < 42 && Math.sign(v.x) === Math.sign(gx) && Math.abs(v.x) > 0.05) {
+        const k = (gx - o.x) / v.x;
+        const gz = o.z + v.z * k, gy = o.y + v.y * k;
+        const hw = FIELD.goalW / 2;
+        if (Math.abs(gz) < hw + 9) {
+          tx = gx + Math.sign(gx) * 0.6;
+          tz = clamp(gz, -hw + 1.3, hw - 1.3);
+          ty = clamp(gy, 0.6, FIELD.goalH - 1);
+        }
+      }
+    }
     return { tx, ty, tz };
   }
 

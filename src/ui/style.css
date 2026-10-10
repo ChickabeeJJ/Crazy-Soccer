@@ -220,27 +220,48 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .toast-global { position: fixed; left: 50%; top: 14%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; }
 .toast-global div { background: var(--ink); color: #fff; font-weight: 700; padding: 8px 16px; border-radius: 8px; border: 2px solid #fff; animation: fadeIn 0.2s; }
 
-/* touch */
-.touch { position: fixed; inset: 0; z-index: 8; display: none; pointer-events: none; }
+/* touch (landscape phones & tablets) */
+.touch { position: fixed; inset: 0; z-index: 8; display: none; pointer-events: none; --tb: clamp(46px, 13.5vmin, 76px); }
 .touch.show { display: block; }
-.look-zone { position: absolute; right: 0; top: 0; width: 55%; height: 100%; pointer-events: auto; }
-.stick { position: absolute; left: calc(var(--u) * 2); bottom: calc(var(--u) * 2.5); width: 34vmin; height: 34vmin; max-width: 190px; max-height: 190px; border-radius: 50%; background: rgba(255,255,255,0.14); border: 3px solid rgba(255,255,255,0.4); pointer-events: auto; }
-.knob { position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; transform: translate(-50%, -50%); border-radius: 50%; background: rgba(255,255,255,0.8); border: 3px solid var(--ink); }
-.tbtns { position: absolute; right: calc(var(--u) * 1); bottom: calc(var(--u) * 1); width: 46vmin; height: 46vmin; max-width: 280px; max-height: 280px; pointer-events: none; }
-.tb { position: absolute; pointer-events: auto; border-radius: 50%; border: 3px solid var(--ink); background: rgba(255,255,255,0.88); font-family: var(--font-title); color: var(--ink); font-size: 3vmin; box-shadow: 0 3px 0 var(--ink); }
-.tb.on { background: var(--gold); transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
-.tb-kick { right: 0; bottom: 0; width: 38%; height: 38%; background: rgba(47,227,155,0.95); font-size: 3.6vmin; }
-.tb-pass { right: 42%; bottom: 2%; width: 25%; height: 25%; }
-.tb-lob { right: 2%; bottom: 42%; width: 25%; height: 25%; }
-.tb-flick { right: 34%; bottom: 32%; width: 22%; height: 22%; }
-.tb-tackle { right: 66%; bottom: 0; width: 25%; height: 25%; background: rgba(255,120,140,0.95); }
-.tb-dribble { right: 0; bottom: 70%; width: 22%; height: 22%; }
-.tb-sprint { right: 62%; bottom: 30%; width: 24%; height: 24%; background: rgba(255,207,63,0.9); }
-.tb-req { right: 30%; bottom: 58%; width: 17%; height: 17%; }
-body.is-touch .controls-list, body.is-touch .hud-bl .kbtn kbd { display: none; }
+.look-zone { position: absolute; right: 0; top: 0; width: 58%; height: 100%; pointer-events: auto; }
+.stick-zone { position: absolute; left: 0; top: 18%; width: 42%; height: 82%; pointer-events: auto; }
+.stick.live { opacity: 1; }
+.stick { position: absolute; left: max(18px, env(safe-area-inset-left)); bottom: calc(var(--tb) * 0.35); width: calc(var(--tb) * 2.5); height: calc(var(--tb) * 2.5); border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.08), rgba(255,255,255,0.18)); border: 3px solid rgba(255,255,255,0.45); pointer-events: none; opacity: 0.75; box-shadow: 0 0 0 6px rgba(20,16,30,0.15); }
+.knob { position: absolute; left: 50%; top: 50%; width: 44%; height: 44%; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, #dcd6f2); border: 3px solid var(--ink); box-shadow: 0 4px 0 rgba(0,0,0,0.3); }
+.tbtns { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: calc(var(--tb) * 0.25); width: calc(var(--tb) * 4.2); height: calc(var(--tb) * 3.6); pointer-events: none; }
+.tb { position: absolute; pointer-events: auto; border-radius: 50%; width: var(--tb); height: var(--tb); border: 3px solid var(--ink); background: rgba(255,255,255,0.9); font-family: var(--font-title); color: var(--ink); font-size: calc(var(--tb) * 0.24); box-shadow: 0 4px 0 var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; transition: opacity 0.15s, transform 0.08s; -webkit-touch-callout: none; }
+.tb small { font-family: var(--font-ui); font-weight: 700; font-size: 0.42em; opacity: 0.7; margin-top: 2px; }
+.tb.on { background: var(--gold); transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.tb-kick { right: 0; bottom: 0; width: calc(var(--tb) * 1.6); height: calc(var(--tb) * 1.6); background: radial-gradient(circle at 40% 30%, #8dffcf, #19d08a); font-size: calc(var(--tb) * 0.34); }
+.touch.item .tb-kick { background: radial-gradient(circle at 40% 30%, #ffe98f, #ffb81f); }
+/* slot A: left of KICK */
+.tb-pass, .tb-tackle { right: calc(var(--tb) * 1.85); bottom: calc(var(--tb) * 0.05); }
+.tb-tackle { background: rgba(255,120,140,0.95); color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+/* slot B: above KICK */
+.tb-dribble { right: calc(var(--tb) * 0.3); bottom: calc(var(--tb) * 1.85); background: rgba(160,200,255,0.95); }
+/* slot C: diagonal up-left */
+.tb-lob, .tb-req { right: calc(var(--tb) * 1.5); bottom: calc(var(--tb) * 1.4); }
+/* slot D: far left (ball only) */
+.tb-flick { right: calc(var(--tb) * 2.95); bottom: calc(var(--tb) * 0.75); width: calc(var(--tb) * 0.85); height: calc(var(--tb) * 0.85); }
+.touch.has-ball .noball, .touch.no-ball .ball { opacity: 0; pointer-events: none; transform: scale(0.6); }
+.tb-sprint { left: calc(max(18px, env(safe-area-inset-left)) + var(--tb) * 0.2); bottom: calc(var(--tb) * 3.1); width: calc(var(--tb) * 0.95); height: calc(var(--tb) * 0.95); background: rgba(255,207,63,0.92); font-size: calc(var(--tb) * 0.2); }
+body.is-touch .controls-list, body.is-touch .hud-bl .kbtn kbd, body.is-touch #lobbyKey, body.is-touch #unlockKey, body.is-touch .click-to-play, body.is-touch #crosshair.charging + .x { display: none !important; }
 body.is-touch .hud-bl { top: calc(var(--u) * 4); bottom: auto; }
 body.is-touch .hud-bc { bottom: calc(var(--u) * 0.4); }
-body.is-touch .slot { width: calc(var(--u) * 4); height: calc(var(--u) * 4); }
+body.is-touch .slot { width: calc(var(--u) * 4.4); height: calc(var(--u) * 4.4); }
+body.is-touch .banners { display: none; }
+body.is-touch .round-btn { width: calc(var(--u) * 3); height: calc(var(--u) * 3); }
+body.is-touch .toasts { transform: scale(0.85); transform-origin: top right; }
+body.is-touch .tut-box { top: calc(var(--u) * 6.4); width: min(60vw, 26rem); padding: 8px 12px 10px; }
+body.is-touch .tb-text { font-size: calc(var(--u) * 0.9); }
+/* Rotate-to-landscape screen for phones held upright */
+.rotate { position: fixed; inset: 0; z-index: 100; display: none; align-items: center; justify-content: center; text-align: center; color: #fff; background: radial-gradient(circle at 50% 40%, #3b2c7a, #120c28 70%); }
+.rotate > div { display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 15px; }
+.rotate b { font-family: var(--font-title); font-weight: 400; font-size: 26px; letter-spacing: 0.03em; }
+.rotate span { color: var(--muted); }
+.rot-phone { width: 46px; height: 80px; border: 5px solid #fff; border-radius: 10px; margin-bottom: 12px; animation: rot 2.2s ease-in-out infinite; }
+@keyframes rot { 0%, 25% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+@media (orientation: portrait) { body.is-touch .rotate { display: flex; } }
 
 @media (max-height: 520px) {
   :root { --u: clamp(0.55rem, 1.4vmin + 0.25rem, 0.9rem); }

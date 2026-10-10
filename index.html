@@ -262,21 +262,23 @@
       </div>
     </div>
 
-    <!-- Touch controls -->
+    <!-- Touch controls (landscape) -->
     <div id="touch" class="touch">
+      <div id="stickZone" class="stick-zone"></div>
       <div id="stick" class="stick"><div id="stickKnob" class="knob"></div></div>
+      <button class="tb tb-sprint" data-act="sprint"><span>SPRINT</span></button>
       <div id="lookZone" class="look-zone"></div>
       <div class="tbtns">
-        <button class="tb tb-kick" data-act="kick">KICK</button>
-        <button class="tb tb-pass" data-act="pass">PASS</button>
-        <button class="tb tb-lob" data-act="lob">LOB</button>
-        <button class="tb tb-flick" data-act="flick">FLICK</button>
-        <button class="tb tb-tackle" data-act="tackle">TACKLE</button>
-        <button class="tb tb-dribble" data-act="dribble">JUMP</button>
-        <button class="tb tb-sprint" data-act="sprint">SPRINT</button>
-        <button class="tb tb-req" data-act="request">!</button>
+        <button class="tb tb-kick" data-act="kick"><span>KICK</span><small>hold = power</small></button>
+        <button class="tb tb-pass ball" data-act="pass"><span>PASS</span></button>
+        <button class="tb tb-tackle noball" data-act="tackle"><span>TACKLE</span></button>
+        <button class="tb tb-dribble" data-act="dribble"><span>JUMP</span></button>
+        <button class="tb tb-lob ball" data-act="lob"><span>LOB</span></button>
+        <button class="tb tb-req noball" data-act="request"><span>CALL</span></button>
+        <button class="tb tb-flick ball" data-act="flick"><span>FLICK</span></button>
       </div>
     </div>
+    <div id="rotate" class="rotate"><div><div class="rot-phone"></div><b>Rotate your device</b><span>Crazy Soccer is played in landscape</span></div></div>
 
     <div id="toastGlobal" class="toast-global"></div>
     <script type="module" src="./src/main.js"></script>

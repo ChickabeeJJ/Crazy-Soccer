@@ -33,6 +33,14 @@ The whole build is ~1 MB in 10 files (CrazyGames limits: 50 MB initial download,
 
 The game never binds Escape (a CrazyGames restricted key) and matches never pause. Unlock the mouse with your own key (default M); the browser also releases it on Escape by itself. Touch controls appear automatically on phones and tablets.
 
+### Mobile & tablet (landscape)
+
+- **Floating joystick**: touch anywhere on the left side to move. Pushing it to the edge sprints; there is also a SPRINT toggle.
+- **Context-sensitive buttons** on the right: with the ball you get KICK (hold for power), PASS, LOB, FLICK and SKILL. Without it you get KICK, TACKLE (DIVE for keepers), JUMP and CALL (request the ball).
+- **Camera**: drag on the right side to look. While you run, the camera swings in behind you on its own.
+- **Aim assist** (on by default, in Settings): aiming roughly at the rival goal snaps the shot inside the frame.
+- Tap an item slot to use a power. Phones held upright show a "rotate your device" screen, because the game is landscape-only. Touch laptops switch to touch controls on the first tap.
+
 ## Gameplay
 
 - **4v4** on two arenas (Cliffside grass, Canyon desert) plus an indoor training hall. Bots fill every empty spot; humans replace bots when they join.

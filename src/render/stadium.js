@@ -75,17 +75,20 @@ function buildGoal(group, side, team) {
   const L = FIELD.halfL, hw = FIELD.goalW / 2, H = FIELD.goalH, D = FIELD.goalD;
   const postMat = new THREE.MeshToonMaterial({ color: 0xffffff, emissive: 0x333344 });
   const r = FIELD.postR;
+  const frame = [];
   for (const z of [-hw, hw]) {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(r, r, H, 12), postMat);
     post.position.set(side * L, H / 2, z);
     post.castShadow = true;
     g.add(post);
+    frame.push(post);
   }
   const bar = new THREE.Mesh(new THREE.CylinderGeometry(r, r, hw * 2 + r * 2, 12), postMat);
   bar.rotation.x = Math.PI / 2;
   bar.position.set(side * L, H, 0);
   bar.castShadow = true;
   g.add(bar);
+  frame.push(bar);
   // Back frame
   const frameMat = new THREE.MeshToonMaterial({ color: T.dark });
   const bx = side * (L + D);
@@ -97,6 +100,7 @@ function buildGoal(group, side, team) {
     tp.rotation.z = Math.PI / 2;
     tp.position.set(side * (L + D / 2), H, z);
     g.add(tp);
+    frame.push(bp, tp);
   }
   // Glowing hex net
   const netTex = TX.hexNetTexture();
@@ -125,7 +129,7 @@ function buildGoal(group, side, team) {
   strip.position.set(side * (L + D / 2), 0.03, 0);
   g.add(strip);
   group.add(g);
-  return { group: g, netMat, glassMat, baseOpacity: 0.22, flash: 0, side, team };
+  return { group: g, netMat, glassMat, frame, baseOpacity: 0.22, flash: 0, side, team };
 }
 
 function buildWalls(group) {
@@ -514,14 +518,24 @@ export class Stadium {
     if (g) g.flash = 1.6;
   }
 
-  update(dt) {
+  update(dt, cam) {
     this.time += dt;
     for (const g of this.goals) {
       if (g.flash > 0) g.flash -= dt;
       const f = Math.max(0, g.flash);
       const pulse = 0.5 + 0.5 * Math.sin(this.time * 2 + g.side);
-      g.netMat.opacity = 0.75 + pulse * 0.15 + f * 0.25;
-      g.glassMat.opacity = g.baseOpacity + f * 0.35 * (0.5 + 0.5 * Math.sin(this.time * 30));
+      // Fade the net out when the camera is inside or right behind this goal (keepers)
+      let near = 0;
+      if (cam) {
+        const ax = cam.x * g.side;
+        if (ax > FIELD.halfL - 1 && Math.abs(cam.z) < FIELD.goalW / 2 + 3 && cam.y < FIELD.goalH + 4) near = 1;
+      }
+      g.fade = (g.fade || 0) + (near - (g.fade || 0)) * Math.min(1, dt * 8);
+      const k = 1 - g.fade * 0.85;
+      const showFrame = g.fade < 0.5;
+      if (g.frameShown !== showFrame) { g.frameShown = showFrame; for (const m of g.frame) m.visible = showFrame; }
+      g.netMat.opacity = (0.75 + pulse * 0.15 + f * 0.25) * k;
+      g.glassMat.opacity = (g.baseOpacity + f * 0.35 * (0.5 + 0.5 * Math.sin(this.time * 30))) * k;
     }
   }
 }

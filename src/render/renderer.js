@@ -488,7 +488,7 @@ export class GameRenderer {
       pos.needsUpdate = true;
     }
 
-    this.stadium.update(dt);
+    this.stadium.update(dt, this.cam.position);
     this.vfx.update(dt);
   }
 
@@ -631,7 +631,7 @@ export class GameRenderer {
       this.marker.visible = false; this.aimPivot.visible = false; this.chargeSprite.visible = false;
       this.rig.orbit(dt, 0, 0, 0, 58, 20, 0.045, 0);
       this.rig.shift = undefined;
-      this.stadium.update(dt);
+      this.stadium.update(dt, this.cam.position);
       this.vfx.update(dt);
       return;
     }
@@ -647,7 +647,7 @@ export class GameRenderer {
     this.aimPivot.visible = false;
     this.chargeSprite.visible = false;
     this.rig.showcase(dt, ch.position.x, ch.position.z, ch.rotation.y, 0, shift);
-    this.stadium.update(dt);
+    this.stadium.update(dt, this.cam.position);
     this.vfx.update(dt);
   }
 

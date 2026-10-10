@@ -46,6 +46,7 @@ export const DEFAULT_SETTINGS = {
   showStats: false,
   perf: false,
   nameTags: true,
+  aimAssist: true,
 };
 
 function freshProfile() {
