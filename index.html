@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#1b1530" />
+    <title>Crazy Soccer</title>
+    <link rel="icon" type="image/png" href="./favicon.png" />
+    <!-- CrazyGames HTML5 SDK v3 -->
+    <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <!-- ============================ LOADING ============================ -->
+    <div id="loading" class="screen show">
+      <div class="load-inner">
+        <div class="logo big"><span class="l1">CRAZY</span><span class="l2">SOCCER</span></div>
+        <div class="load-bar"><div id="loadFill"></div></div>
+        <div id="loadText" class="load-text">Loading…</div>
+      </div>
+    </div>
+
+    <!-- ============================== MENU ============================== -->
+    <div id="menu" class="screen">
+      <div class="menu-left">
+        <div class="logo"><span class="l1">CRAZY</span><span class="l2">SOCCER</span></div>
+        <div class="menu-sub">4v4 • Items • No referee</div>
+        <button id="playBtn" class="btn btn-play"><span class="ico">▶</span> PLAY</button>
+        <div class="menu-row">
+          <button id="practiceBtn" class="btn btn-sec">PRACTICE</button>
+          <button id="privateBtn" class="btn btn-sec">PRIVATE MATCH</button>
+        </div>
+        <div id="menuNote" class="menu-note"></div>
+      </div>
+      <div class="menu-bottom">
+        <button id="shopBtn" class="pill-btn"><span class="pill-ico">👕</span> Locker</button>
+        <button id="settingsBtn" class="pill-btn"><span class="pill-ico">⚙</span> Settings</button>
+        <button id="dailyBtn" class="pill-btn hot"><span class="pill-ico">🎁</span> Daily Reward</button>
+      </div>
+      <div id="profileCard" class="profile-card">
+        <div class="pc-row">
+          <div id="pcAvatar" class="pc-avatar"></div>
+          <div class="pc-info">
+            <div id="pcName" class="pc-name">Player</div>
+            <div class="pc-level"><span id="pcLevel">Level 1</span><div class="xp"><div id="pcXp"></div></div><span id="pcXpText" class="xp-text"></span></div>
+          </div>
+        </div>
+        <div class="pc-coins"><span class="coin"></span><span id="pcCoins">0</span></div>
+        <button id="loginBtn" class="mini-btn hidden">Log in to save progress</button>
+      </div>
+    </div>
+
+    <!-- ============================== HUD ============================== -->
+    <div id="hud" class="screen">
+      <div class="hud-top">
+        <div id="scoreboard" class="scoreboard">
+          <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+          <span class="sq red"></span><span id="scoreRed" class="sc">0</span><span class="dash">–</span><span id="scoreBlue" class="sc">0</span><span class="sq blue"></span>
+          <span id="youTag" class="you">YOU</span>
+        </div>
+        <div id="timer" class="timer"><span class="clock">⏱</span><span id="timerText">6:00</span></div>
+      </div>
+      <div class="hud-tl">
+        <button id="menuHudBtn" class="round-btn" title="Menu">☰</button>
+        <button id="chatHudBtn" class="round-btn" title="Quick chat">💬</button>
+        <button id="emoteHudBtn" class="round-btn" title="Emotes">😀</button>
+        <div id="chatFeed" class="chat-feed"></div>
+      </div>
+      <div id="hudTR" class="hud-tr">
+        <div id="toasts" class="toasts"></div>
+      </div>
+      <div id="controlsList" class="controls-list"></div>
+      <div class="hud-bl">
+        <div class="kbtn" id="statsKey"><span>Stats</span><kbd>TAB</kbd></div>
+        <div class="kbtn" id="lobbyKey"><span>Return to Lobby</span><kbd>L</kbd></div>
+      </div>
+      <div class="hud-bc">
+        <div id="banners" class="banners"></div>
+        <div class="slots">
+          <div class="slot" id="slot0" data-slot="0"><div class="slot-ico"></div><span class="slot-num">1</span></div>
+          <div class="slot" id="slot1" data-slot="1"><div class="slot-ico"></div><span class="slot-num">2</span></div>
+        </div>
+        <div id="stamina" class="stamina"><div class="seg"><i></i></div><div class="seg"><i></i></div><div class="seg"><i></i></div><div class="seg"><i></i></div></div>
+      </div>
+      <div id="announce" class="announce"></div>
+      <div id="hint" class="hint"></div>
+      <div id="replayTag" class="replay-tag">● REPLAY</div>
+      <div id="netStats" class="net-stats"></div>
+      <div id="clickToPlay" class="click-to-play"><div><b>Click to play</b><span>Mouse aims your camera &amp; shots</span></div></div>
+      <div id="roomPanel" class="room-panel"></div>
+    </div>
+
+    <!-- Radial wheel (emotes / quick chat) -->
+    <div id="wheel" class="wheel"><div id="wheelCenter" class="wheel-center"></div></div>
+
+    <!-- Stats panel -->
+    <div id="statsPanel" class="panel stats-panel">
+      <div class="panel-head"><span>Match Stats</span></div>
+      <div id="statsBody" class="panel-body"></div>
+    </div>
+
+    <!-- Pause -->
+    <div id="pause" class="modal">
+      <div class="panel small">
+        <div class="panel-head"><span>Paused</span></div>
+        <div class="panel-body col">
+          <button id="resumeBtn" class="btn btn-play">RESUME</button>
+          <button id="pauseSettingsBtn" class="btn btn-sec">SETTINGS</button>
+          <button id="inviteBtn2" class="btn btn-sec hidden">INVITE FRIENDS</button>
+          <button id="leaveBtn" class="btn btn-danger">RETURN TO LOBBY</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results" class="modal">
+      <div class="panel results">
+        <div id="resTitle" class="res-title">VICTORY!</div>
+        <div id="resScore" class="res-score"></div>
+        <div id="resMvp" class="res-mvp"></div>
+        <div id="resStats" class="res-stats"></div>
+        <div class="res-rewards">
+          <div class="rw"><span class="coin"></span><b id="resCoins">+0</b></div>
+          <div class="rw xpw"><span>XP</span><b id="resXp">+0</b></div>
+        </div>
+        <button id="doubleBtn" class="btn btn-gold hidden">▶ WATCH AD: DOUBLE COINS</button>
+        <div id="resNext" class="res-next"></div>
+        <div class="row">
+          <button id="againBtn" class="btn btn-play">PLAY AGAIN</button>
+          <button id="resLobbyBtn" class="btn btn-sec">LOBBY</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Locker / shop -->
+    <div id="locker" class="screen locker">
+      <div class="panel locker-panel">
+        <div class="panel-head">
+          <div id="lockerTabs" class="tabs"></div>
+          <div class="head-right"><span class="coin"></span><span id="lockerCoins">0</span><button class="x-btn" data-close="locker">✕</button></div>
+        </div>
+        <div class="panel-body">
+          <div id="lockerExtra" class="locker-extra"></div>
+          <div id="lockerGrid" class="grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div id="settings" class="modal">
+      <div class="panel settings-panel">
+        <div class="panel-head"><span>Settings</span><button class="x-btn" data-close="settings">✕</button></div>
+        <div id="settingsBody" class="panel-body scroll"></div>
+      </div>
+    </div>
+
+    <!-- Private match -->
+    <div id="private" class="modal">
+      <div class="panel small">
+        <div class="panel-head"><span>Private Match</span><button class="x-btn" data-close="private">✕</button></div>
+        <div class="panel-body col">
+          <button id="createRoomBtn" class="btn btn-play">CREATE ROOM</button>
+          <div class="or">or join with a code</div>
+          <div class="join-row"><input id="codeInput" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false" /><button id="joinCodeBtn" class="btn btn-sec">JOIN</button></div>
+          <div id="privateMsg" class="small-msg"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Searching -->
+    <div id="searching" class="modal">
+      <div class="panel small center">
+        <div class="spinner"></div>
+        <div id="searchText" class="search-text">Finding a match…</div>
+        <button id="cancelSearchBtn" class="btn btn-sec">CANCEL</button>
+      </div>
+    </div>
+
+    <!-- Confirm -->
+    <div id="confirm" class="modal">
+      <div class="panel small">
+        <div class="panel-head"><span id="confirmTitle">Are you sure?</span></div>
+        <div class="panel-body col">
+          <div id="confirmText" class="small-msg"></div>
+          <div class="row"><button id="confirmYes" class="btn btn-danger">YES</button><button id="confirmNo" class="btn btn-sec">NO</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Touch controls -->
+    <div id="touch" class="touch">
+      <div id="stick" class="stick"><div id="stickKnob" class="knob"></div></div>
+      <div id="lookZone" class="look-zone"></div>
+      <div class="tbtns">
+        <button class="tb tb-kick" data-act="kick">KICK</button>
+        <button class="tb tb-pass" data-act="pass">PASS</button>
+        <button class="tb tb-lob" data-act="lob">LOB</button>
+        <button class="tb tb-flick" data-act="flick">FLICK</button>
+        <button class="tb tb-tackle" data-act="tackle">TACKLE</button>
+        <button class="tb tb-dribble" data-act="dribble">SKILL</button>
+        <button class="tb tb-sprint" data-act="sprint">SPRINT</button>
+        <button class="tb tb-req" data-act="request">!</button>
+      </div>
+    </div>
+
+    <div id="toastGlobal" class="toast-global"></div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

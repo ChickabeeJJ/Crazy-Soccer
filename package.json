@@ -1,0 +1,22 @@
+{
+  "name": "crazy-soccer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Crazy Soccer - a chaotic 4v4 3D soccer game for CrazyGames",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node tools/postbuild.mjs",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fontsource/lilita-one": "^5.3.0",
+    "@fontsource/roboto-condensed": "^5.3.0",
+    "peerjs": "^1.5.5",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "peer": "^1.0.2",
+    "vite": "^8.3.3"
+  }
+}

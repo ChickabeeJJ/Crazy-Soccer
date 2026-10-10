@@ -1,0 +1,106 @@
+// Third-person orbit camera + broadcast replay camera + menu showcase camera, with screen shake.
+import * as THREE from 'three';
+import { FIELD } from '../config.js';
+import { clamp, damp, lerp } from '../util/math.js';
+
+export class CameraRig {
+  constructor(aspect) {
+    this.cam = new THREE.PerspectiveCamera(70, aspect, 0.1, 1400);
+    this.yaw = Math.PI / 2;
+    this.pitch = 0.3;
+    this.dist = 9;
+    this.target = new THREE.Vector3();
+    this.smoothTarget = new THREE.Vector3();
+    this.trauma = 0;
+    this.shakeScale = 5 / 8;
+    this.time = 0;
+    this.mode = 'menu';
+    this.replayStyle = 0;
+    this.replayPos = new THREE.Vector3(0, 15, -40);
+    this.tmp = new THREE.Vector3();
+    this.lookAt = new THREE.Vector3();
+  }
+
+  shake(amount) {
+    this.trauma = Math.min(1, this.trauma + amount);
+  }
+
+  forward(out) {
+    return out.set(Math.sin(this.yaw) * Math.cos(this.pitch), -Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch));
+  }
+
+  snapTo(x, y, z) {
+    this.smoothTarget.set(x, y + 2.4, z);
+  }
+
+  follow(dt, px, py, pz, opts = {}) {
+    this.mode = 'play';
+    this.target.set(px, py + 2.4, pz);
+    if (this.smoothTarget.distanceTo(this.target) > 12) this.smoothTarget.copy(this.target);
+    this.smoothTarget.x = damp(this.smoothTarget.x, this.target.x, 16, dt);
+    this.smoothTarget.y = damp(this.smoothTarget.y, this.target.y, 8, dt);
+    this.smoothTarget.z = damp(this.smoothTarget.z, this.target.z, 16, dt);
+    const f = this.forward(this.tmp);
+    const d = this.dist * (opts.zoom || 1);
+    const c = this.cam.position;
+    c.set(this.smoothTarget.x - f.x * d, this.smoothTarget.y - f.y * d, this.smoothTarget.z - f.z * d);
+    if (c.y < 0.6) c.y = 0.6;
+    this.lookAt.copy(this.smoothTarget).addScaledVector(f, 4);
+    this.cam.lookAt(this.lookAt);
+    this.applyShake(dt);
+  }
+
+  replay(dt, ball, progress, side) {
+    this.mode = 'replay';
+    const bx = ball.x, by = ball.y, bz = ball.z;
+    let px, py, pz;
+    if (this.replayStyle % 2 === 0) {
+      // Broadcast side camera tracking the ball
+      px = bx * 0.85 - side * 6; py = 9 + progress * 2; pz = -FIELD.wallZ - 4;
+    } else {
+      // Behind-the-goal camera
+      px = side * (FIELD.halfL + 12); py = 6.5; pz = bz * 0.4 + 6;
+    }
+    if (progress < 0.02) this.replayPos.set(px, py, pz);
+    this.replayPos.x = damp(this.replayPos.x, px, 4, dt);
+    this.replayPos.y = damp(this.replayPos.y, py, 4, dt);
+    this.replayPos.z = damp(this.replayPos.z, pz, 4, dt);
+    this.cam.position.copy(this.replayPos);
+    this.lookAt.set(lerp(this.lookAt.x, bx, 0.25), lerp(this.lookAt.y, by + 1, 0.25), lerp(this.lookAt.z, bz, 0.25));
+    if (progress < 0.02) this.lookAt.set(bx, by + 1, bz);
+    this.cam.lookAt(this.lookAt);
+    this.applyShake(dt);
+  }
+
+  orbit(dt, cx, cy, cz, radius, height, speed, lookY = 1.6) {
+    this.mode = 'orbit';
+    this.time += dt;
+    const a = this.time * speed;
+    this.cam.position.set(cx + Math.sin(a) * radius, cy + height, cz + Math.cos(a) * radius);
+    this.cam.lookAt(cx, cy + lookY, cz);
+  }
+
+  showcase(dt, cx, cz, faceYaw, sway) {
+    this.mode = 'menu';
+    this.time += dt;
+    const a = faceYaw + Math.sin(this.time * 0.25) * 0.35 + sway;
+    const r = 6.4;
+    this.cam.position.set(cx + Math.sin(a) * r, 2.6, cz + Math.cos(a) * r);
+    this.cam.lookAt(cx + Math.sin(a + Math.PI / 2) * 1.9, 1.75, cz + Math.cos(a + Math.PI / 2) * 1.9);
+  }
+
+  applyShake(dt) {
+    if (this.trauma <= 0) return;
+    this.trauma = Math.max(0, this.trauma - dt * 1.6);
+    const s = this.trauma * this.trauma * this.shakeScale;
+    const t = performance.now() / 1000;
+    this.cam.position.x += Math.sin(t * 47.3) * s * 0.6;
+    this.cam.position.y += Math.sin(t * 59.1 + 1.3) * s * 0.5;
+    this.cam.position.z += Math.sin(t * 41.7 + 2.1) * s * 0.6;
+    this.cam.rotation.z += Math.sin(t * 37.1) * s * 0.03;
+  }
+
+  setPitchLimits() {
+    this.pitch = clamp(this.pitch, -0.35, 1.25);
+  }
+}
