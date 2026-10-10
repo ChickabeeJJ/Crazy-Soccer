@@ -1,19 +1,34 @@
-// DOM UI: menus, HUD, locker, settings, wheels, results, touch controls.
+// DOM UI: main menu (play / training / shop / inventory), HUD, settings, wheels, results, touch controls.
 import { Save, BIND_LABELS, DEFAULT_BINDS } from '../save.js';
 import { CATALOG, TAB_LABELS, SKIN_TONES, HAIR_COLORS } from '../cosmetics.js';
-import { TEAMS, QUICK_CHAT, ITEMS, PLAYER } from '../config.js';
+import { TEAMS, QUICK_CHAT, ITEMS, ITEM_KINDS, PLAYER } from '../config.js';
 import { fmtTime, clamp } from '../util/math.js';
 import { itemSvg, previewJersey, previewBall, previewGoalFx, previewEmote, previewHair } from './icons.js';
 import { SDK } from '../sdk.js';
 
 const $ = (id) => document.getElementById(id);
+const TIPS = [
+  'Walk into your own box when your team has no keeper to grab the gloves.',
+  'Keepers lose their gloves the moment they step out of the box.',
+  'Aim higher with the crosshair to lift your shot over the keeper.',
+  'Jump (Space) to catch high balls, then shoot mid-air for a volley bonus.',
+  'Goalkeepers can\'t be tackled and the ball can\'t be stolen from them.',
+  'Everyone gets a random position after every goal. Be ready to play anywhere!',
+  'Unlock new powers in the Shop: mystery cubes only drop powers you own.',
+  'Dribble skill (Space with the ball) makes you untouchable for a moment.',
+  'Hold the kick button longer for a harder shot.',
+  'Request the ball (R) and your bot teammates will pass to you.',
+];
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export class UI {
   constructor(app) {
     this.app = app;
     this.cache = {};
-    this.lockerTab = 'jersey';
+    this.page = 'play';
+    this.shopTab = 'powers';
+    this.invTab = 'powers';
+    this.tipI = Math.floor(Math.random() * TIPS.length);
     this.wheelType = null;
     this.wheelSel = -1;
     this.isTouch = SDK.isMobile;
@@ -26,7 +41,7 @@ export class UI {
   screen(id, on) { $(id).classList.toggle('show', !!on); }
   modal(id, on) { $(id).classList.toggle('show', !!on); }
   isOpen(id) { return $(id).classList.contains('show'); }
-  anyModal() { return ['pause', 'results', 'settings', 'private', 'searching', 'confirm'].some((m) => this.isOpen(m)); }
+  anyModal() { return ['pause', 'results', 'settings', 'private', 'searching', 'confirm', 'trainRes'].some((m) => this.isOpen(m)); }
 
   setLoading() { /* no visible loading screen */ }
 
@@ -37,16 +52,18 @@ export class UI {
     click('joinBlueBtn', () => app.quickPlay(1));
     $('joinRedBtn').addEventListener('mouseenter', () => { app.menuTeam = 0; });
     $('joinBlueBtn').addEventListener('mouseenter', () => { app.menuTeam = 1; });
-    click('practiceBtn', () => app.startPractice());
+    click('botsBtn', () => app.startOffline());
     click('privateBtn', () => { $('privateMsg').textContent = ''; this.modal('private', true); });
     click('createRoomBtn', () => app.createPrivate());
     click('joinCodeBtn', () => app.joinPrivate($('codeInput').value.trim().toUpperCase()));
     $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') app.joinPrivate($('codeInput').value.trim().toUpperCase()); });
-    click('shopBtn', () => this.openLocker());
     click('settingsBtn', () => this.openSettings());
     click('pauseSettingsBtn', () => this.openSettings());
+    click('pauseControlsBtn', () => { this.openSettings(); setTimeout(() => { const el = document.querySelector('[data-sec="keys"]'); if (el) el.scrollIntoView(); }, 30); });
     click('dailyBtn', () => app.claimDaily());
     click('loginBtn', () => app.login());
+    click('tutBtn', () => app.startTraining('tutorial'));
+    click('powerShopBtn', () => { this.shopTab = 'powers'; this.setPage('shop'); });
     click('resumeBtn', () => app.resume());
     click('leaveBtn', () => app.leaveToLobby(true));
     click('inviteBtn2', () => app.copyInvite());
@@ -54,16 +71,21 @@ export class UI {
     click('resLobbyBtn', () => app.leaveToLobby(false));
     click('doubleBtn', () => app.doubleCoins());
     click('cancelSearchBtn', () => app.cancelSearch());
+    click('trAgainBtn', () => app.retryTraining());
+    click('trLobbyBtn', () => { this.modal('trainRes', false); app.leaveToLobby(true, 'training'); });
     click('menuHudBtn', () => app.pause());
     click('chatHudBtn', () => this.toggleWheel('chat'));
     click('emoteHudBtn', () => this.toggleWheel('emote'));
     click('statsKey', () => { this.statsPinned = !this.statsPinned; });
     click('lobbyKey', () => app.askLeave());
+    click('unlockKey', () => app.input.exitLock());
+    document.querySelectorAll('#mnNav [data-page]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); app.audio.click(); this.setPage(b.dataset.page); }));
+    document.querySelectorAll('[data-train]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); app.audio.click(); app.startTraining(b.dataset.train); }));
     document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', (e) => {
       e.stopPropagation();
       app.audio.click();
       const id = b.dataset.close;
-      if (id === 'locker') this.closeLocker(); else this.modal(id, false);
+      this.modal(id, false);
       if (id === 'settings') app.onSettingsClosed();
     }));
     for (const s of [0, 1]) {
@@ -71,6 +93,87 @@ export class UI {
       $(`slot${s}`).addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); app.slotTap(s, true); }, { passive: false });
     }
     document.querySelectorAll('button').forEach((b) => b.addEventListener('mouseenter', () => app.audio.hover()));
+    window.addEventListener('resize', () => this.moveNavBar());
+    setInterval(() => this.nextTip(), 7000);
+    this.nextTip();
+  }
+
+  // ------------------------------------------------------------ menu pages
+  setPage(page) {
+    this.page = page;
+    document.querySelectorAll('#mnNav [data-page]').forEach((b) => b.classList.toggle('on', b.dataset.page === page));
+    document.querySelectorAll('.mn-page').forEach((el) => el.classList.toggle('show', el.id === `pg-${page}`));
+    $('menu').dataset.page = page;
+    this.moveNavBar();
+    if (page === 'shop') this.renderShop();
+    if (page === 'inventory') this.renderInventory();
+    if (page === 'training') this.renderTraining();
+    if (page === 'play') this.renderPlayPage();
+    this.app.menuEmote = null;
+  }
+
+  moveNavBar() {
+    const on = document.querySelector('#mnNav [data-page].on');
+    const bar = $('mnNavBar');
+    if (!on || !bar) return;
+    bar.style.width = `${on.offsetWidth - 16}px`;
+    bar.style.transform = `translateX(${on.offsetLeft + 8}px)`;
+  }
+
+  nextTip() {
+    const el = $('mnTip');
+    if (!el) return;
+    this.tipI = (this.tipI + 1) % TIPS.length;
+    el.classList.remove('in'); void el.offsetWidth;
+    el.textContent = TIPS[this.tipI];
+    el.classList.add('in');
+  }
+
+  renderPlayPage() {
+    const p = Save.p;
+    // Daily reward track (7-day streak)
+    const avail = Save.dailyAvailable();
+    const streak = p.daily.streak || 0;
+    const y = new Date(Date.now() - 86400000);
+    const yKey = `${y.getFullYear()}-${y.getMonth() + 1}-${y.getDate()}`;
+    const nextDay = avail ? (p.daily.last === yKey ? Math.min(7, streak + 1) : 1) : streak;
+    let html = '';
+    for (let d = 1; d <= 7; d++) {
+      const done = avail ? d < nextDay : d <= streak;
+      const cur = avail && d === nextDay;
+      html += `<div class="dd ${done ? 'done' : ''} ${cur ? 'cur' : ''}"><span class="coin"></span><b>${40 + d * 20}</b><small>DAY ${d}</small></div>`;
+    }
+    $('dailyDays').innerHTML = html;
+    $('dailyStreak').textContent = `Day ${Math.max(1, nextDay)}`;
+    const btn = $('dailyBtn');
+    btn.disabled = !avail;
+    btn.textContent = avail ? `CLAIM +${40 + nextDay * 20}` : 'COME BACK TOMORROW';
+    // Powers strip
+    $('powerStrip').innerHTML = ITEM_KINDS.map((k) => `<span class="ps ${Save.ownsPower(k) ? '' : 'locked'}" title="${esc(ITEMS[k].name)}">${itemSvg(k)}</span>`).join('');
+    $('powerCount').textContent = `${p.powers.length}/${ITEM_KINDS.length}`;
+    const allOwned = p.powers.length >= ITEM_KINDS.length;
+    $('powerShopBtn').textContent = allOwned ? 'ALL UNLOCKED!' : 'UNLOCK MORE';
+    $('tutPromo').classList.toggle('done', !!p.tutDone);
+    $('tutBtn').textContent = p.tutDone ? 'REPLAY TUTORIAL' : 'HOW TO PLAY';
+    const cheapest = ITEM_KINDS.filter((k) => !Save.ownsPower(k)).map((k) => ITEMS[k].price).sort((a, b) => a - b)[0];
+    $('shopBadge').classList.toggle('hidden', !(cheapest !== undefined && p.coins >= cheapest));
+  }
+
+  renderTraining() {
+    const p = Save.p;
+    $('bestShoot').textContent = `BEST ${p.best.shoot || 0}`;
+    $('bestKeeper').textContent = `BEST ${p.best.keeper || 0} SAVES`;
+    $('tutTag').textContent = p.tutDone ? 'COMPLETED ✓' : '+100 COINS FIRST TIME';
+  }
+
+  showTrainingResult(r) {
+    $('trTitle').textContent = r.title;
+    $('trTitle').className = `res-title ${r.newBest ? '' : 'draw'}`;
+    $('trScore').textContent = r.score;
+    $('trBest').textContent = r.newBest ? '★ NEW PERSONAL BEST! ★' : r.best;
+    $('trCoins').textContent = `+${r.coins}`;
+    $('trAgainBtn').classList.toggle('hidden', !r.retry);
+    this.modal('trainRes', true);
   }
 
   confirm(title, text) {
@@ -96,14 +199,17 @@ export class UI {
     const p = Save.p;
     $('pcName').textContent = Save.displayName();
     $('pcLevel').textContent = `Level ${p.level}`;
-    $('pcXp').style.width = `${clamp(p.xp / Save.xpNeeded(p.level), 0, 1) * 100}%`;
-    $('pcXpText').textContent = `${p.xp}/${Save.xpNeeded(p.level)}`;
-    $('pcCoins').textContent = p.coins;
-    $('lockerCoins').textContent = p.coins;
-    const daily = Save.dailyAvailable();
-    $('dailyBtn').classList.toggle('hot', daily);
-    $('dailyBtn').classList.toggle('claimed', !daily);
-    $('dailyBtn').innerHTML = `<span class="pill-ico">🎁</span> ${daily ? 'Daily Reward' : 'Come back tomorrow'}`;
+    $('pcLvNum').textContent = p.level;
+    const f = clamp(p.xp / Save.xpNeeded(p.level), 0, 1);
+    $('pcRing').style.strokeDashoffset = String(119.4 * (1 - f));
+    $('pcXpText').textContent = `${p.xp}/${Save.xpNeeded(p.level)} XP`;
+    const coins = $('pcCoins');
+    if (coins.textContent !== String(p.coins)) { coins.textContent = p.coins; this.bump('pcCoins'); }
+    $('mnVer').textContent = `v${this.app.version}`;
+    this.renderPlayPage();
+    if (this.page === 'shop') this.renderShop();
+    if (this.page === 'inventory') this.renderInventory();
+    if (this.page === 'training') this.renderTraining();
     const u = SDK.user;
     if (u && u.profilePictureUrl) $('pcAvatar').style.backgroundImage = `url("${u.profilePictureUrl}")`;
     $('loginBtn').classList.toggle('hidden', !(SDK.available && !SDK.user && SDK.environment === 'crazygames'));
@@ -131,6 +237,8 @@ export class UI {
     $('controlsList').innerHTML = rows.map(([n, k, on, id, gap]) => `<div class="kbtn ${on ? '' : 'off'} ${gap ? 'gap' : ''}" data-k="${id}"><span>${n}</span><kbd>${esc(k)}</kbd></div>`).join('');
     $('statsKey').querySelector('kbd').textContent = L('stats');
     $('lobbyKey').querySelector('kbd').textContent = L('lobby');
+    $('unlockKey').querySelector('kbd').textContent = L('unlock');
+    $('unlockHint').textContent = `Press ${L('unlock')} any time to unlock your mouse`;
   }
 
   flashControl(id) {
@@ -196,6 +304,35 @@ export class UI {
     const stats = this.statsPinned || s.statsHeld;
     if (stats) this.renderStats(s.session, s.localId);
     $('statsPanel').classList.toggle('show', !!stats);
+  }
+
+  setRole(text, keeper) {
+    if (this.setVal('roleTag', 'text', text || '')) this.bump('roleTag');
+    this.setVal('roleTag', 'class', `role-tag ${text ? 'show' : ''} ${keeper ? 'gk' : ''}`);
+  }
+
+  setDrill(show, score, label) {
+    this.setVal('drillHud', 'class', `drill-hud ${show ? 'show' : ''}`);
+    if (!show) return;
+    if (this.setVal('drillScore', 'text', String(score))) this.bump('drillScore');
+    this.setVal('drillLabel', 'text', label);
+  }
+
+  tutorialBox(t) {
+    const el = $('tutBox');
+    if (!t) { el.classList.remove('show'); this.cache.tutKey = ''; return; }
+    el.classList.add('show');
+    const key = `${t.step}|${t.title}`;
+    if (this.cache.tutKey !== key) {
+      this.cache.tutKey = key;
+      $('tutStep').textContent = t.total ? `STEP ${t.step}/${t.total}` : 'TUTORIAL';
+      $('tutTitle').textContent = t.title;
+      $('tutText').innerHTML = t.html;
+      $('tutSkipHint').innerHTML = t.skip || '';
+      el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+    }
+    $('tutBar').style.width = `${clamp(t.progress || 0, 0, 1) * 100}%`;
+    el.classList.toggle('done', !!t.done);
   }
 
   bump(id) {
@@ -352,28 +489,13 @@ export class UI {
     el.classList.add('show');
   }
 
-  // --------------------------------------------------------------- locker
-  openLocker() {
-    this.screen('menu', false);
-    this.screen('locker', true);
-    this.app.state = 'locker';
-    this.renderLocker();
-  }
-
-  closeLocker() {
-    this.screen('locker', false);
-    this.screen('menu', true);
-    this.app.state = 'menu';
-    this.app.menuEmote = null;
-    Save.save();
-  }
-
+  // ---------------------------------------------------------- shop/inventory
   preview(cat, id) {
     const p = Save.p;
     const key = `${cat}|${id}|${cat === 'hair' ? `${p.eq.hairColor}|${p.eq.skin}` : ''}`;
     if (!this.previewCache.has(key)) {
       let c;
-      if (cat === 'jersey') c = previewJersey(id, 0);
+      if (cat === 'jersey') c = previewJersey(id, this.app.menuTeam === 1 ? 1 : 0);
       else if (cat === 'ball') c = previewBall(id);
       else if (cat === 'goalfx') c = previewGoalFx(id);
       else if (cat === 'emote') c = previewEmote(id);
@@ -387,49 +509,112 @@ export class UI {
     return c;
   }
 
-  renderLocker() {
-    const p = Save.p;
-    $('lockerCoins').textContent = p.coins;
-    const tabs = ['jersey', 'ball', 'goalfx', 'emote', 'hair'];
-    $('lockerTabs').innerHTML = tabs.map((t) => `<button class="tab ${t === this.lockerTab ? 'on' : ''}" data-tab="${t}">${TAB_LABELS[t]}</button>`).join('');
-    $('lockerTabs').querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => { this.app.audio.click(); this.lockerTab = b.dataset.tab; this.renderLocker(); }));
-    const cat = this.lockerTab;
-    const extra = $('lockerExtra');
-    if (cat === 'hair') {
-      extra.innerHTML = `<label>Skin</label>${SKIN_TONES.map((c, i) => `<div class="swatch ${p.eq.skin === i ? 'on' : ''}" data-skin="${i}" style="background:${c}"></div>`).join('')}
-        <label style="margin-left:10px">Hair</label>${HAIR_COLORS.map((c, i) => `<div class="swatch ${p.eq.hairColor === i ? 'on' : ''}" data-hc="${i}" style="background:${c}"></div>`).join('')}
-        <label style="margin-left:10px">Number</label><button class="bind-reset" id="numDown">−</button><b>${p.eq.number}</b><button class="bind-reset" id="numUp">+</button>`;
-      extra.querySelectorAll('[data-skin]').forEach((s) => s.addEventListener('click', () => { p.eq.skin = +s.dataset.skin; this.app.audio.click(); this.renderLocker(); this.app.onCosmeticsChanged(); }));
-      extra.querySelectorAll('[data-hc]').forEach((s) => s.addEventListener('click', () => { p.eq.hairColor = +s.dataset.hc; this.app.audio.click(); this.renderLocker(); this.app.onCosmeticsChanged(); }));
-      $('numDown').onclick = () => { p.eq.number = p.eq.number <= 1 ? 99 : p.eq.number - 1; this.renderLocker(); this.app.onCosmeticsChanged(); };
-      $('numUp').onclick = () => { p.eq.number = p.eq.number >= 99 ? 1 : p.eq.number + 1; this.renderLocker(); this.app.onCosmeticsChanged(); };
-    } else if (cat === 'emote') {
-      extra.innerHTML = `<label>Emote wheel (click owned emotes to add/remove, max 8):</label><div class="emote-slots">${p.eq.emotes.filter(Boolean).map((e) => `<span>${esc((CATALOG.emote.find((x) => x.id === e) || {}).name || e)}</span>`).join('')}</div>`;
-    } else extra.innerHTML = '';
+  tabs(el, list, cur, onPick) {
+    el.innerHTML = list.map(([id, label]) => `<button class="${id === cur ? 'on' : ''}" data-tab="${id}">${label}</button>`).join('');
+    el.querySelectorAll('button').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.audio.click(); onPick(b.dataset.tab); }));
+  }
 
-    const grid = $('lockerGrid');
+  renderShop() {
+    const p = Save.p;
+    const tab = this.shopTab;
+    this.tabs($('shopTabs'), [['powers', 'Powers'], ['jersey', 'Jerseys'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes'], ['hair', 'Hairstyles']], tab, (t) => { this.shopTab = t; this.renderShop(); });
+    const grid = $('shopGrid');
     grid.innerHTML = '';
-    for (const it of CATALOG[cat]) {
-      const owned = Save.owns(cat, it.id);
-      const equipped = cat === 'emote' ? p.eq.emotes.includes(it.id) : p.eq[cat] === it.id;
-      const card = document.createElement('div');
-      card.className = `card ${equipped ? 'eq' : ''}`;
-      const pv = document.createElement('div');
-      pv.className = 'pv';
-      pv.appendChild(this.preview(cat, it.id));
-      card.appendChild(pv);
-      const nm = document.createElement('div');
-      nm.className = 'nm';
-      nm.textContent = it.name;
-      card.appendChild(nm);
-      const pr = document.createElement('div');
-      if (owned) { pr.className = `pr ${equipped ? 'eqd' : 'own'}`; pr.textContent = equipped ? (cat === 'emote' ? 'ON WHEEL' : 'EQUIPPED') : (cat === 'emote' ? 'ADD' : 'EQUIP'); }
-      else { pr.className = `pr ${p.coins >= it.price ? '' : 'cant'}`; pr.innerHTML = `<span class="coin"></span>${it.price}`; }
-      card.appendChild(pr);
-      card.addEventListener('click', () => this.app.lockerClick(cat, it.id));
-      card.addEventListener('mouseenter', () => { if (cat === 'emote') this.app.menuEmote = it.id; });
-      grid.appendChild(card);
+    if (tab === 'powers') {
+      $('shopInfo').innerHTML = 'Powers come out of the glowing <b>?</b> mystery cubes in matches. Cubes only give powers you own, so unlock more to get crazier plays!';
+      for (const k of ITEM_KINDS) {
+        const it = ITEMS[k];
+        const owned = Save.ownsPower(k);
+        const card = document.createElement('div');
+        card.className = `scard power ${owned ? 'owned' : ''}`;
+        card.style.setProperty('--acc', it.color);
+        card.innerHTML = `<div class="sc-art">${itemSvg(k)}</div><div class="sc-name">${esc(it.name)}</div><div class="sc-desc">${esc(it.desc)}</div>
+          <div class="sc-foot">${owned ? '<span class="sc-owned">✓ OWNED</span>' : `<button class="sc-buy ${p.coins >= it.price ? '' : 'cant'}" data-buy="${k}"><span class="coin"></span>${it.price}</button>`}<button class="sc-try" data-try="${k}">TRY</button></div>`;
+        grid.appendChild(card);
+      }
+      grid.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.buyPower(b.dataset.buy); }));
+      grid.querySelectorAll('[data-try]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.audio.click(); this.app.startTraining('free', { power: b.dataset.try }); }));
+      return;
     }
+    $('shopInfo').innerHTML = tab === 'emote' ? 'Emotes go on your emote wheel (press <b>B</b> in a match).' : 'Unlocked items are equipped right away. Change your look any time in the Inventory.';
+    for (const it of CATALOG[tab]) grid.appendChild(this.cosmeticCard(tab, it, true));
+  }
+
+  cosmeticCard(cat, it, shop) {
+    const p = Save.p;
+    const owned = Save.owns(cat, it.id);
+    const equipped = cat === 'emote' ? p.eq.emotes.includes(it.id) : p.eq[cat] === it.id;
+    const card = document.createElement('div');
+    card.className = `scard ${equipped ? 'eq' : ''} ${owned ? 'owned' : ''}`;
+    const pv = document.createElement('div');
+    pv.className = 'sc-art pv';
+    pv.appendChild(this.preview(cat, it.id));
+    card.appendChild(pv);
+    const nm = document.createElement('div');
+    nm.className = 'sc-name';
+    nm.textContent = it.name;
+    card.appendChild(nm);
+    const foot = document.createElement('div');
+    foot.className = 'sc-foot';
+    if (owned) foot.innerHTML = equipped ? `<span class="sc-eq">${cat === 'emote' ? 'ON WHEEL' : 'EQUIPPED'}</span>` : `<span class="sc-owned">${shop ? '✓ OWNED' : (cat === 'emote' ? 'ADD TO WHEEL' : 'EQUIP')}</span>`;
+    else foot.innerHTML = `<span class="sc-buy ${p.coins >= it.price ? '' : 'cant'}"><span class="coin"></span>${it.price}</span>`;
+    card.appendChild(foot);
+    card.addEventListener('click', () => this.app.lockerClick(cat, it.id));
+    card.addEventListener('mouseenter', () => { if (cat === 'emote') { this.app.menuEmote = it.id; this.app.renderer.resetMenuEmote(); } });
+    return card;
+  }
+
+  renderInventory() {
+    const p = Save.p;
+    const tab = this.invTab;
+    this.tabs($('invTabs'), [['powers', 'Powers'], ['jersey', 'Jerseys'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes'], ['hair', 'Style']], tab, (t) => { this.invTab = t; this.renderInventory(); });
+    const grid = $('invGrid');
+    const extra = $('invExtra');
+    grid.innerHTML = '';
+    if (tab === 'powers') {
+      extra.innerHTML = `<span>Your mystery-cube pool: <b>${Save.activePowers().length}</b> of <b>${p.powers.length}</b> owned powers switched on. Switch one off to stop getting it.</span>`;
+      for (const k of p.powers) {
+        const it = ITEMS[k];
+        const on = Save.powerOn(k);
+        const card = document.createElement('div');
+        card.className = `scard power owned ${on ? 'eq' : 'off'}`;
+        card.style.setProperty('--acc', it.color);
+        card.innerHTML = `<div class="sc-art">${itemSvg(k)}</div><div class="sc-name">${esc(it.name)}</div><div class="sc-desc">${esc(it.desc)}</div><div class="sc-foot"><button class="toggle ${on ? 'on' : ''}" data-pw="${k}"></button><span class="sc-state">${on ? 'IN CUBES' : 'OFF'}</span></div>`;
+        grid.appendChild(card);
+      }
+      grid.querySelectorAll('[data-pw]').forEach((b) => b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.app.audio.click();
+        if (!Save.togglePower(b.dataset.pw)) this.globalToast('Keep at least one power switched on!');
+        this.renderInventory();
+      }));
+      const locked = ITEM_KINDS.filter((k) => !Save.ownsPower(k)).length;
+      if (locked) {
+        const more = document.createElement('div');
+        more.className = 'scard more';
+        more.innerHTML = `<div class="sc-art">🔒</div><div class="sc-name">${locked} more in the Shop</div><div class="sc-foot"><span class="sc-owned">VISIT SHOP ›</span></div>`;
+        more.addEventListener('click', () => { this.app.audio.click(); this.shopTab = 'powers'; this.setPage('shop'); });
+        grid.appendChild(more);
+      }
+      return;
+    }
+    if (tab === 'hair') {
+      extra.innerHTML = `<label>Skin</label>${SKIN_TONES.map((c, i) => `<div class="swatch ${p.eq.skin === i ? 'on' : ''}" data-skin="${i}" style="background:${c}"></div>`).join('')}
+        <label>Hair</label>${HAIR_COLORS.map((c, i) => `<div class="swatch ${p.eq.hairColor === i ? 'on' : ''}" data-hc="${i}" style="background:${c}"></div>`).join('')}
+        <label>Number</label><button class="num-btn" id="numDown">−</button><b class="num">${p.eq.number}</b><button class="num-btn" id="numUp">+</button>`;
+      extra.querySelectorAll('[data-skin]').forEach((el) => el.addEventListener('click', () => { p.eq.skin = +el.dataset.skin; this.app.audio.click(); this.renderInventory(); this.app.onCosmeticsChanged(); }));
+      extra.querySelectorAll('[data-hc]').forEach((el) => el.addEventListener('click', () => { p.eq.hairColor = +el.dataset.hc; this.app.audio.click(); this.renderInventory(); this.app.onCosmeticsChanged(); }));
+      $('numDown').onclick = () => { p.eq.number = p.eq.number <= 1 ? 99 : p.eq.number - 1; this.renderInventory(); this.app.onCosmeticsChanged(); };
+      $('numUp').onclick = () => { p.eq.number = p.eq.number >= 99 ? 1 : p.eq.number + 1; this.renderInventory(); this.app.onCosmeticsChanged(); };
+    } else if (tab === 'emote') {
+      extra.innerHTML = `<span>Emote wheel (max 8): ${p.eq.emotes.filter(Boolean).map((e) => `<em>${esc((CATALOG.emote.find((x) => x.id === e) || {}).name || e)}</em>`).join('') || 'empty'}</span>`;
+    } else extra.innerHTML = '';
+    for (const it of CATALOG[tab]) if (Save.owns(tab, it.id)) grid.appendChild(this.cosmeticCard(tab, it, false));
+  }
+
+  renderLocker() {
+    if (this.page === 'shop') this.renderShop();
+    else this.renderInventory();
   }
 
   // ------------------------------------------------------------- settings
@@ -473,10 +658,12 @@ export class UI {
       ${toggle('showHints', 'Show Hints', 'Display tips on how to play')}
       ${toggle('nameTags', 'Show Name Tags', 'Names above other players')}
       ${toggle('showStats', 'Show Stats', 'Display framerate and ping')}
-      <div class="set-sec">Gameplay Keybinds</div>
+      <div class="set-sec">Mouse</div>
+      ${bindRow('unlock')}
+      <div class="set-sec" data-sec="keys">Gameplay Keybinds</div>
       ${['kick', 'pass', 'flick', 'tackle', 'lob', 'request', 'dribble', 'sprint', 'item1', 'item2'].map(bindRow).join('')}
       <div class="set-sec">Movement & UI Keybinds</div>
-      ${['forward', 'back', 'left', 'right', 'stats', 'lobby', 'chat', 'emote'].map(bindRow).join('')}
+      ${['forward', 'back', 'left', 'right', 'stats', 'lobby', 'chat', 'emote', 'unlock'].map(bindRow).join('')}
       <div class="set-row"><div class="lbl"><b>Reset all keybinds</b><span>Restore the default controls</span></div><button class="bind-reset" id="resetBinds">Reset</button></div>
       <div class="set-sec" style="text-align:center">Crazy Soccer v${app.version}</div>`;
     body.querySelectorAll('[data-tog]').forEach((b) => b.addEventListener('click', () => { const k = b.dataset.tog; s[k] = !s[k]; app.audio.click(); this.renderSettings(); app.applySettings(); }));

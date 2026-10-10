@@ -12,40 +12,109 @@
   <body>
     <canvas id="game"></canvas>
 
-    <!-- ============================ LOADING ============================ -->
-
-
     <!-- ============================== MENU ============================== -->
-    <div id="menu" class="screen">
-      <div class="menu-left">
-        <div class="logo"><span class="l1">CRAZY</span><span class="l2">SOCCER</span></div>
-        <div class="menu-sub">LOBBY · Pick your team</div>
-        <div class="team-pick">
-          <button id="joinRedBtn" class="btn btn-team red"><span class="tp-sq"></span>JOIN RED</button>
-          <button id="joinBlueBtn" class="btn btn-team blue"><span class="tp-sq"></span>JOIN BLUE</button>
-        </div>
-        <div class="menu-row">
-          <button id="practiceBtn" class="btn btn-sec">PRACTICE</button>
-          <button id="privateBtn" class="btn btn-sec">PRIVATE MATCH</button>
-        </div>
-        <div id="menuNote" class="menu-note"></div>
-      </div>
-      <div class="menu-bottom">
-        <button id="shopBtn" class="pill-btn"><span class="pill-ico">👕</span> Locker</button>
-        <button id="settingsBtn" class="pill-btn"><span class="pill-ico">⚙</span> Settings</button>
-        <button id="dailyBtn" class="pill-btn hot"><span class="pill-ico">🎁</span> Daily Reward</button>
-      </div>
-      <div id="profileCard" class="profile-card">
-        <div class="pc-row">
-          <div id="pcAvatar" class="pc-avatar"></div>
-          <div class="pc-info">
-            <div id="pcName" class="pc-name">Player</div>
-            <div class="pc-level"><span id="pcLevel">Level 1</span><div class="xp"><div id="pcXp"></div></div><span id="pcXpText" class="xp-text"></span></div>
+    <div id="menu" class="screen menu">
+      <div class="mn-shade"></div>
+      <div class="mn-glow g1"></div><div class="mn-glow g2"></div>
+      <header class="mn-top">
+        <div class="mn-brand"><div class="logo sm"><span class="l1">CRAZY</span><span class="l2">SOCCER</span></div></div>
+        <nav id="mnNav" class="mn-nav">
+          <button data-page="play" class="on"><span>PLAY</span></button>
+          <button data-page="training"><span>TRAINING</span></button>
+          <button data-page="shop"><span>SHOP</span><em id="shopBadge" class="nav-badge hidden">NEW</em></button>
+          <button data-page="inventory"><span>INVENTORY</span></button>
+          <i id="mnNavBar" class="mn-nav-bar"></i>
+        </nav>
+        <div class="mn-right">
+          <div class="mn-wallet" title="Coins"><span class="coin"></span><b id="pcCoins">0</b></div>
+          <button id="settingsBtn" class="mn-icon" title="Settings"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/></svg></button>
+          <div id="profileCard" class="mn-profile">
+            <div class="pc-ring"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" class="track"/><circle id="pcRing" cx="22" cy="22" r="19" class="fill"/></svg><div id="pcAvatar" class="pc-avatar"></div><span id="pcLvNum" class="pc-lv">1</span></div>
+            <div class="pc-info">
+              <div id="pcName" class="pc-name">Player</div>
+              <div class="pc-sub"><span id="pcLevel">Level 1</span> · <span id="pcXpText" class="xp-text"></span></div>
+              <button id="loginBtn" class="mini-btn hidden">Log in to save progress</button>
+            </div>
           </div>
         </div>
-        <div class="pc-coins"><span class="coin"></span><span id="pcCoins">0</span></div>
-        <button id="loginBtn" class="mini-btn hidden">Log in to save progress</button>
-      </div>
+      </header>
+
+      <!-- PLAY -->
+      <section id="pg-play" class="mn-page show">
+        <div class="mn-col mn-left">
+          <div class="mn-kicker"><i class="live-dot"></i>QUICK MATCH · 4v4 · ONLINE</div>
+          <h1 class="mn-title">PICK YOUR SIDE</h1>
+          <div class="team-cards">
+            <button id="joinRedBtn" class="team-card red">
+              <span class="tc-shine"></span>
+              <span class="tc-crest"><svg viewBox="0 0 64 72"><path d="M32 3 58 12v22c0 17-11 29-26 35C17 63 6 51 6 34V12z" class="cr-b"/><path d="M32 9 52 16v18c0 13-8 23-20 28-12-5-20-15-20-28V16z" class="cr-f"/><circle cx="32" cy="35" r="11" fill="#fff" stroke="#1b1530" stroke-width="3"/><path d="M32 27l5 4-2 6h-6l-2-6z" fill="#1b1530"/></svg></span>
+              <span class="tc-text"><b>RED</b><small>Join the Red team</small></span>
+              <span class="tc-cta">PLAY<svg viewBox="0 0 10 12"><path d="M1 1l8 5-8 5z"/></svg></span>
+            </button>
+            <button id="joinBlueBtn" class="team-card blue">
+              <span class="tc-shine"></span>
+              <span class="tc-crest"><svg viewBox="0 0 64 72"><path d="M32 3 58 12v22c0 17-11 29-26 35C17 63 6 51 6 34V12z" class="cr-b"/><path d="M32 9 52 16v18c0 13-8 23-20 28-12-5-20-15-20-28V16z" class="cr-f"/><circle cx="32" cy="35" r="11" fill="#fff" stroke="#1b1530" stroke-width="3"/><path d="M32 27l5 4-2 6h-6l-2-6z" fill="#1b1530"/></svg></span>
+              <span class="tc-text"><b>BLUE</b><small>Join the Blue team</small></span>
+              <span class="tc-cta">PLAY<svg viewBox="0 0 10 12"><path d="M1 1l8 5-8 5z"/></svg></span>
+            </button>
+          </div>
+          <div class="mn-chips"><span>6:00 MATCHES</span><span>POWER-UPS ON</span><span>BOTS FILL EMPTY SPOTS</span></div>
+          <div class="mn-actions">
+            <button id="privateBtn" class="glass-btn"><i class="gi">🔒</i><span><b>PRIVATE MATCH</b><small>Invite friends with a code</small></span></button>
+            <button id="botsBtn" class="glass-btn"><i class="gi">🤖</i><span><b>VS BOTS</b><small>Offline 4v4 match</small></span></button>
+          </div>
+          <div id="menuNote" class="menu-note"></div>
+        </div>
+        <div class="mn-col mn-rightcol">
+          <div class="mn-card daily">
+            <div class="mc-head"><span>DAILY REWARD</span><em id="dailyStreak">Day 1</em></div>
+            <div id="dailyDays" class="daily-days"></div>
+            <button id="dailyBtn" class="btn btn-gold mc-btn">CLAIM</button>
+          </div>
+          <div class="mn-card promo" id="tutPromo">
+            <div class="mc-head"><span>NEW HERE?</span></div>
+            <p>Learn every move in a quick interactive tutorial.</p>
+            <button id="tutBtn" class="btn btn-play mc-btn">HOW TO PLAY</button>
+          </div>
+          <div class="mn-card powers">
+            <div class="mc-head"><span>YOUR POWERS</span><em id="powerCount">4/10</em></div>
+            <div id="powerStrip" class="power-strip"></div>
+            <button id="powerShopBtn" class="btn btn-sec mc-btn">UNLOCK MORE</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- TRAINING -->
+      <section id="pg-training" class="mn-page">
+        <div class="mn-kicker">OFFLINE · NO TIMER PRESSURE</div>
+        <h1 class="mn-title">TRAINING GROUND</h1>
+        <div class="mode-grid">
+          <button class="mode-card c1" data-train="tutorial"><span class="mc-art">🎓</span><b>TUTORIAL</b><small>Learn moving, shooting, aiming, passing, tackling, powers and keeping step by step.</small><em id="tutTag" class="mc-tag">+100 COINS FIRST TIME</em></button>
+          <button class="mode-card c2" data-train="free"><span class="mc-art">⚽</span><b>FREE PRACTICE</b><small>Shoot against a keeper. Mystery cubes spawn fast so you can test your powers.</small><em class="mc-tag">NO LIMITS</em></button>
+          <button class="mode-card c3" data-train="shoot"><span class="mc-art">🎯</span><b>SHOOTING CHALLENGE</b><small>Hit as many targets as you can in 60 seconds. Use the crosshair to aim high or low.</small><em id="bestShoot" class="mc-tag">BEST 0</em></button>
+          <button class="mode-card c4" data-train="keeper"><span class="mc-art">🧤</span><b>GOALKEEPER CHALLENGE</b><small>You're in goal. Dive (tackle key) and catch to stop 12 shots.</small><em id="bestKeeper" class="mc-tag">BEST 0</em></button>
+        </div>
+      </section>
+
+      <!-- SHOP -->
+      <section id="pg-shop" class="mn-page">
+        <div class="shop-wrap">
+          <div class="shop-head"><div><div class="mn-kicker">SPEND YOUR COINS</div><h1 class="mn-title sm">SHOP</h1></div><div id="shopTabs" class="seg-tabs"></div></div>
+          <div id="shopInfo" class="shop-info"></div>
+          <div id="shopGrid" class="shop-grid"></div>
+        </div>
+      </section>
+
+      <!-- INVENTORY -->
+      <section id="pg-inventory" class="mn-page">
+        <div class="shop-wrap">
+          <div class="shop-head"><div><div class="mn-kicker">YOUR STUFF</div><h1 class="mn-title sm">INVENTORY</h1></div><div id="invTabs" class="seg-tabs"></div></div>
+          <div id="invExtra" class="inv-extra"></div>
+          <div id="invGrid" class="shop-grid"></div>
+        </div>
+      </section>
+
+      <footer class="mn-bottom"><div class="mn-tip"><b>TIP</b><span id="mnTip"></span></div><span id="mnVer" class="mn-ver"></span></footer>
     </div>
 
     <!-- ============================== HUD ============================== -->
@@ -57,6 +126,8 @@
           <span id="youTag" class="you">YOU</span>
         </div>
         <div id="timer" class="timer"><span class="clock">⏱</span><span id="timerText">6:00</span></div>
+        <div id="drillHud" class="drill-hud"><b id="drillScore">0</b><span id="drillLabel">POINTS</span></div>
+        <div id="roleTag" class="role-tag"></div>
         <div id="goalPop" class="goal-pop"><span class="gp-tag">GOAL!</span><div class="gp-card"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span><span id="gpSq" class="sq red"></span><span id="gpName">Player</span></div><div id="gpAssist" class="gp-assist"></div></div>
       </div>
       <div id="recOverlay" class="rec-overlay"><div class="lb top"></div><div class="lb bottom"></div><div class="rec-frame"><span class="rc tl"></span><span class="rc tr"></span><span class="rc bl"></span><span class="rc br"></span><div class="rec-dot"><i></i>REC</div></div></div>
@@ -73,6 +144,7 @@
       <div class="hud-bl">
         <div class="kbtn" id="statsKey"><span>Stats</span><kbd>TAB</kbd></div>
         <div class="kbtn" id="lobbyKey"><span>Return to Lobby</span><kbd>L</kbd></div>
+        <div class="kbtn" id="unlockKey"><span>Unlock Mouse</span><kbd>M</kbd></div>
       </div>
       <div class="hud-bc">
         <div id="banners" class="banners"></div>
@@ -87,7 +159,8 @@
       <div id="hint" class="hint"></div>
 
       <div id="netStats" class="net-stats"></div>
-      <div id="clickToPlay" class="click-to-play"><div><b>Click to play</b><span>Mouse aims your camera &amp; shots</span></div></div>
+      <div id="clickToPlay" class="click-to-play"><div><b>Click to play</b><span>Mouse aims your camera &amp; shots</span><span id="unlockHint" class="ctp-sub"></span></div></div>
+      <div id="tutBox" class="tut-box"><div class="tb-top"><span id="tutStep" class="tb-step">STEP 1/10</span><span class="tb-skip" id="tutSkipHint"></span></div><div id="tutTitle" class="tb-title"></div><div id="tutText" class="tb-text"></div><div class="tb-bar"><i id="tutBar"></i></div></div>
       <div id="roomPanel" class="room-panel"></div>
     </div>
 
@@ -107,6 +180,7 @@
         <div class="panel-body col">
           <button id="resumeBtn" class="btn btn-play">BACK TO GAME</button>
           <button id="pauseSettingsBtn" class="btn btn-sec">SETTINGS</button>
+          <button id="pauseControlsBtn" class="btn btn-sec">CONTROLS</button>
           <button id="inviteBtn2" class="btn btn-sec hidden">INVITE FRIENDS</button>
           <button id="leaveBtn" class="btn btn-danger">RETURN TO LOBBY</button>
         </div>
@@ -133,16 +207,16 @@
       </div>
     </div>
 
-    <!-- Locker / shop -->
-    <div id="locker" class="screen locker">
-      <div class="panel locker-panel">
-        <div class="panel-head">
-          <div id="lockerTabs" class="tabs"></div>
-          <div class="head-right"><span class="coin"></span><span id="lockerCoins">0</span><button class="x-btn" data-close="locker">✕</button></div>
-        </div>
-        <div class="panel-body">
-          <div id="lockerExtra" class="locker-extra"></div>
-          <div id="lockerGrid" class="grid"></div>
+    <!-- Training results -->
+    <div id="trainRes" class="modal">
+      <div class="panel results">
+        <div id="trTitle" class="res-title">CHALLENGE OVER</div>
+        <div id="trScore" class="res-score"></div>
+        <div id="trBest" class="res-mvp"></div>
+        <div class="res-rewards"><div class="rw"><span class="coin"></span><b id="trCoins">+0</b></div></div>
+        <div class="row">
+          <button id="trAgainBtn" class="btn btn-play">TRY AGAIN</button>
+          <button id="trLobbyBtn" class="btn btn-sec">BACK TO MENU</button>
         </div>
       </div>
     </div>

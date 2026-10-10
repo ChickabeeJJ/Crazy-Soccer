@@ -45,6 +45,11 @@ export class CameraRig {
     const c = this.cam.position;
     c.set(this.smoothTarget.x - f.x * d, this.smoothTarget.y - f.y * d, this.smoothTarget.z - f.z * d);
     if (c.y < 0.6) c.y = 0.6;
+    // Don't let the camera end up inside a goal net: rise smoothly over the crossbar instead
+    const ax = Math.abs(c.x), hw = FIELD.goalW / 2 + 1.2;
+    const inGoal = ax > FIELD.halfL - 0.6 && ax < FIELD.wallX + 8 && Math.abs(c.z) < hw;
+    this.netLift = damp(this.netLift || 0, inGoal ? 1 : 0, 6, dt);
+    if (this.netLift > 0.001) c.y = Math.max(c.y, lerp(c.y, FIELD.goalH + 1.6, this.netLift));
     this.lookAt.copy(this.smoothTarget).addScaledVector(f, 4);
     this.cam.lookAt(this.lookAt);
     this.applyShake(dt);
@@ -80,13 +85,17 @@ export class CameraRig {
     this.cam.lookAt(cx, cy + lookY, cz);
   }
 
-  showcase(dt, cx, cz, faceYaw, sway) {
+  // shift: how far the hero sits off-centre (0 = middle of the screen, >0 = towards the right)
+  showcase(dt, cx, cz, faceYaw, sway, shift = 2.1) {
     this.mode = 'menu';
     this.time += dt;
+    this.shift = this.shift === undefined ? shift : damp(this.shift, shift, 5, dt);
     const a = faceYaw + Math.sin(this.time * 0.25) * 0.35 + sway;
-    const r = 6.4;
+    const r = 6.4 + Math.abs(this.shift) * 0.25;
+    const aspect = this.cam.aspect || 1.6;
+    const sh = aspect < 1 ? 0 : this.shift;
     this.cam.position.set(cx + Math.sin(a) * r, 2.6, cz + Math.cos(a) * r);
-    this.cam.lookAt(cx - Math.sin(a + Math.PI / 2) * 2.1, 1.75, cz - Math.cos(a + Math.PI / 2) * 2.1);
+    this.cam.lookAt(cx - Math.sin(a + Math.PI / 2) * sh, 1.75, cz - Math.cos(a + Math.PI / 2) * sh);
   }
 
   applyShake(dt) {

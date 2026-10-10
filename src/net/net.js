@@ -4,16 +4,8 @@
 import { Peer } from 'peerjs';
 import { NET, GAME_VERSION } from '../config.js';
 
-const ICE = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' },
-  ],
-};
-
 function peerOptions() {
-  const o = { debug: 0, config: ICE, pingInterval: 4000 };
+  const o = { debug: 0, config: { iceServers: NET.iceServers, iceCandidatePoolSize: 2 }, pingInterval: 4000 };
   if (NET.peerServer) Object.assign(o, NET.peerServer);
   // Developer override for testing against a local signalling server: ?peerserver=localhost:9000
   try {
@@ -236,7 +228,12 @@ export class Net {
         if (!e || e.type !== 'unavailable-id') throw e || new Error('network'); // signalling unreachable
       }
       await this.ensureClientPeer();
-      const res = await this.tryJoin(rid, hello);
+      let res = await this.tryJoin(rid, hello);
+      // A live room that was slow to answer (busy host / slow network) gets one more try
+      if (!res.ok && res.why === 'timeout') {
+        if (onStatus) onStatus('Connecting to the match…');
+        res = await this.tryJoin(rid, hello);
+      }
       if (res.ok) {
         this.attachHost(res.conn);
         this.roomId = res.room;

@@ -1,7 +1,7 @@
 // Authoritative game world. Runs on the host (or offline) and produces snapshots + events.
 import { FIELD, PHYS, PLAYER, KICK, MATCH, ITEM_KINDS } from '../config.js';
 import { createPlayer, movePlayer, separatePlayers, canAct, setAnim, stunPlayer } from './player.js';
-import { createBall, stepBall, predictCross } from './ball.js';
+import { createBall, stepBall, predictCross, updateGoalLine } from './ball.js';
 import { clamp, len2, rand, wrapAngle, r2 } from '../util/math.js';
 import { botName, randomCosmetics } from '../cosmetics.js';
 import { BotBrain } from './bots.js';
@@ -46,14 +46,19 @@ export class World {
     this.lastGoal = null;
     this.result = null;
     this.brains = new Map();
+    this.hooks = {}; // training drills: { kickoff(world) }
+    this.itemPool = opts.itemPool || null; // practice override (e.g. "try" a single power)
+    this.noAutoItems = false; // drills without mystery cubes
+    this.practiceGoalT = 1.6;
   }
 
   emit(ev) { this.events.push(ev); }
 
   // ---------------------------------------------------------------- roster
-  addPlayer({ id, name, team, isBot = false, remote = false, cos }) {
+  addPlayer({ id, name, team, isBot = false, remote = false, cos, powers }) {
     const slot = this.freeSlot(team);
     const p = createPlayer({ id, name, team, slot, isBot, remote, cos });
+    p.powers = sanitizePowers(powers);
     this.players.push(p);
     this.byId.set(id, p);
     if (isBot) this.brains.set(id, new BotBrain(p, this));
@@ -91,20 +96,22 @@ export class World {
   }
 
   // Human joins: replace a bot on that team (keeps its slot/position) or add a new player.
-  joinHuman({ id, name, cos, remote, team }) {
+  joinHuman({ id, name, cos, remote, team, powers }) {
     if (team === undefined) team = this.teamForHuman();
     const bot = this.players.filter((p) => p.team === team && p.isBot).sort((a, b) => a.slot - b.slot)[0];
     if (bot) {
       const slot = bot.slot;
       const pos = { x: bot.x, z: bot.z, face: bot.face };
+      const keeper = bot.keeper, wasIn = bot.wasInBox;
       this.removePlayer(bot.id);
-      const p = this.addPlayer({ id, name, team, remote, cos });
+      const p = this.addPlayer({ id, name, team, remote, cos, powers });
       p.slot = slot;
+      p.keeper = keeper; p.wasInBox = wasIn;
       if (this.phase === 'kickoff') this.placeAtFormation(p);
       else { p.x = pos.x; p.z = pos.z; p.face = pos.face; }
       return p;
     }
-    return this.addPlayer({ id, name, team, remote, cos });
+    return this.addPlayer({ id, name, team, remote, cos, powers });
   }
 
   fillBots() {
@@ -127,12 +134,12 @@ export class World {
   leaveHuman(id) {
     const p = this.byId.get(id);
     if (!p) return;
-    const { team, slot, x, z, face } = p;
+    const { team, slot, x, z, face, keeper, wasInBox } = p;
     this.removePlayer(id);
     if (this.mode === 'practice') return;
     const bid = nextBotId++;
     const bot = this.addPlayer({ id: bid, name: botName(bid), team, isBot: true, cos: randomCosmetics() });
-    bot.slot = slot; bot.x = x; bot.z = z; bot.face = face;
+    bot.slot = slot; bot.x = x; bot.z = z; bot.face = face; bot.keeper = keeper; bot.wasInBox = wasInBox;
   }
 
   // ------------------------------------------------------------- formation
@@ -166,6 +173,7 @@ export class World {
 
   resetKickoff(kickTeam) {
     this.kickTeam = kickTeam;
+    if (this.mode !== 'practice') this.shufflePositions();
     for (const p of this.players) this.placeAtFormation(p);
     const b = this.ball;
     Object.assign(b, createBall());
@@ -173,7 +181,47 @@ export class World {
     this.projs.length = 0;
     this.walls.length = 0;
     this.puddles.length = 0;
-    this.emit({ e: 'reset', pos: this.players.map((p) => [p.id, r2(p.x), r2(p.z), r2(p.face)]) });
+    if (this.hooks.kickoff) this.hooks.kickoff(this);
+    for (const p of this.players) p.wasInBox = this.inOwnBox(p);
+    this.rosterVer = (this.rosterVer || 0) + 1;
+    this.emit({ e: 'reset', pos: this.players.map((p) => [p.id, r2(p.x), r2(p.z), r2(p.face), p.slot, p.keeper ? 1 : 0]) });
+  }
+
+  // Every kickoff (start + after each goal) everyone gets a random position on their team.
+  // Whoever lands on the goalkeeper spot starts the play as the keeper.
+  shufflePositions() {
+    for (const team of [0, 1]) {
+      const mem = this.players.filter((p) => p.team === team);
+      if (mem.length > 4) continue;
+      const slots = [0, 1, 2, 3];
+      for (let i = slots.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [slots[i], slots[j]] = [slots[j], slots[i]]; }
+      mem.forEach((p, i) => { p.slot = slots[i]; p.keeper = slots[i] === 3; });
+    }
+  }
+
+  // Keeper status follows the penalty box: a keeper who walks out loses it, and the NEXT
+  // teammate to walk into the box becomes the new keeper.
+  updateKeepers() {
+    for (const team of [0, 1]) {
+      const mem = this.players.filter((p) => p.team === team && !p.left);
+      let keeper = mem.find((p) => p.keeper) || null;
+      const inBox = new Map(mem.map((p) => [p.id, this.inOwnBox(p, p === keeper ? 0.6 : 0)]));
+      if (keeper && !inBox.get(keeper.id)) {
+        keeper.keeper = false;
+        this.emit({ e: 'keeper', team, id: -1, prev: keeper.id });
+        keeper = null;
+        this.rosterVer = (this.rosterVer || 0) + 1;
+      }
+      if (!keeper) {
+        const next = mem.find((p) => inBox.get(p.id) && !p.wasInBox && p.stun <= 0);
+        if (next) {
+          next.keeper = true;
+          this.emit({ e: 'keeper', team, id: next.id });
+          this.rosterVer = (this.rosterVer || 0) + 1;
+        }
+      }
+      for (const p of mem) p.wasInBox = inBox.get(p.id);
+    }
   }
 
   setPhase(ph, t) {
@@ -208,17 +256,15 @@ export class World {
   // --------------------------------------------------------------- actions
   hasBall(p) { return this.ball.owner === p.id; }
 
-  // Each team's slot-4 player is the goalkeeper (white kit, can dive, can't be tackled).
-  isKeeper(p) {
-    if (this.mode === 'practice') return !!p.isBot;
-    return p.slot % 4 === 3;
-  }
+  // Goalkeepers (white kit) are the only players who can dive, can't be tackled and can't
+  // have the ball stolen. The status is dynamic: see updateKeepers().
+  isKeeper(p) { return !!p.keeper; }
 
-  keeperInBox(p) { return this.isKeeper(p) && this.inOwnBox(p); }
+  keeperInBox(p) { return !!p.keeper && this.inOwnBox(p, 0.6); }
 
-  inOwnBox(p) {
+  inOwnBox(p, tol = 0) {
     const s = p.team === 0 ? -1 : 1;
-    return p.x * s > FIELD.halfL - FIELD.boxL && Math.abs(p.z) < FIELD.boxW / 2;
+    return p.x * s > FIELD.halfL - FIELD.boxL - tol && Math.abs(p.z) < FIELD.boxW / 2 + tol;
   }
 
   ballOffset(p) {
@@ -241,7 +287,7 @@ export class World {
 
   // Points + "+N" toast for the player who earned them
   award(p, label, pts, stat) {
-    if (!p || this.mode === 'practice' && label !== 'Goal' && label !== 'Shot On Goal' && label !== 'Volley' && label !== 'Direct Hit') return;
+    if (!p || this.quietAwards || this.mode === 'practice' && label !== 'Goal' && label !== 'Shot On Goal' && label !== 'Volley' && label !== 'Direct Hit') return;
     if (stat) p.stats[stat] += 1;
     p.stats.points += pts;
     this.emit({ e: 'toast', id: p.id, text: label, pts });
@@ -486,6 +532,8 @@ export class World {
 
   hitPlayer(by, q, kind, dur, kbx, kbz, toast, pts = 10) {
     if (q.fx.shield > 0) { this.emit({ e: 'shieldblock', id: q.id }); return false; }
+    // A goalkeeper holding the ball can't be knocked off it
+    if (q.keeper && this.ball.owner === q.id) { this.emit({ e: 'shieldblock', id: q.id }); return false; }
     if (q.immune > 0 && kind !== 'frozen') return false;
     if (this.ball.owner === q.id) this.loseBall(q, kbx * 0.6, kbz * 0.6, 3);
     stunPlayer(q, kind, dur);
@@ -541,7 +589,7 @@ export class World {
         setAnim(p, 'throw', 0.32);
         const owner = b.owner >= 0 ? this.byId.get(b.owner) : null;
         const d = len2(b.x - p.x, b.z - p.z);
-        if (d < 34 && (!owner || owner.team !== p.team) && b.owner !== p.id) {
+        if (d < 34 && (!owner || (owner.team !== p.team && !owner.keeper)) && b.owner !== p.id) {
           if (owner) { this.loseBall(owner, 0, 0, 0); if (owner.fx.shield <= 0) setAnim(owner, 'hit', 0.3); }
           b.grapple = p.id; b.grappleT = 0.6; b.owner = -1; b.fire = false; b.inNet = 0;
           this.emit({ e: 'grapple', id: p.id, x: r2(b.x), y: r2(b.y), z: r2(b.z) });
@@ -614,8 +662,8 @@ export class World {
     }
 
     const frozen = this.phase === 'kickoff';
+    if (this.mode !== 'practice' && (this.phase === 'play' || this.phase === 'warmup')) this.updateKeepers();
     for (const p of this.players) {
-      p.keeper = this.isKeeper(p);
       if (p.remote) { this.tickRemote(p, dt); continue; }
       movePlayer(p, dt, b.owner === p.id, frozen);
     }
@@ -629,11 +677,13 @@ export class World {
       else {
         const off = this.ballOffset(o);
         const sp = len2(o.vx, o.vz);
+        const px = b.x, py = b.y, pz = b.z;
         b.x = off.x; b.z = off.z;
         b.y = PHYS.ballR + o.y + (sp > 1 ? Math.abs(Math.sin(this.time * 9)) * 0.12 : 0);
         b.vx = o.vx; b.vz = o.vz; b.vy = 0;
         b.spin += sp * dt / PHYS.ballR;
-        b.inNet = 0;
+        // Dribbling the ball over the line through the mouth scores too
+        updateGoalLine(b, px, py, pz);
       }
     } else if (b.grapple >= 0) {
       const g = this.byId.get(b.grapple);
@@ -667,6 +717,7 @@ export class World {
 
     // Goal check
     if (this.phase === 'play' && b.inNet !== 0 && Math.abs(b.x) > FIELD.halfL + PHYS.ballR * 1.2) {
+      if (b.owner >= 0) { const o = this.byId.get(b.owner); b.owner = -1; if (o) this.touch(o); }
       this.scoreGoal(b.inNet > 0 ? 0 : 1);
     }
   }
@@ -777,7 +828,7 @@ export class World {
       const d = len2(dx, dz);
       const rel = b.y - p.y;
       const diving = p.anim === 'dive';
-      const keeper = this.keeperInBox(p) && this.mode !== 'practice';
+      const keeper = this.keeperInBox(p) && (this.mode !== 'practice' || !p.isBot);
       const airborne = p.y > 0.25 && p.fx.jet <= 0;
       const reach = diving ? 2.4 : p.anim === 'slide' ? 1.95 : airborne ? 1.8 : PLAYER.pickupReach;
       const maxH = diving ? 3.6 : keeper ? 2.9 : airborne ? 2.2 : 1.55;
@@ -816,7 +867,7 @@ export class World {
     // Spawn item boxes
     const practice = this.mode === 'practice';
     const maxItems = practice ? MATCH.practiceMaxItems : MATCH.maxItems;
-    if (this.phase === 'play' || this.phase === 'warmup' || practice) {
+    if (!this.noAutoItems && (this.phase === 'play' || this.phase === 'warmup' || practice)) {
       this.nextItemT -= dt;
       if (this.nextItemT <= 0) {
         const iv = practice ? MATCH.practiceItemInterval : MATCH.itemInterval;
@@ -841,7 +892,8 @@ export class World {
         if (len2(p.x - box.x, p.z - box.z) < 1.9 && p.y < 2) {
           const slot = p.items[0] ? (p.items[1] ? -1 : 1) : 0;
           if (slot < 0) continue;
-          const kind = ITEM_KINDS[Math.floor(Math.random() * ITEM_KINDS.length)];
+          const pool = box.k ? [box.k] : this.itemPool || (p.isBot || !p.powers || !p.powers.length ? ITEM_KINDS : p.powers);
+          const kind = pool[Math.floor(Math.random() * pool.length)];
           p.items[slot] = kind;
           this.boxes.splice(i, 1);
           this.emit({ e: 'pickup', id: p.id, k: kind, x: r2(box.x), z: r2(box.z) });
@@ -982,7 +1034,7 @@ export class World {
     } else own = true;
     const fx = scorer && !own ? scorer.cos.goalfx : 'confetti';
     this.lastGoal = { team, scorer: scorer ? scorer.id : -1, assist: assist ? assist.id : -1, own, t: this.time };
-    this.emit({ e: 'goal', team, scorer: scorer ? scorer.id : -1, assist: assist ? assist.id : -1, own: own ? 1 : 0, fx, x: r2(b.x), y: r2(b.y), z: r2(b.z) });
+    this.emit({ e: 'goal', team, scorer: scorer ? scorer.id : -1, assist: assist ? assist.id : -1, own: own ? 1 : 0, fx, x: r2(b.x), y: r2(b.y), z: r2(b.z), cz: r2(b.crossZ ?? b.z), cy: r2(b.crossY ?? b.y) });
     this.emit({ e: 'whistle', k: 'goal' });
     for (const p of this.players) {
       if (p.stun > 0) continue;
@@ -991,7 +1043,7 @@ export class World {
       else setAnim(p, 'sad', MATCH.goalTime);
       p.charging = false;
     }
-    this.setPhase('goal', this.mode === 'practice' ? 1.6 : MATCH.goalTime);
+    this.setPhase('goal', this.mode === 'practice' ? this.practiceGoalT : MATCH.goalTime);
   }
 
   afterGoal() {
@@ -1045,7 +1097,7 @@ export class World {
       p: this.players.map((p) => [
         p.id, r2(p.x), r2(p.y), r2(p.z), r2(p.vx), r2(p.vz), r2(p.face),
         ANIM_INDEX[p.anim] ?? 0, r2(p.animT), r2(p.stamina), r2(p.charge),
-        (p.sprinting ? 1 : 0) | (p.charging ? 2 : 0) | (p.req > 0 ? 4 : 0) | (p.fx.fire > 0 ? 8 : 0) | (p.fx.speed > 0 ? 16 : 0) | (p.fx.shield > 0 ? 32 : 0) | (p.fx.jet > 0 ? 64 : 0) | (p.immune > 0 ? 128 : 0),
+        (p.sprinting ? 1 : 0) | (p.charging ? 2 : 0) | (p.req > 0 ? 4 : 0) | (p.fx.fire > 0 ? 8 : 0) | (p.fx.speed > 0 ? 16 : 0) | (p.fx.shield > 0 ? 32 : 0) | (p.fx.jet > 0 ? 64 : 0) | (p.immune > 0 ? 128 : 0) | (p.keeper ? 256 : 0),
         p.items[0] || 0, p.items[1] || 0, r2(p.stun), p.emote || 0, p.chatT > 0 ? p.chat : -1,
         r2(p.fx.fire), r2(p.fx.speed), r2(p.fx.shield), r2(p.fx.jet), r2(p.fx.oil || 0),
       ]),
@@ -1057,8 +1109,14 @@ export class World {
   }
 
   roster() {
-    return this.players.map((p) => ({ id: p.id, name: p.name, team: p.team, slot: p.slot, gk: this.isKeeper(p) ? 1 : 0, bot: p.isBot ? 1 : 0, cos: p.cos, stats: p.stats }));
+    return this.players.map((p) => ({ id: p.id, name: p.name, team: p.team, slot: p.slot, gk: p.keeper ? 1 : 0, bot: p.isBot ? 1 : 0, cos: p.cos, stats: p.stats }));
   }
+}
+
+export function sanitizePowers(list) {
+  if (!Array.isArray(list)) return null;
+  const out = [...new Set(list.filter((k) => ITEM_KINDS.includes(k)))];
+  return out.length ? out : null;
 }
 
 export function animName(code) { return ANIM_CODES[code] || 'idle'; }

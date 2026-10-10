@@ -87,6 +87,12 @@ export const SDK = {
   },
 
   onSettings(f) { listeners.settings.add(f); },
+  // Fired when a player who already has the game open accepts an invite (no page reload needed)
+  onJoinRoom(f) {
+    this._call(() => {
+      if (typeof this._sdk.game.addJoinRoomListener === 'function') this._sdk.game.addJoinRoomListener((params) => f(params || {}));
+    });
+  },
   onAuth(f) { listeners.auth.add(f); },
 
   loadingStart() { this._call(() => this._sdk.game.loadingStart()); },

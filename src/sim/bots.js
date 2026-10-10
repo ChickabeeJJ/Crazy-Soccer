@@ -20,8 +20,21 @@ export class BotBrain {
   }
 
   get role() {
-    if (this.w.mode === 'practice') return 'gk';
-    return ['fwd', 'mid', 'mid', 'gk'][this.p.slot % 4];
+    const p = this.p, w = this.w;
+    if (w.mode === 'practice') return 'gk';
+    if (p.keeper) return 'gk';
+    // No keeper on the team: the bot closest to our goal runs back into the box to take the gloves
+    if (!w.players.some((q) => q.team === p.team && q.keeper)) {
+      const ownX = p.team === 0 ? -FIELD.halfL : FIELD.halfL;
+      let best = null, bd = 1e9;
+      for (const q of w.players) {
+        if (q.team !== p.team || !q.isBot || q.left || w.ball.owner === q.id) continue;
+        const d = Math.abs(q.x - ownX) + Math.abs(q.z) * 0.3;
+        if (d < bd) { bd = d; best = q; }
+      }
+      if (best === p) return 'gkrun';
+    }
+    return ['fwd', 'mid', 'mid', 'mid'][p.slot % 4];
   }
 
   update(dt) {
@@ -50,7 +63,14 @@ export class BotBrain {
 
     if (hasBall) { this.withBall(dt, decide, s, oppX); return; }
 
-    if (this.role === 'gk') { this.keeper(dt, decide, s, ownX, owner, bx, bz); return; }
+    const role = this.role;
+    if (role === 'gk') { this.keeper(dt, decide, s, ownX, owner, bx, bz); return; }
+    if (role === 'gkrun') {
+      // Must walk INTO the box to become keeper: step out first if we're already inside
+      if (p.wasInBox) this.moveTo(ownX + s * (FIELD.boxL + 2), clamp(p.z, -8, 8), true, 1);
+      else this.moveTo(ownX + s * 3, clamp(bz * 0.3, -4, 4), true, 1);
+      return;
+    }
 
     // Am I the chaser? (closest non-keeper teammate, humans count too)
     let myD = len2(bx - p.x, bz - p.z);
@@ -58,7 +78,7 @@ export class BotBrain {
     for (const q of w.players) {
       if (q === p || q.team !== p.team || q.left || q.stun > 0) continue;
       const brain = w.brains.get(q.id);
-      if (brain && brain.role === 'gk' && Math.abs(bx - ownX) > FIELD.boxL) continue;
+      if (q.keeper && Math.abs(bx - ownX) > FIELD.boxL) continue;
       if (len2(bx - q.x, bz - q.z) < myD - 0.5) closer++;
     }
     const teamHas = owner && owner.team === p.team;
@@ -137,6 +157,21 @@ export class BotBrain {
   withBall(dt, decide, s, oppX) {
     const p = this.p, w = this.w;
     this.holdT += dt;
+    if (p.keeper && this.chargeTarget < 0) {
+      // Keepers can't be robbed, but walking out of the box loses the gloves: distribute instead
+      p.in.mx = 0; p.in.mz = 0; p.in.sprint = false;
+      if (this.holdT > 0.7 && decide) {
+        const mate = this.openMate(s);
+        if (mate && Math.random() < 0.7) {
+          const d = len2(mate.x - p.x, mate.z - p.z);
+          w.doAction(p, { a: d > 24 ? 'lob' : 'pass', yaw: Math.atan2(mate.x - p.x, mate.z - p.z), pitch: 0.28 });
+        } else {
+          const yaw = Math.atan2(s * 30, rand(-14, 14));
+          w.doAction(p, { a: 'kick', pw: rand(0.75, 1), yaw, pitch: rand(0.05, 0.15) });
+        }
+      }
+      return;
+    }
     // Charging a shot
     if (this.chargeTarget >= 0) {
       const aim = this.shotAim;
@@ -156,7 +191,7 @@ export class BotBrain {
       if (Math.abs(q.x - oppX) < 6 && (!gk || Math.abs(q.x - oppX) < Math.abs(gk.x - oppX))) gk = q;
     }
     const corner = gk ? (gk.z > 0 ? -1 : 1) : (Math.random() < 0.5 ? -1 : 1);
-    const gz = corner * rand(2.5, 4.6);
+    const gz = corner * rand(FIELD.goalW * 0.17, FIELD.goalW * 0.4);
     const dxg = oppX - p.x, dzg = gz - p.z;
     const dGoal = len2(dxg, dzg);
 
@@ -280,7 +315,7 @@ export class BotBrain {
       let rivalCloser = false;
       const myD = len2(b.x - p.x, b.z - p.z);
       for (const q of w.players) if (q.team !== p.team && len2(b.x - q.x, b.z - q.z) < myD - 2) rivalCloser = true;
-      if (!rivalCloser || myD < 5) { this.moveTo(b.x + b.vx * 0.2, b.z + b.vz * 0.2, true, 0.5); return; }
+      if (!rivalCloser || myD < 5) { const t = this.inBox(b.x + b.vx * 0.2, b.z + b.vz * 0.2, ownX, s); this.moveTo(t.x, t.z, true, 0.5); return; }
     }
     if (owner && owner.team !== p.team && ballInBox) {
       const d = len2(owner.x - p.x, owner.z - p.z);
@@ -295,8 +330,11 @@ export class BotBrain {
     p.in.yaw = Math.atan2(bx - p.x, bz - p.z);
   }
 
-  // Keeper with the ball: clear it quickly to a teammate
-  withBallKeeper() { /* handled in withBall via openMate */ }
+  // Clamp a target to the inside of our own penalty box (keepers lose the gloves outside it)
+  inBox(x, z, ownX, s) {
+    const lo = Math.min(ownX, ownX + s * (FIELD.boxL - 1.2)), hi = Math.max(ownX, ownX + s * (FIELD.boxL - 1.2));
+    return { x: clamp(x, lo, hi), z: clamp(z, -FIELD.boxW / 2 + 1.2, FIELD.boxW / 2 - 1.2) };
+  }
 
   useItemsDefending(owner, d) {
     const p = this.p;

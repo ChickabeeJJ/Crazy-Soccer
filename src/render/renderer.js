@@ -52,6 +52,9 @@ export class GameRenderer {
     this.puddleTex = TX.puddleTexture();
     this.oilMat = new THREE.MeshBasicMaterial({ map: this.puddleTex, color: 0x332244, transparent: true, depthWrite: false });
     this.walls = new Map();
+    this.targets = new Map();
+    this.targetGeo = new THREE.RingGeometry(1.05, 1.35, 40);
+    this.targetDisc = new THREE.CircleGeometry(1.05, 40);
     this.barrelGeo = new THREE.CylinderGeometry(0.75, 0.75, 1.3, 16);
     this.barrelMat = new THREE.MeshToonMaterial({ color: 0x2f6fe0 });
     this.rimGeo = new THREE.TorusGeometry(0.77, 0.06, 6, 20);
@@ -451,6 +454,27 @@ export class GameRenderer {
       m.scale.y = Math.min(1, m.scale.y + dt * 6) * (life < 0.5 ? life / 0.5 : 1);
     });
 
+    // Shooting-challenge targets on the goal mouth
+    this.syncMap(this.targets, view.targets, (it) => {
+      const g = new THREE.Group();
+      const ring = new THREE.Mesh(this.targetGeo, new THREE.MeshBasicMaterial({ color: it.top ? 0xffd23f : 0x2fe39b, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false }));
+      const disc = new THREE.Mesh(this.targetDisc, new THREE.MeshBasicMaterial({ color: it.top ? 0xffd23f : 0x2fe39b, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: it.top ? 0xffd23f : 0x2fe39b, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      glow.scale.set(4.4, 4.4, 1);
+      g.add(ring, disc, glow);
+      g.rotation.y = -Math.PI / 2;
+      g.renderOrder = 6;
+      g.userData.ring = ring;
+      g.scale.setScalar(0.01);
+      return g;
+    }, (m, it) => {
+      m.position.set(it.x, it.y, it.z);
+      const k = Math.min(1, m.scale.x + dt * 4);
+      m.scale.setScalar(k);
+      m.userData.ring.rotation.z += dt * 1.5;
+      m.userData.ring.scale.setScalar(1 + Math.sin(this.time * 6) * 0.06);
+    });
+
     // Grapple lines
     for (let i = this.grapples.length - 1; i >= 0; i--) {
       const g = this.grapples[i];
@@ -561,6 +585,7 @@ export class GameRenderer {
         break;
       }
       case 'skill': { const p = P(ev.id); if (p) v.ring(p.x, 0.1, p.z, 0xffffff, 0.4, 2.2, 0.3, 0.7); break; }
+      case 'target': v.sparkles(ev.x, ev.y, ev.z, 0xffd23f, 60, 10); v.ring(ev.x, ev.y, ev.z, 0x2fe39b, 0.4, 4, 0.5, 1, true); break;
       case 'emote': case 'poke': default:
     }
   }
@@ -588,7 +613,7 @@ export class GameRenderer {
   clearWorld() {
     if (this.menuChar) this.menuChar.root.visible = false; // the lobby hero must never appear in a match
     for (const id of [...this.chars.keys()]) this.removeChar(id);
-    for (const map of [this.boxes, this.puddles, this.projs, this.walls]) { for (const m of map.values()) m.removeFromParent(); map.clear(); }
+    for (const map of [this.boxes, this.puddles, this.projs, this.walls, this.targets]) { for (const m of map.values()) m.removeFromParent(); map.clear(); }
     for (const g of this.grapples) g.line.removeFromParent();
     this.grapples.length = 0;
     this.aimPivot.visible = false;
@@ -596,8 +621,20 @@ export class GameRenderer {
   }
 
   // Lobby scene: hero character + ball, slowly orbiting camera
-  menuScene(dt, cos, emote, ballSkin, team = 0) {
+  menuScene(dt, cos, emote, ballSkin, team = 0, shift = 2.1, wide = false) {
     this.time += dt;
+    if (wide) {
+      // Slow fly-over of the empty stadium (training page)
+      if (this.menuChar) this.menuChar.root.visible = false;
+      this.ball.root.position.set(0, PHYS.ballR, 0);
+      this.ballShadow.position.set(0, 0.025, 0);
+      this.marker.visible = false; this.aimPivot.visible = false; this.chargeSprite.visible = false;
+      this.rig.orbit(dt, 0, 0, 0, 58, 20, 0.045, 0);
+      this.rig.shift = undefined;
+      this.stadium.update(dt);
+      this.vfx.update(dt);
+      return;
+    }
     this.showMenuChar(cos, true, dt, emote, team);
     this.ball.setSkin(ballSkin);
     const ch = this.menuChar.root;
@@ -609,7 +646,7 @@ export class GameRenderer {
     this.marker.visible = false;
     this.aimPivot.visible = false;
     this.chargeSprite.visible = false;
-    this.rig.showcase(dt, ch.position.x, ch.position.z, ch.rotation.y, 0);
+    this.rig.showcase(dt, ch.position.x, ch.position.z, ch.rotation.y, 0, shift);
     this.stadium.update(dt);
     this.vfx.update(dt);
   }

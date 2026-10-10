@@ -6,6 +6,7 @@ import { Input } from './input.js';
 import { Audio } from './audio.js';
 import { UI } from './ui/ui.js';
 import { Session, inOwnBox } from './game/session.js';
+import { Training, TRAINING_INFO } from './game/training.js';
 import { Net, randomCode, roomPeerId } from './net/net.js';
 import { GAME_VERSION, TEAMS, QUICK_CHAT, ITEMS, MATCH, PLAYER, KICK } from './config.js';
 import { CATALOG } from './cosmetics.js';
@@ -13,6 +14,7 @@ import { clamp, len2 } from './util/math.js';
 import * as THREE from 'three';
 
 const $ = (id) => document.getElementById(id);
+const ROLE_NAMES = ['STRIKER', 'LEFT WING', 'RIGHT WING', 'DEFENDER'];
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 
@@ -29,7 +31,6 @@ class App {
     this.kickSuppressed = false;
     this.menuEmote = null;
     this.menuEmoteT = 0;
-    this.tut = { step: 0, t: 0 };
     this.replayStart = 0;
     this.lockFailed = false;
     this.wheelOpen = false;
@@ -70,11 +71,15 @@ class App {
     this.input.on('lockchange', (locked) => this.onLockChange(locked));
     document.addEventListener('pointerlockerror', () => { this.lockFailed = true; this.ui.clickToPlay(false); });
     $('game').addEventListener('click', () => this.onCanvasClick());
-    const unlock = () => { this.audio.unlock(); if (this.state === 'menu' || this.state === 'locker') this.audio.startMusic(); };
+    // Inside the CrazyGames iframe, make sure keyboard input goes to the game
+    window.addEventListener('pointerdown', () => { try { window.focus(); } catch (e) { /* ignore */ } });
+    const unlock = () => { this.audio.unlock(); if (this.state === 'menu') this.audio.startMusic(); };
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
     SDK.onSettings((s) => { this.audio.setMuted(s.muteAudio); this.ui.setChatEnabled(!s.disableChat); this.renderer.showChat = !s.disableChat; });
     SDK.onAuth(() => { this.ui.refreshProfile(); });
+    // CrazyGames invites while the game is already open: join without a page reload
+    SDK.onJoinRoom((params) => { const id = params && params.roomId; if (id) this.joinFromInvite(id); });
     this.audio.setMuted(SDK.settings.muteAudio);
     this.ui.setChatEnabled(!SDK.settings.disableChat);
     this.renderer.showChat = !SDK.settings.disableChat;
@@ -112,12 +117,13 @@ class App {
     const e = Save.p.eq;
     return { skin: e.skin, hair: e.hair, hairColor: e.hairColor, jersey: e.jersey, ball: e.ball, goalfx: e.goalfx, number: e.number };
   }
-  hello() { return { name: Save.displayName(), cos: this.cos(), team: Save.p.team === 1 ? 1 : 0 }; }
+  hello() { return { name: Save.displayName(), cos: this.cos(), team: Save.p.team === 1 ? 1 : 0, pw: Save.activePowers() }; }
 
   // ================================================================== menu
-  showMenu() {
+  showMenu(page) {
     this.state = 'menu';
     this.ui.screen('menu', true);
+    this.ui.setPage(page || this.ui.page || 'play');
     this.ui.screen('hud', false);
     this.ui.touchVisible(false);
     this.ui.refreshProfile();
@@ -127,13 +133,23 @@ class App {
     if (this.audio.ctx) this.audio.startMusic();
     SDK.gameplayStop();
     const note = $('menuNote');
-    note.textContent = Save.p.stats.matches === 0 ? 'New here? Pick a team to jump into a 4v4 match — bots fill empty spots!' : '';
+    note.textContent = Save.p.stats.matches === 0 ? 'New here? Pick a team to jump into a 4v4 match. Bots fill empty spots!' : '';
   }
 
   claimDaily() {
     const r = Save.claimDaily();
     if (r) { this.audio.coins(); this.ui.globalToast(`Daily reward: +${r} coins! (streak ${Save.p.daily.streak})`); }
-    else this.ui.globalToast('Already claimed today — come back tomorrow!');
+    else this.ui.globalToast('Already claimed today. Come back tomorrow!');
+    this.ui.refreshProfile();
+  }
+
+  buyPower(k) {
+    const it = ITEMS[k];
+    if (!it || Save.ownsPower(k)) return;
+    if (Save.p.coins < it.price) { this.audio.beep(false); this.ui.globalToast(`You need ${it.price - Save.p.coins} more coins. Play matches to earn more!`); return; }
+    Save.buyPower(k);
+    this.audio.coins();
+    this.ui.globalToast(`Unlocked ${it.name}! It can now drop from mystery cubes.`);
     this.ui.refreshProfile();
   }
 
@@ -161,7 +177,7 @@ class App {
       this.audio.coins();
       this.ui.globalToast(`Unlocked ${item.name}!`);
     } else {
-      this.ui.globalToast('Not enough coins — play matches to earn more!');
+      this.ui.globalToast('Not enough coins. Play matches to earn more!');
       return;
     }
     Save.save();
@@ -170,11 +186,41 @@ class App {
   }
 
   // ============================================================== sessions
-  startPractice() {
+  startTraining(kind = 'free', opts = {}) {
     this.endSession();
-    this.session = new Session({ mode: 'practice', role: 'offline', profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
+    this.ui.modal('trainRes', false);
+    this.lastTraining = { kind, opts };
+    const tr = new Training(kind, { ...opts, labels: (a) => this.input.actionLabel(a), mobile: SDK.isMobile });
+    this.session = new Session({ mode: 'practice', role: 'offline', profile: this.hello(), training: tr, onEvent: (e) => this.onGameEvent(e) });
     this.session.startHost({});
+    SDK.leftRoom();
     this.enterGame();
+  }
+
+  retryTraining() {
+    const t = this.lastTraining || { kind: 'free', opts: {} };
+    this.ui.modal('trainRes', false);
+    this.startTraining(t.kind, t.opts);
+  }
+
+  onTrainingDone(tr) {
+    const r = tr.result;
+    const p = Save.p;
+    let newBest = false, coins = r.coins || 0;
+    if (r.kind === 'shoot' || r.kind === 'keeper') {
+      const prev = p.best[r.kind] || 0;
+      if (r.score > prev) { p.best[r.kind] = r.score; newBest = prev > 0 || r.score > 0; }
+    }
+    if (r.kind === 'tutorial' && !p.tutDone) { p.tutDone = true; coins = 100; }
+    if (coins) Save.addCoins(coins);
+    Save.save(true);
+    this.input.exitLock();
+    SDK.gameplayStop();
+    if (r.kind === 'tutorial') SDK.happytime();
+    const best = r.kind === 'shoot' ? `Personal best: ${p.best.shoot} points` : r.kind === 'keeper' ? `Personal best: ${p.best.keeper} saves` : (coins ? 'First-time bonus!' : 'Go win some matches!');
+    this.ui.showTrainingResult({ title: r.title, score: r.label, best, newBest, coins, retry: r.kind !== 'tutorial' });
+    if (coins) this.audio.coins();
+    this.ui.refreshProfile();
   }
 
   startOffline(reason) {
@@ -198,7 +244,7 @@ class App {
     this.net = net;
     let res;
     try {
-      res = await withTimeout(net.quickPlay(this.hello(), (t) => { if (this.searchToken === token) $('searchText').textContent = t; }), 14000);
+      res = await withTimeout(net.quickPlay(this.hello(), (t) => { if (this.searchToken === token) $('searchText').textContent = t; }), 45000);
     } catch (e) {
       try { net.close(); } catch (e2) { /* ignore */ }
       if (this.searchToken !== token) return;
@@ -279,6 +325,7 @@ class App {
 
   async joinFromInvite(value) {
     const v = String(value);
+    if (this.state === 'game') this.leaveToLobby(true);
     if (v.startsWith('priv-')) { this.ui.modal('private', true); await this.joinPrivate(v.slice(5).toUpperCase()); return; }
     if (v.startsWith('pub-')) {
       this.endSession();
@@ -324,8 +371,10 @@ class App {
     const s = this.session;
     this.state = 'game';
     this.ui.screen('menu', false);
-    this.ui.screen('locker', false);
     this.ui.screen('hud', true);
+    $('hud').classList.toggle('practice', s.mode === 'practice');
+    this.ui.tutorialBox(null);
+    this.ui.setRole('');
     this.ui.modal('results', false);
     this.ui.modal('pause', false);
     this.ui.touchVisible(true);
@@ -340,7 +389,7 @@ class App {
     this.renderer.rig.pitch = 0.3;
     if (me) this.renderer.rig.snapTo(me.x, me.y, me.z);
     this.ui.statsPinned = false;
-    this.tut = { step: Save.p.tut, t: 0, moved: 0 };
+    this.myRole = '';
     this.lastPhase = null;
     if (!SDK.isMobile && !this.lockFailed) this.input.requestLock();
     SDK.gameplayStart();
@@ -360,8 +409,9 @@ class App {
     else this.resume();
   }
 
-  leaveToLobby(early) {
+  leaveToLobby(early, page) {
     const wasMatch = this.session && this.session.mode === 'match';
+    const wasTraining = this.session && this.session.mode === 'practice';
     this.endSession();
     SDK.leftRoom();
     this.input.exitLock();
@@ -370,7 +420,9 @@ class App {
     this.ui.showRoomPanel(null);
     this.ui.hint(null);
     this.ui.clearAnnounce();
-    this.showMenu();
+    this.ui.tutorialBox(null);
+    this.ui.modal('trainRes', false);
+    this.showMenu(page || (wasTraining ? 'training' : 'play'));
     if (wasMatch && !early) this.midgameAd();
   }
 
@@ -499,7 +551,6 @@ class App {
         if (ev.local !== 1 && ev.id === s.localId && s.role === 'client') break; // already played locally
         if (ev.kind === 'pass') A.pass(); else A.kick(ev.pw || 0.4);
         if (ev.fire) A.item('fire');
-        if (ev.id === s.localId) this.tut.kicked = true;
         break;
       case 'bounce': case 'wall': A.bounce(ev.v || 8); break;
       case 'post': A.post(); break;
@@ -546,6 +597,19 @@ class App {
         if (ev.ph === 'replay') this.replayStart = performance.now();
         break;
       case 'end': this.onMatchEnd(ev); break;
+      case 'keeper': {
+        if (s.mode === 'practice') break;
+        if (ev.id === s.localId) { this.ui.announce('YOU\'RE THE KEEPER!', 'Stay in your box to keep the gloves'); A.pickup(); }
+        else if (ev.prev === s.localId) this.ui.toast('You left the box: no longer keeper');
+        else if (ev.team === myTeam && ev.id >= 0) this.ui.toast(`${s.playerName(ev.id)} is your keeper`);
+        break;
+      }
+      case 'reset': {
+        const row = (ev.pos || []).find((r) => r[0] === s.localId);
+        if (row && s.mode !== 'practice') this.myRole = row[5] ? 'GOALKEEPER' : ROLE_NAMES[(row[4] ?? 0) % 4];
+        break;
+      }
+      case 'target': A.goalHorn(); break;
       case 'joined': this.ui.toast(`${ev.name} joined`); break;
       case 'left': this.ui.toast(`${ev.name} left`); break;
       case 'hostlost': this.ui.globalToast('The host left — continuing against bots.', 4000); break;
@@ -616,8 +680,10 @@ class App {
   }
 
   updateMenu(dt) {
-    const emote = this.state === 'locker' ? this.menuEmote : null;
-    this.renderer.menuScene(dt, this.cos(), emote, Save.p.eq.ball, this.menuTeam ?? (Save.p.team === 1 ? 1 : 0));
+    const page = this.ui.page;
+    const emote = page === 'shop' || page === 'inventory' ? this.menuEmote : null;
+    const shift = page === 'shop' || page === 'inventory' ? 2.6 : 0;
+    this.renderer.menuScene(dt, this.cos(), emote, Save.p.eq.ball, this.menuTeam ?? (Save.p.team === 1 ? 1 : 0), shift, page === 'training');
     if (this.state === 'menu' && !this.ui.anyModal()) {
       // Idle character occasionally emotes
       this.menuEmoteT += dt;
@@ -632,6 +698,7 @@ class App {
     const settings = Save.p.settings;
     const me = s.me;
     const touch = SDK.isMobile;
+    if (inp.wasPressed('unlock') && inp.locked) inp.exitLock();
     const active = !this.ui.anyModal() && (inp.locked || touch || this.lockFailed) && !this.adPlaying;
     this.ui.clickToPlay(!touch && !this.lockFailed && !inp.locked && !this.ui.anyModal() && !this.wheelOpen);
 
@@ -657,7 +724,6 @@ class App {
     const ml = len2(mx, mz);
     if (ml > 1) { mx /= ml; mz /= ml; }
     s.setInput({ mx, mz, sprint, yaw: rig.yaw, pitch: rig.pitch });
-    if (ml > 0.1) this.tut.moved = (this.tut.moved || 0) + dt;
 
     const aim = { yaw: rig.yaw, pitch: rig.pitch };
     const shotAim = { ...aim, ...this.aimTarget(me) };
@@ -737,9 +803,18 @@ class App {
       ping: s.role === 'client' ? Math.round(s.rtt * 1000) : 0, fps: this.fps, showStats: settings.showStats,
       statsHeld, session: s, localId: s.localId,
     });
-    this.updateBanners(s, v);
+    const tr = s.training;
+    const th = tr ? tr.hud() : null;
+    this.ui.setDrill(!!(th && th.drill), th && th.drill ? th.drill.score : 0, th && th.drill ? th.drill.label : '');
+    this.ui.tutorialBox(th && th.tut ? th.tut : null);
+    if (th && th.timer) this.ui.setVal('timerText', 'text', th.timer);
+    let role = '';
+    if (me && s.mode !== 'practice') role = me.keeper ? '🧤 GOALKEEPER' : ROLE_NAMES[(me.slot ?? 0) % 4];
+    else if (me && me.keeper) role = '🧤 GOALKEEPER';
+    this.ui.setRole(role, !!(me && me.keeper));
+    this.updateBanners(s, v, th);
     this.updatePhaseAnnouncements(s, v);
-    this.updateTutorial(dt, s, hasBall);
+    if (tr && tr.result && !tr.reported) { tr.reported = true; setTimeout(() => { if (this.session && this.session.training === tr) this.onTrainingDone(tr); }, 700); }
   }
 
   // World point under the crosshair (screen x 50%, y 36%): shots fly through it.
@@ -757,9 +832,9 @@ class App {
     return { tx, ty, tz };
   }
 
-  updateBanners(s, v) {
+  updateBanners(s, v, th) {
     const list = [];
-    if (s.mode === 'practice') list.push({ title: 'Practice area', text: `Press ${this.input.actionLabel('request')} to get the ball • Return to the lobby to enter a match` });
+    if (s.mode === 'practice') { if (th && th.banner) list.push(th.banner); }
     else if (v.phase === 'warmup') list.push({ title: 'Warm-up', text: s.isAuthority ? 'Press START MATCH when your friends are ready' : 'Waiting for the host to start' });
     else {
       const humans = s.humanCount();
@@ -783,7 +858,13 @@ class App {
   updatePhaseAnnouncements(s, v) {
     if (v.phase === 'kickoff' && s.mode !== 'practice') {
       const n = Math.ceil(v.phaseT);
-      if (n !== this.lastCount && n > 0 && n <= 3) { this.lastCount = n; this.ui.announce(String(n)); this.audio.beep(false); }
+      if (n !== this.lastCount && n > 0 && n <= 3) {
+        this.lastCount = n;
+        const me = s.me;
+        const role = me && me.keeper ? 'GOALKEEPER' : me ? ROLE_NAMES[(me.slot ?? 0) % 4] : '';
+        this.ui.announce(String(n), role ? `You're ${/^[AEIOU]/.test(role) ? 'an' : 'a'} ${role}` : '');
+        this.audio.beep(false);
+      }
     } else this.lastCount = null;
     if (v.phase !== this.lastPhase) {
       if (v.phase === 'play' && this.lastPhase === 'kickoff' && s.mode !== 'practice') this.audio.beep(true);
@@ -791,31 +872,6 @@ class App {
     }
   }
 
-  updateTutorial(dt, s, hasBall) {
-    if (!Save.p.settings.showHints) return;
-    const T = this.tut;
-    if (T.step >= 6 || s.view.phase === 'replay' || s.view.phase === 'kickoff') return;
-    T.t += dt;
-    const L = (a) => `<kbd>${this.input.actionLabel(a)}</kbd>`;
-    const mob = SDK.isMobile;
-    const steps = [
-      { html: mob ? 'Use the left stick to move • Push it all the way to sprint' : `Move with ${L('forward')}${L('left')}${L('back')}${L('right')} • Hold ${L('sprint')} to sprint`, done: () => (T.moved || 0) > 1.5 },
-      { html: 'Run into the ball to dribble it ⚽', done: () => hasBall },
-      { html: mob ? 'Hold KICK to charge, release to shoot!' : `Hold ${L('kick')} to charge a shot, release to kick! Aim with your mouse`, done: () => T.kicked },
-      { html: mob ? 'PASS, LOB and FLICK to beat defenders' : `${L('pass')} Pass • ${L('lob')} Lob • ${L('flick')} Flick over defenders`, done: () => T.t > 6 },
-      { html: mob ? 'TACKLE to steal • JUMP to catch high balls and volley them' : `${L('tackle')} Slide tackle to steal • ${L('dribble')} Jump to catch high balls, then shoot mid-air!`, done: () => T.t > 6 },
-      { html: 'Grab the glowing <b>?</b> boxes for crazy items! 🔥❄️🚀', done: () => T.t > 6 },
-    ];
-    const st = steps[T.step];
-    if (!st) return;
-    if (this.ui.cache.hintStep !== T.step) { this.ui.cache.hintStep = T.step; this.ui.hint(st.html); }
-    if (st.done() && T.t > 1.2) {
-      T.step++; T.t = 0;
-      Save.p.tut = T.step;
-      Save.save();
-      if (T.step >= 6) this.ui.hint(null);
-    }
-  }
 }
 
 const app = new App();

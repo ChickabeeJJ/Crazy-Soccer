@@ -68,6 +68,7 @@ export class Session {
     this.profile = opts.profile; // { name, cos }
     this.onEvent = opts.onEvent || (() => {});
     this.rules = opts.rules || {};
+    this.training = opts.training || null; // offline drills / tutorial controller
     this.localId = 1;
     this.world = null;
     this.view = { players: [], ball: createBall(), boxes: [], puddles: [], projs: [], walls: [], phase: 'kickoff', phaseT: 0, clock: 0, score: [0, 0], ot: 0, map: 'grass' };
@@ -102,14 +103,15 @@ export class Session {
   startHost(rules = this.rules, warmup = false) {
     this.rules = { ...rules, map: rules.map || MAPS[Math.floor(Math.random() * MAPS.length)] };
     rules = this.rules;
-    this.world = new World({ mode: this.mode, ...rules });
+    this.world = new World({ mode: this.mode, ...rules, itemPool: this.training ? this.training.itemPool : null });
     const w = this.world;
     const myTeam = this.mode === 'practice' ? 0 : (this.profile.team === 1 ? 1 : 0);
-    w.addPlayer({ id: this.localId, name: this.profile.name, team: myTeam, cos: this.profile.cos });
-    if (this.mode === 'practice') {
-      w.addPlayer({ id: 999, name: 'Keeper', team: 1, isBot: true, cos: { skin: 2, hair: 'cap', hairColor: 5, jersey: 'classic', ball: 'classic', goalfx: 'confetti', number: 1 } });
-      w.byId.get(999).slot = 3;
+    w.addPlayer({ id: this.localId, name: this.profile.name, team: myTeam, cos: this.profile.cos, powers: this.profile.pw });
+    if (this.mode === 'practice' && (!this.training || this.training.keeperBot)) {
+      const k = w.addPlayer({ id: 999, name: 'Keeper', team: 1, isBot: true, cos: { skin: 2, hair: 'cap', hairColor: 5, jersey: 'classic', ball: 'classic', goalfx: 'confetti', number: 1 } });
+      k.slot = 3; k.keeper = true;
     }
+    if (this.training) this.training.attach(this);
     w.start(warmup);
     this.view.players = w.players;
     this.view.ball = w.ball;
@@ -126,7 +128,7 @@ export class Session {
       // Honour the team the player picked in the lobby when that side still has room
       let team = msg.team === 1 ? 1 : msg.team === 0 ? 0 : undefined;
       if (team !== undefined && this.world.teamCount(team, true) >= (this.world.rules.teamSize || 4)) team = 1 - team;
-      const p = this.world.joinHuman({ id, name: sanitizeName(msg.name), cos: sanitizeCos(msg.cos), remote: true, team });
+      const p = this.world.joinHuman({ id, name: sanitizeName(msg.name), cos: sanitizeCos(msg.cos), remote: true, team, powers: msg.pw });
       this.peerToPlayer.set(peerId, id);
       this.onEvent({ e: 'joined', id, name: p.name });
       return { t: 'w', you: id, mode: this.mode, rules: this.rules, roster: this.world.roster(), snap: this.world.snapshot(), code: this.roomCode, kind: this.roomKind, inter: this.intermission };
@@ -165,6 +167,7 @@ export class Session {
     let n = 0;
     while (this.acc >= step && n < 6) {
       w.step(step);
+      if (this.training) this.training.step(step);
       this.acc -= step;
       n++;
     }
@@ -174,6 +177,7 @@ export class Session {
     this.view.score = w.score; this.view.ot = w.overtime ? 1 : w.lastChance ? 2 : 0;
     this.view.boxes = w.boxes; this.view.puddles = w.puddles; this.view.projs = w.projs; this.view.walls = w.walls;
     this.view.map = w.map;
+    this.view.targets = this.training ? this.training.targets : null;
 
     // Intermission (online rooms restart automatically so the room stays together)
     if (w.phase === 'end' && w.phaseT <= 0 && this.net && this.net.isHost && this.intermission <= 0 && !this._interStarted) {
@@ -209,7 +213,10 @@ export class Session {
     if (!w.events.length) return;
     const list = w.events.splice(0);
     if (this.net && this.net.isHost && this.net.conns.size) this.net.broadcast({ t: 'ev', l: list });
-    for (const ev of list) this.handleEvent(ev);
+    for (const ev of list) {
+      if (this.training) this.training.onEvent(ev);
+      this.handleEvent(ev);
+    }
   }
 
   beginMatch() {
@@ -224,7 +231,7 @@ export class Session {
     this._interStarted = false;
     this.intermission = 0;
     this.ended = false;
-    const humans = old.humans().map((p) => ({ id: p.id, name: p.name, cos: p.cos, remote: p.remote, team: p.team }));
+    const humans = old.humans().map((p) => ({ id: p.id, name: p.name, cos: p.cos, remote: p.remote, team: p.team, powers: p.powers }));
     this.rules = { ...this.rules, map: MAPS[Math.floor(Math.random() * MAPS.length)] };
     this.world = new World({ mode: this.mode, ...this.rules });
     const w = this.world;
@@ -234,7 +241,7 @@ export class Session {
       let team = h.team === 1 ? 1 : 0;
       if (counts[team] >= 4) team = 1 - team;
       counts[team]++;
-      const p = w.addPlayer({ id: h.id, name: h.name, team, remote: h.remote, cos: h.cos });
+      const p = w.addPlayer({ id: h.id, name: h.name, team, remote: h.remote, cos: h.cos, powers: h.powers });
       p.remote = h.remote;
     });
     w.start();
@@ -275,7 +282,7 @@ export class Session {
     for (const id of [...this.viewMap.keys()]) if (!this.roster.has(id)) this.viewMap.delete(id);
     if (this.localP) {
       const me = this.roster.get(this.localId);
-      if (me) { this.localP.team = me.team; this.localP.stats = me.stats; this.localP.keeper = !!me.gk; this.localP.slot = me.slot; }
+      if (me) { this.localP.team = me.team; this.localP.stats = me.stats; this.localP.slot = me.slot; }
     }
     this.onEvent({ e: 'roster' });
   }
@@ -335,6 +342,7 @@ export class Session {
       if (me[20] > 0 && p.fx.jet <= 0) p.fx.jet = me[20];
       if (me[20] <= 0) p.fx.jet = Math.min(p.fx.jet, 0.2);
       p.req = (me[11] & 4) ? Math.max(p.req, 0.1) : p.req;
+      p.keeper = !!(me[11] & 256);
       p.chat = me[16]; p.chatT = me[16] >= 0 ? 1 : 0;
     }
     if (first) {
@@ -353,7 +361,7 @@ export class Session {
       if (this.cball.owner === this.localId) this.cball.owner = -1;
     } else if (ev.e === 'reset' && p) {
       const row = ev.pos.find((r) => r[0] === this.localId);
-      if (row) { p.x = row[1]; p.z = row[2]; p.face = row[3]; p.vx = p.vz = 0; p.y = 0; p.anim = 'idle'; p.actT = 0; p.stun = 0; p.charging = false; }
+      if (row) { p.x = row[1]; p.z = row[2]; p.face = row[3]; p.vx = p.vz = 0; p.y = 0; p.anim = 'idle'; p.actT = 0; p.stun = 0; p.charging = false; if (row[4] !== undefined) p.slot = row[4]; p.keeper = !!row[5]; }
       this.cball = createBall();
       this.ownKickT = 0; this.predOwnT = 0;
     } else if (ev.e === 'own' && ev.id !== this.localId) {
@@ -373,7 +381,7 @@ export class Session {
     const team = me ? me.team : 0;
     this.world = new World({ mode: this.mode, ...this.rules, map: this.view.map });
     const w = this.world;
-    const p = w.addPlayer({ id: this.localId, name: this.profile.name, team, cos: this.profile.cos });
+    const p = w.addPlayer({ id: this.localId, name: this.profile.name, team, cos: this.profile.cos, powers: this.profile.pw });
     w.start();
     if (last) {
       w.score = [...last.sc];
@@ -457,7 +465,7 @@ export class Session {
       o.team = ros ? ros.team : 0;
       o.cos = ros ? ros.cos : this.profile.cos;
       o.isBot = ros ? !!ros.bot : true;
-      o.keeper = ros ? !!ros.gk : false;
+      o.keeper = !!(rb[11] & 256);
       o.stats = ros ? ros.stats : o.stats;
       o.x = lerp(ra[1], rb[1], k); o.y = lerp(ra[2], rb[2], k); o.z = lerp(ra[3], rb[3], k);
       o.vx = rb[4]; o.vz = rb[5];
@@ -582,7 +590,7 @@ export class Session {
       case 'tackle': {
         if (mine) return;
         const ml = len2(act.mx || 0, act.mz || 0);
-        if (p.keeper && inOwnBox(p) && this.mode !== 'practice') {
+        if (p.keeper && inOwnBox(p, 0.6)) {
           if (p.cd.dive > 0) return;
           p.cd.dive = KICK.diveCooldown;
           let dx = cb.x - p.x, dz = cb.z - p.z, dl = len2(dx, dz);
@@ -710,9 +718,9 @@ export class Session {
   }
 }
 
-export function inOwnBox(p) {
+export function inOwnBox(p, tol = 0) {
   const s = p.team === 0 ? -1 : 1;
-  return p.x * s > FIELD.halfL - FIELD.boxL && Math.abs(p.z) < FIELD.boxW / 2;
+  return p.x * s > FIELD.halfL - FIELD.boxL - tol && Math.abs(p.z) < FIELD.boxW / 2 + tol;
 }
 
 export { MATCH };

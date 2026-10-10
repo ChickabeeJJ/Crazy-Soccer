@@ -1,5 +1,5 @@
 import { SDK } from './sdk.js';
-import { SAVE_KEY } from './config.js';
+import { SAVE_KEY, ITEMS, ITEM_KINDS } from './config.js';
 import { CATALOG, guestName } from './cosmetics.js';
 import { todayKey } from './util/math.js';
 
@@ -22,12 +22,14 @@ export const DEFAULT_BINDS = {
   lobby: ['KeyL'],
   chat: ['KeyC'],
   emote: ['KeyB'],
+  unlock: ['KeyM'],
 };
 
 export const BIND_LABELS = {
   kick: 'Kick / Activate', pass: 'Pass', flick: 'Flick', tackle: 'Tackle / Dive', lob: 'Lob', request: 'Request',
   dribble: 'Dribble', sprint: 'Sprint', item1: 'Item 1', item2: 'Item 2', stats: 'Stats', lobby: 'Return to Lobby',
   chat: 'Quick Chat', emote: 'Emotes', forward: 'Move Forward', back: 'Move Back', left: 'Move Left', right: 'Move Right',
+  unlock: 'Unlock Mouse',
 };
 
 export const DEFAULT_SETTINGS = {
@@ -71,6 +73,9 @@ function freshProfile() {
     stats: { matches: 0, wins: 0, goals: 0, assists: 0, saves: 0 },
     daily: { last: '', streak: 0 },
     tut: 0,
+    powers: ITEM_KINDS.filter((k) => ITEMS[k].price === 0),
+    powersOff: [],
+    best: { shoot: 0, keeper: 0 },
   };
 }
 
@@ -96,8 +101,11 @@ export const Save = {
         settings: { ...base.settings, ...(data.settings || {}) },
         stats: { ...base.stats, ...(data.stats || {}) },
         daily: { ...base.daily, ...(data.daily || {}) },
+        best: { ...base.best, ...(data.best || {}) },
         binds: data.binds || {},
       };
+      this.p.powers = [...new Set([...base.powers, ...(Array.isArray(data.powers) ? data.powers : [])])].filter((k) => ITEMS[k]);
+      this.p.powersOff = (Array.isArray(data.powersOff) ? data.powersOff : []).filter((k) => this.p.powers.includes(k));
       for (const cat of Object.keys(CATALOG)) {
         for (const it of CATALOG[cat]) if (it.price === 0 && !this.p.owned[cat].includes(it.id)) this.p.owned[cat].push(it.id);
       }
@@ -160,6 +168,30 @@ export const Save = {
     this.save(true);
     return true;
   },
+
+  // ---- Powers (mystery cube contents) ----
+  ownsPower(k) { return this.p.powers.includes(k); },
+  buyPower(k) {
+    const it = ITEMS[k];
+    if (!it || this.ownsPower(k) || this.p.coins < it.price) return false;
+    this.p.coins -= it.price;
+    this.p.powers.push(k);
+    this.save(true);
+    return true;
+  },
+  powerOn(k) { return this.ownsPower(k) && !this.p.powersOff.includes(k); },
+  togglePower(k) {
+    if (!this.ownsPower(k)) return false;
+    const off = this.p.powersOff;
+    if (off.includes(k)) off.splice(off.indexOf(k), 1);
+    else {
+      if (this.activePowers().length <= 1) return false; // at least one power stays in the cube pool
+      off.push(k);
+    }
+    this.save();
+    return true;
+  },
+  activePowers() { return this.p.powers.filter((k) => !this.p.powersOff.includes(k)); },
 
   dailyAvailable() {
     return this.p.daily.last !== todayKey();

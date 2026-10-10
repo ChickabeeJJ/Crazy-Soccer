@@ -154,6 +154,7 @@ export function movePlayer(p, dt, hasBall, frozenPhase) {
   } else {
     p.vy -= 30 * dt;
   }
+  const px = p.x, pz = p.z;
   p.x += p.vx * dt;
   p.y += p.vy * dt;
   p.z += p.vz * dt;
@@ -165,13 +166,27 @@ export function movePlayer(p, dt, hasBall, frozenPhase) {
   if (p.x < -wx) { p.x = -wx; p.vx = Math.max(0, p.vx); }
   if (p.z > wz) { p.z = wz; p.vz = Math.min(0, p.vz); }
   if (p.z < -wz) { p.z = -wz; p.vz = Math.max(0, p.vz); }
-  // Keep players out of the back of the goal nets (they can stand in the mouth).
-  const gx = FIELD.halfL + 1.2;
-  if (Math.abs(p.x) > gx && Math.abs(p.z) < FIELD.goalW / 2 + r) {
-    const s = Math.sign(p.x);
-    if (Math.abs(p.z) < FIELD.goalW / 2 - 0.2) p.x = s * Math.min(Math.abs(p.x), gx);
-  }
+  collideGoalFrame(p, px, pz);
   p.charge = p.charging ? clamp(p.charge + dt / KICK.chargeTime, 0, 1) : 0;
+}
+
+// Goals are solid for players (frame, side nets, back net). Only a thin strip just behind
+// the goal line in the mouth is walkable, so the ball can't be carried in from the side.
+export function collideGoalFrame(p, px, pz) {
+  const r = PLAYER.radius, L = FIELD.halfL, hw = FIELD.goalW / 2, D = FIELD.goalD;
+  const front = L + 0.3;
+  const ax = Math.abs(p.x), s = Math.sign(p.x) || 1;
+  if (ax <= front || ax >= L + D + r || Math.abs(p.z) >= hw + r) return;
+  const pax = Math.abs(px);
+  const penSide = hw + r - Math.abs(p.z), penBack = L + D + r - ax, penFront = ax - front;
+  let face;
+  if (Math.abs(pz) >= hw + r - 0.02) face = 'side';
+  else if (pax >= L + D + r - 0.02) face = 'back';
+  else if (pax <= front + 0.02) face = 'front';
+  else { const m = Math.min(penSide, penBack, penFront); face = m === penSide ? 'side' : m === penBack ? 'back' : 'front'; }
+  if (face === 'side') { const sz = Math.sign(Math.abs(pz) >= hw ? pz : p.z) || 1; p.z = sz * (hw + r); p.vz = 0; }
+  else if (face === 'back') { p.x = s * (L + D + r); if (p.vx * s < 0) p.vx = 0; }
+  else { p.x = s * front; if (p.vx * s > 0) p.vx = 0; }
 }
 
 export function separatePlayers(list) {

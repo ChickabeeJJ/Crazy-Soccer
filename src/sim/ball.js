@@ -15,6 +15,7 @@ export function stepBall(b, dt, events) {
   const R = PHYS.ballR;
   if (b.blockT > 0) { b.blockT -= dt; if (b.blockT <= 0) b.block = -1; }
   if (b.owner >= 0) return;
+  const px = b.x, py = b.y, pz = b.z;
 
   const airborne = b.y > R + 0.02;
   b.vy -= PHYS.gravity * dt;
@@ -22,9 +23,9 @@ export function stepBall(b, dt, events) {
   // Curve (lateral acceleration perpendicular to horizontal velocity)
   const vh = Math.hypot(b.vx, b.vz);
   if (Math.abs(b.curve) > 0.01 && vh > 4) {
-    const px = -b.vz / vh, pz = b.vx / vh;
-    b.vx += px * b.curve * dt * PHYS.magnus;
-    b.vz += pz * b.curve * dt * PHYS.magnus;
+    const qx = -b.vz / vh, qz = b.vx / vh;
+    b.vx += qx * b.curve * dt * PHYS.magnus;
+    b.vz += qz * b.curve * dt * PHYS.magnus;
     b.curve *= Math.exp(-0.9 * dt);
   }
   if (airborne) {
@@ -59,7 +60,7 @@ export function stepBall(b, dt, events) {
   }
   if (b.fire && Math.hypot(b.vx, b.vy, b.vz) < 12) b.fire = false;
 
-  collideGoals(b, events);
+  collideGoals(b, events, px, py, pz);
 
   // Walls (ball can never leave the arena)
   const wx = FIELD.wallX - R, wz = FIELD.wallZ - R;
@@ -107,24 +108,41 @@ function collideBar(b, x, y, z0, z1, r, events) {
   }
 }
 
-function collideGoals(b, events) {
+// Did the ball travel from (px,py,pz) to its current position across goal line s (+1/-1)
+// through the goal mouth, coming from the pitch? Only that counts as "in the net":
+// balls that sneak in from the side, the top or behind the goal never score.
+export function crossesGoalMouth(px, py, pz, x, y, z, s) {
+  const L = FIELD.halfL;
+  const a0 = s * px, a1 = s * x;
+  if (!(a0 <= L && a1 > L)) return null;
+  const t = (L - a0) / (a1 - a0 || 1e-6);
+  const cz = pz + (z - pz) * t, cy = py + (y - py) * t;
+  if (Math.abs(cz) < FIELD.goalW / 2 - FIELD.postR && cy < FIELD.goalH - FIELD.postR) return { z: cz, y: cy };
+  return null;
+}
+
+// Goal-line bookkeeping shared by free and carried balls.
+export function updateGoalLine(b, px, py, pz) {
+  const R = PHYS.ballR, L = FIELD.halfL;
+  for (const s of [-1, 1]) {
+    if (b.inNet === 0) {
+      const c = crossesGoalMouth(px, py, pz, b.x, b.y, b.z, s);
+      if (c) { b.inNet = s; b.crossZ = c.z; b.crossY = c.y; }
+    } else if (b.inNet === s && s * b.x < L - R) b.inNet = 0;
+  }
+}
+
+function collideGoals(b, events, px, py, pz) {
   const R = PHYS.ballR;
   const hw = FIELD.goalW / 2, H = FIELD.goalH, D = FIELD.goalD, L = FIELD.halfL, pr = FIELD.postR;
+  updateGoalLine(b, px, py, pz);
   for (const s of [-1, 1]) {
     const gx = s * L;
-    // Mark the ball as "in the net" when it crosses the goal line inside the mouth.
-    const past = s > 0 ? b.x > gx : b.x < gx;
-    if (past && Math.abs(b.z) < hw - pr && b.y < H - pr) {
-      if (b.inNet === 0) b.inNet = s;
-    }
-    if (!past && b.inNet === s && (s > 0 ? b.x < gx - R : b.x > gx + R)) b.inNet = 0;
-
     collideCylinderV(b, gx, -hw, pr, 0, H, events);
     collideCylinderV(b, gx, hw, pr, 0, H, events);
     collideBar(b, gx, H, -hw, hw, pr, events);
 
     const backX = gx + s * D;
-    const ax = Math.abs(b.x);
     if (b.inNet === s) {
       // Inside the net box: soft walls
       let hitNet = false;
@@ -136,21 +154,38 @@ function collideGoals(b, events) {
         b.vx *= 0.8; b.vz *= 0.8;
         if (!b._netEv) { events.push({ e: 'net', side: s }); b._netEv = true; }
       }
-    } else if (ax > L - R && ax < L + D + R && (s > 0) === (b.x > 0)) {
-      // Outside of the net box: treat as solid
-      const inZ = Math.abs(b.z) < hw + R;
-      const inY = b.y < H + R;
-      if (inZ && inY && ax > L) {
-        const penSide = hw + R - Math.abs(b.z);
-        const penTop = H + R - b.y;
-        const penBack = L + D + R - ax;
-        const m = Math.min(penSide, penTop, penBack);
-        if (m === penTop) { b.y = H + R; if (b.vy < 0) b.vy = -b.vy * 0.35; }
-        else if (m === penSide) { b.z = Math.sign(b.z || 1) * (hw + R); b.vz = Math.sign(b.z) * Math.abs(b.vz) * 0.35; }
-        else { b.x = s * (L + D + R); b.vx = s * Math.abs(b.vx) * 0.35; }
-      }
+      continue;
     }
+    // Not a legal entry: the goal frame + side/top/back nets are solid from the outside.
+    const ax = s * b.x;
+    if (ax <= L || ax >= L + D + R || Math.abs(b.z) >= hw + R || b.y >= H + R) continue;
+    const pax = s * px;
+    const penSide = hw + R - Math.abs(b.z);
+    const penTop = H + R - b.y;
+    const penBack = L + D + R - ax;
+    const penFront = ax - L + R;
+    let face;
+    if (Math.abs(pz) >= hw + R - 0.02) face = 'side';
+    else if (py >= H + R - 0.02) face = 'top';
+    else if (pax >= L + D + R - 0.02) face = 'back';
+    else {
+      const m = Math.min(penSide, penTop, penBack, penFront);
+      face = m === penSide ? 'side' : m === penTop ? 'top' : m === penBack ? 'back' : 'front';
+    }
+    if (face === 'side') {
+      const sz = Math.sign(Math.abs(pz) >= hw ? pz : b.z) || 1;
+      b.z = sz * (hw + R); b.vz = sz * Math.abs(b.vz) * 0.35;
+    } else if (face === 'top') {
+      b.y = H + R; if (b.vy < 0) b.vy = -b.vy * 0.35;
+    } else if (face === 'back') {
+      b.x = s * (L + D + R); b.vx = s * Math.abs(b.vx) * 0.35;
+    } else {
+      b.x = s * (L - R); b.vx = -s * Math.abs(b.vx) * 0.35;
+    }
+    const sp = Math.hypot(b.vx, b.vy, b.vz);
+    if (sp > 4 && !b._sideEv) { events.push({ e: 'net', side: s }); b._sideEv = true; }
   }
+  if (b._sideEv && Math.abs(b.x) < L - 2) b._sideEv = false;
 }
 
 // Predict where/when a free ball crosses x = gx (ignoring curve). Returns {z, y, t} or null.
