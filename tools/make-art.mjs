@@ -38,19 +38,20 @@ async function video(shot, w, h, file, sample = 0) {
   await page.goto(`${BASE}?shot=${shot}`);
   await page.waitForFunction(() => window.__ready === true && window.__frames > 0, null, { timeout: 180000 });
   const frames = await page.evaluate(() => window.__frames);
-  const args = sample
-    ? ['-v', 'error', '-y', '-f', 'image2pipe', '-framerate', '30', '-i', '-', '-vf', `select='not(mod(n\\,${sample}))',scale=480:-2,tile=6x3`, '-frames:v', '1', `${OUT}/${file}`]
-    : ['-v', 'error', '-y', '-f', 'image2pipe', '-framerate', '30', '-i', '-', '-an', '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-r', '30', `${OUT}/${file}`];
-  const ff = spawn('ffmpeg', args, { stdio: ['pipe', 'inherit', 'inherit'] });
+  const args = ['-v', 'error', '-y', '-f', 'image2pipe', '-framerate', '30', '-i', '-', '-an', '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-r', '30', `${OUT}/${file}`];
+  const ff = sample ? null : spawn('ffmpeg', args, { stdio: ['pipe', 'inherit', 'inherit'] });
   const t0 = Date.now();
   for (let i = 0; i < frames; i++) {
     await page.evaluate(() => window.__step());
-    const buf = await page.locator('#stage').screenshot({ type: 'jpeg', quality: 95 });
-    if (!ff.stdin.write(buf)) await new Promise((r) => ff.stdin.once('drain', r));
+    if (sample) {
+      if (i % sample === 0) await page.locator('#stage').screenshot({ type: 'jpeg', quality: 80, path: `${OUT}/${file}_${String(i).padStart(4, '0')}.jpg` });
+    } else {
+      const buf = await page.locator('#stage').screenshot({ type: 'jpeg', quality: 95 });
+      if (!ff.stdin.write(buf)) await new Promise((r) => ff.stdin.once('drain', r));
+    }
     if (i % 60 === 0) console.log(`${shot}: frame ${i}/${frames} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
   }
-  ff.stdin.end();
-  await new Promise((r) => ff.on('close', r));
+  if (ff) { ff.stdin.end(); await new Promise((r) => ff.on('close', r)); }
   await browser.close();
   console.log(`✓ ${OUT}/${file}`);
 }
@@ -60,7 +61,7 @@ if (mode === 'covers') {
   await cover('cover-portrait', 800, 1200);
   await cover('cover-square', 800, 800);
 } else if (mode === 'preview') {
-  await video('video-landscape', 1920, 1080, 'preview-sheet.jpg', 30);
+  await video('video-landscape', 1920, 1080, 'prev', 15);
 } else if (mode === 'videos') {
   await video('video-landscape', 1920, 1080, 'preview-landscape.mp4');
   await video('video-portrait', 1080, 1620, 'preview-portrait.mp4');

@@ -59,6 +59,8 @@ export class Video {
     this.d1 = mk(11, 1, 'Bolt', { skin: 1, hair: 'beanie', hairColor: 3, jersey: 'stripes', number: 4 });
     this.d2 = mk(12, 1, 'Momo', { skin: 5, hair: 'mohawk', hairColor: 4, jersey: 'stripes', number: 9 });
     this.d3 = mk(13, 1, 'Taco', { skin: 2, hair: 'spiky', hairColor: 6, jersey: 'stripes', number: 5 });
+    [this.hero, this.r2, this.r3, this.r4].forEach((p, i) => { p.slot = i; });
+    [this.d1, this.d2, this.d3, this.gk].forEach((p, i) => { p.slot = i; });
     w.resetKickoff(0);
     w.phase = 'play';
     w.phaseT = 0;
@@ -144,10 +146,10 @@ export class Video {
     at(4.25, () => this.act(gk, 'tackle', { mx: 0.25, mz: 1 }));
     // ---------------- Shot 2: goal + celebration
     at(4.9, () => { if (w.phase === 'goal') w.phaseT = 30; });
-    at(5.6, () => { this.shot = 'celebrate'; if (w.phase === 'goal') w.phaseT = 30; });
+    at(5.6, () => { this.shot = 'celebrate'; if (w.phase === 'goal') w.phaseT = 30; setAnim(H, 'celebrate', 2.2); });
 
     // ---------------- Shot 3a: barrel bowling
-    at(8.4, () => {
+    at(7.4, () => {
       this.shot = 'barrel';
       w.phase = 'play';
       w.puddles.length = 0; w.projs.length = 0; w.walls.length = 0; w.boxes = [];
@@ -160,9 +162,9 @@ export class Video {
       this.move(d1, -1, 0.1); this.move(this.d2, -1, 0.3); this.move(this.d3, -1, -0.1);
       this.r2.items = ['barrel', null];
     });
-    at(8.75, () => this.act(this.r2, 'item', { slot: 0, yaw: Math.PI / 2 + 0.02, pitch: 0.3 }));
+    at(7.75, () => this.act(this.r2, 'item', { slot: 0, yaw: Math.PI / 2 + 0.02, pitch: 0.3 }));
     // ---------------- Shot 3b: ice blast
-    at(10.1, () => {
+    at(9.1, () => {
       this.shot = 'ice';
       w.projs.length = 0;
       this.benchAll([this.r3, this.d1, H]);
@@ -173,10 +175,10 @@ export class Video {
       this.move(this.d1, -1, -0.45, true);
       this.r3.items = ['ice', null];
     });
-    at(10.45, () => this.act(this.r3, 'item', { slot: 0, yaw: this.yawTo(this.r3, this.d1.x - 3.5, this.d1.z - 1.5), pitch: 0.3 }));
-    at(10.9, () => { this.move(H, 1, 0, true); });
+    at(9.45, () => this.act(this.r3, 'item', { slot: 0, yaw: this.yawTo(this.r3, this.d1.x - 3.5, this.d1.z - 1.5), pitch: 0.3 }));
+    at(9.9, () => { this.move(H, 1, 0, true); });
     // ---------------- Shot 3c: jetpack over the defence
-    at(11.7, () => {
+    at(10.7, () => {
       this.shot = 'jet';
       w.projs.length = 0;
       this.benchAll([H, this.d2, this.d3]);
@@ -189,35 +191,35 @@ export class Video {
       this.move(this.d3, -1, 0.2, false);
       H.items = ['jet', null];
     });
-    at(11.85, () => this.act(H, 'item', { slot: 0, yaw: Math.PI / 2, pitch: 0.3 }));
-    at(12.15, () => this.act(this.d2, 'tackle', { mx: -1, mz: 0 }));
+    at(10.85, () => this.act(H, 'item', { slot: 0, yaw: Math.PI / 2, pitch: 0.3 }));
+    at(11.15, () => this.act(this.d2, 'tackle', { mx: -1, mz: 0 }));
     // ---------------- Shot 3d: boxing glove
-    at(13.3, () => {
+    at(12.3, () => {
       this.shot = 'punch';
-      this.benchAll([this.r4, this.d3]);
-      this.place(this.r4, 10, 12, Math.PI / 2);
+      this.benchAll([this.r2, this.d3]);
+      this.place(this.r2, 10, 12, Math.PI / 2);
       this.place(this.d3, 15.5, 12.2, -Math.PI / 2);
       this.own(this.d3);
       this.move(this.d3, -1, 0, false);
-      this.move(this.r4, 1, 0, false);
-      this.r4.items = ['punch', null];
-      w.brains.delete(this.r4.id);
+      this.move(this.r2, 1, 0, false);
+      this.r2.items = ['punch', null];
     });
-    at(13.55, () => { this.stop(this.r4); this.act(this.r4, 'item', { slot: 0, yaw: Math.PI / 2, pitch: 0.3 }); });
+    at(12.55, () => { this.stop(this.r2); this.act(this.r2, 'item', { slot: 0, yaw: Math.PI / 2, pitch: 0.3 }); });
     // ---------------- Shot 4: team celebration, fireworks
-    at(14.9, () => {
+    at(13.9, () => {
       this.shot = 'finale';
-      const reds = [H, this.r2, this.r3, this.r4];
+      const reds = [H, this.r2, this.r3];
       this.benchAll(reds);
-      reds.forEach((p, i) => { this.place(p, 30 + (i % 2) * 2.5 - 1, -3 + i * 2.2, -Math.PI / 2 - 0.3 + i * 0.2); });
-      setAnim(H, 'celebrate', 6); H.id === 1;
-      setAnim(this.r2, 'cheer', 6); setAnim(this.r3, 'cheer', 6);
-      this.r4.emote = 'dance'; setAnim(this.r4, 'emote', 6); this.r4.emote = 'dance';
+      reds.forEach((p, i) => { this.place(p, 30 + (i % 2) * 2.5 - 1, -2.5 + i * 2.4, -Math.PI / 2 - 0.3 + i * 0.25); });
+      setAnim(H, 'celebrate', 6);
+      setAnim(this.r2, 'cheer', 6);
+      this.r3.emote = 'dance'; setAnim(this.r3, 'emote', 6); this.r3.emote = 'dance';
       const b = w.ball; Object.assign(b, { owner: -1, x: 33, y: 0.55, z: 1.5, vx: 0, vy: 0, vz: 0, inNet: 0 });
       this.R.vfx.fireworks(36, 6, 0);
       this.R.vfx.confetti(32, 4, 0, 160);
     });
-    at(16.2, () => { this.R.vfx.fireworks(28, 7, -6); this.R.vfx.confetti(30, 5, 4, 120); });
+    at(15.2, () => { this.R.vfx.fireworks(28, 7, -6); this.R.vfx.confetti(30, 5, 4, 120); });
+    at(16.6, () => { this.R.vfx.fireworks(34, 8, 5); this.R.vfx.confetti(31, 5, -3, 120); });
     return cues.sort((a, b) => a.t - b.t);
   }
 
@@ -242,7 +244,7 @@ export class Video {
         break;
       }
       case 'celebrate': {
-        const k = Math.min(1, (t - 5.6) / 2.8);
+        const k = Math.min(1, (t - 5.6) / 1.8);
         const a = -0.6 + ease(k) * 1.4;
         const r = this.portrait ? 7.5 : 6.5;
         pos.set(H.x + Math.sin(a + Math.PI / 2) * r, 2.0, H.z + Math.cos(a + Math.PI / 2) * r - 1);
@@ -250,7 +252,7 @@ export class Video {
         break;
       }
       case 'barrel': {
-        const k = Math.min(1, (t - 8.4) / 1.7);
+        const k = Math.min(1, (t - 7.4) / 1.7);
         pos.set(lerp(-14, -2, ease(k)), 2.2, -3.5);
         look.set(lerp(-9, 1, ease(k)), 1.0, 5.8);
         break;
@@ -272,7 +274,7 @@ export class Video {
         break;
       }
       case 'finale': {
-        const k = Math.min(1, (t - 14.9) / 3.1);
+        const k = Math.min(1, (t - 13.9) / 4.1);
         const a = -1.9 + ease(k) * 0.9;
         const r = lerp(9, 14, ease(k));
         pos.set(31 + Math.sin(a) * r, lerp(2.2, 7.5, ease(k)), 0 + Math.cos(a) * r);

@@ -20,9 +20,9 @@ if (files > 1500 || bytes > 50 * 1024 * 1024) { console.error('Build exceeds Cra
 
 const zip = 'crazy-soccer-html5.zip';
 if (existsSync(zip)) rmSync(zip);
-try {
-  execSync(`cd ${dist} && zip -qr ../${zip} .`, { stdio: 'inherit' });
-} catch (e) {
-  execSync(`python3 -c "import shutil; shutil.make_archive('crazy-soccer-html5', 'zip', '${dist}')"`, { stdio: 'inherit' });
+// Packaging is a convenience only: never fail the build (e.g. on hosts without zip/python).
+let packaged = false;
+for (const cmd of [`cd ${dist} && zip -qr ../${zip} .`, `python3 -c "import shutil; shutil.make_archive('crazy-soccer-html5', 'zip', '${dist}')"`]) {
+  try { execSync(cmd, { stdio: 'ignore' }); packaged = true; break; } catch (e) { /* try next */ }
 }
-console.log(`Packaged ${zip} (upload this to the CrazyGames developer portal).`);
+console.log(packaged ? `Packaged ${zip} (upload this to the CrazyGames developer portal).` : 'Skipped zip packaging (no zip tool available). Upload the dist/ folder contents.');

@@ -29,6 +29,8 @@ const canvas = document.getElementById('game');
 const R = new GameRenderer(canvas, false);
 R.resize();
 const V = R.vfx;
+// Cover scenes were composed for a goal line at x = 42; shift the arena so they line up with the current pitch.
+if (SHOT.startsWith('cover')) R.stadium.root.position.x = 42 - FIELD.halfL;
 const scene = R.scene;
 const cam = R.cam;
 const GLOW = glowTexture();
@@ -38,6 +40,7 @@ const C = (o) => ({ skin: 2, hair: 'bob', hairColor: 1, jersey: 'classic', ball:
 
 export function pose(cos, team, anim, animT, o = {}) {
   const m = new CharacterModel(cos, team, { outline: true, shadows: true });
+  if (o.keeper) m.setAppearance(cos, team, true);
   scene.add(m.root);
   const st = { anim, animT, animDur: o.dur || 1, speed: o.speed || 0, sprinting: !!o.sprint, charging: !!o.charging, charge: o.charge || 0, hasBall: false, emote: o.emote, fx: { jet: o.jet ? 1 : 0 }, y: o.y || 0, id: o.id || 0, stun: o.stun || 0 };
   if (o.pre) for (let i = 0; i < 30; i++) m.update(0.05, { ...st, ...o.pre });
@@ -157,7 +160,7 @@ function heroKickScene(o = {}) {
   fireTrail(foot, ballP, 1.0);
   V.kick(foot.x, foot.y, foot.z, 1, 0xff8a1f);
   // keeper diving across the goal mouth
-  pose(C({ skin: 3, hair: 'cap', hairColor: 5, number: 1 }), 1, 'dive', 0.3, { x: 39.6, y: 1.8, z: -2.6, face: -1.0, dur: 0.62 });
+  pose(C({ skin: 3, hair: 'cap', hairColor: 5, number: 1 }), 1, 'dive', 0.3, { x: 39.6, y: 1.8, z: -2.6, face: -1.0, dur: 0.62, keeper: true });
   // frozen rival
   pose(C({ skin: 4, hair: 'afro', hairColor: 6, number: 5 }), 1, 'idle', 0, { x: 34.5, z: -10.5, face: -Math.PI / 2 + 0.6, speed: 12, sprint: true, pre: { speed: 12, sprinting: true } });
   iceBlock(34.5, -10.5);
