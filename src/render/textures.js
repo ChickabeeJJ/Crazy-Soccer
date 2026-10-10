@@ -25,14 +25,16 @@ export function toonGradient() {
   return t;
 }
 
-// Striped, painterly pitch covering the whole arena floor.
+// Striped, painterly pitch covering the whole arena floor. kind: false/'grass' | true/'indoor' | 'desert'
 export function grassTexture(indoor = false) {
   const W = 2048, H = 1312;
   const c = canvas(W, H);
   const g = c.getContext('2d');
-  const rnd = seeded(indoor ? 77 : 12);
+  const desert = indoor === 'desert';
+  if (desert) indoor = false;
+  const rnd = seeded(desert ? 55 : indoor ? 77 : 12);
   const sx = W / (FIELD.wallX * 2), sz = H / (FIELD.wallZ * 2);
-  const a = indoor ? '#6cbf3a' : '#4f9b3d', b = indoor ? '#7dcc45' : '#5cab48';
+  const a = desert ? '#d4b072' : indoor ? '#6cbf3a' : '#4f9b3d', b = desert ? '#e0c084' : indoor ? '#7dcc45' : '#5cab48';
   const stripe = 4.5;
   for (let z = -FIELD.wallZ, i = 0; z < FIELD.wallZ; z += stripe, i++) {
     g.fillStyle = i % 2 ? a : b;
@@ -43,7 +45,8 @@ export function grassTexture(indoor = false) {
     const x = rnd() * W, y = rnd() * H;
     const l = 3 + rnd() * 9;
     const light = rnd() < 0.5;
-    g.strokeStyle = light ? `rgba(190,255,150,${0.05 + rnd() * 0.08})` : `rgba(10,60,20,${0.05 + rnd() * 0.09})`;
+    if (desert) g.strokeStyle = light ? `rgba(255,245,215,${0.06 + rnd() * 0.08})` : `rgba(120,80,30,${0.05 + rnd() * 0.08})`;
+    else g.strokeStyle = light ? `rgba(190,255,150,${0.05 + rnd() * 0.08})` : `rgba(10,60,20,${0.05 + rnd() * 0.09})`;
     g.lineWidth = 1 + rnd() * 1.5;
     g.beginPath();
     g.moveTo(x, y);
@@ -513,4 +516,93 @@ export function arrowTexture() {
   const t = tex(c, { repeat: [1, 1] });
   t.wrapT = THREE.RepeatWrapping;
   return t;
+}
+
+
+// Desert backdrop: cream dunes, purple crystal spires and red rock mesas.
+export function desertPanoramaTexture() {
+  const W = 4096, H = 1024;
+  const c = canvas(W, H);
+  const g = c.getContext('2d');
+  const rnd = seeded(41);
+  g.clearRect(0, 0, W, H);
+  const horizon = H * 0.62;
+  const haze = g.createLinearGradient(0, horizon - 300, 0, horizon + 40);
+  haze.addColorStop(0, 'rgba(255,236,214,0)');
+  haze.addColorStop(1, 'rgba(255,236,214,0.9)');
+  g.fillStyle = haze;
+  g.fillRect(0, horizon - 300, W, 340);
+  // Crystal spires (jagged purple shards)
+  const spire = (x, base, h, w, lean) => {
+    const cols = ['#7b5cc8', '#9d84e6', '#6a4bb3', '#b9a6f2'];
+    const n = 3 + Math.floor(rnd() * 4);
+    for (let k = 0; k < n; k++) {
+      const ox = x + (rnd() - 0.5) * w * 1.6, hh = h * (0.45 + rnd() * 0.6), ww = w * (0.25 + rnd() * 0.35);
+      const tip = ox + lean * hh * (0.2 + rnd() * 0.3);
+      g.fillStyle = cols[Math.floor(rnd() * cols.length)];
+      g.beginPath(); g.moveTo(ox - ww, base); g.lineTo(tip, base - hh); g.lineTo(ox + ww, base); g.closePath(); g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.35)';
+      g.beginPath(); g.moveTo(tip, base - hh); g.lineTo(ox + ww * 0.15, base); g.lineTo(ox + ww, base); g.closePath(); g.fill();
+    }
+  };
+  for (let i = 0; i < 70; i++) spire(rnd() * W, horizon + 20, 120 + rnd() * 330, 30 + rnd() * 60, rnd() < 0.5 ? -0.35 : 0.35);
+  // Dunes
+  const dune = (baseY, amp, freq, color, seed) => {
+    const r = seeded(seed);
+    const ph = [r() * 10, r() * 10];
+    g.fillStyle = color;
+    g.beginPath(); g.moveTo(0, H);
+    for (let x = 0; x <= W; x += 8) {
+      const u = (x / W) * Math.PI * 2;
+      g.lineTo(x, baseY - amp * (0.5 + 0.5 * Math.sin(u * freq + ph[0])) - amp * 0.35 * Math.sin(u * freq * 2.7 + ph[1]));
+    }
+    g.lineTo(W, H); g.closePath(); g.fill();
+  };
+  dune(horizon + 20, 90, 5, '#efd7ae', 2);
+  dune(horizon + 50, 70, 7, '#f6e6c6', 3);
+  dune(horizon + 80, 50, 9, '#e6c592', 4);
+  // Red rock mesas
+  for (let i = 0; i < 26; i++) {
+    const x = rnd() * W, w = 60 + rnd() * 200, h = 30 + rnd() * 90, y = horizon + 70 + rnd() * 50;
+    g.fillStyle = rnd() < 0.5 ? '#b5653c' : '#9c5232';
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + w * 0.12, y - h); g.lineTo(x + w * 0.85, y - h * 0.9); g.lineTo(x + w, y); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,220,180,0.35)';
+    g.fillRect(x + w * 0.14, y - h, w * 0.68, 6);
+  }
+  // Sand floor band
+  const sand = g.createLinearGradient(0, horizon + 90, 0, H);
+  sand.addColorStop(0, '#e8cb98');
+  sand.addColorStop(1, '#d4ad6f');
+  g.fillStyle = sand;
+  g.fillRect(0, horizon + 110, W, H);
+  return tex(c, { aniso: 4 });
+}
+
+export function stoneTexture() {
+  const c = canvas(512, 64);
+  const g = c.getContext('2d');
+  const rnd = seeded(8);
+  g.fillStyle = '#6b4a33';
+  g.fillRect(0, 0, 512, 64);
+  for (let i = 0; i < 90; i++) {
+    const x = rnd() * 512, y = 8 + rnd() * 48, r = 6 + rnd() * 10;
+    g.fillStyle = ['#a8764e', '#c08a5a', '#8f6243', '#d39a63'][Math.floor(rnd() * 4)];
+    g.beginPath(); g.ellipse(x, y, r * 1.3, r, rnd(), 0, Math.PI * 2); g.fill();
+  }
+  const t = tex(c);
+  t.wrapS = THREE.RepeatWrapping;
+  return t;
+}
+
+export function barricadeTexture() {
+  const c = canvas(256, 64);
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, 256, 64);
+  for (let x = -64; x < 320; x += 48) {
+    g.fillStyle = '#e8304f';
+    g.beginPath(); g.moveTo(x, 64); g.lineTo(x + 24, 0); g.lineTo(x + 48, 0); g.lineTo(x + 24, 64); g.closePath(); g.fill();
+  }
+  g.strokeStyle = '#1b1530'; g.lineWidth = 6; g.strokeRect(0, 0, 256, 64);
+  return tex(c);
 }

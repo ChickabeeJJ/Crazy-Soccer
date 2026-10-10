@@ -156,6 +156,8 @@ export class Audio {
       case 'punch': this.tone('sine', 180, 600, 0.12, 0.4); this.tone('sine', 600, 120, 0.3, 0.3, this.sfxBus, 0.12); break;
       case 'speed': [500, 750, 1000, 1500].forEach((f, i) => this.tone('triangle', f, f, 0.07, 0.15, this.sfxBus, i * 0.05)); break;
       case 'shield': this.tone('sine', 400, 900, 0.5, 0.25); break;
+      case 'barricade': this.tone('square', 220, 160, 0.12, 0.25); this.noise(0.15, 0.3, 'lowpass', 800, 300); break;
+      case 'barrel': this.noise(0.9, 0.35, 'lowpass', 300, 120, 0.8); this.tone('sine', 80, 60, 0.6, 0.3); break;
       default: this.tone('sine', 600, 900, 0.2, 0.2);
     }
   }

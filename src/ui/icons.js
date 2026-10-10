@@ -13,6 +13,8 @@ export const ITEM_SVG = {
   punch: S('<rect x="17" y="18" width="30" height="24" rx="11" fill="#ff4466" stroke="#1b1530" stroke-width="3"/><rect x="22" y="40" width="20" height="10" rx="3" fill="#fff" stroke="#1b1530" stroke-width="3"/><path d="M24 26c4-3 10-3 14 0" stroke="#ffc1cc" stroke-width="3" fill="none" stroke-linecap="round"/>', '#ffd0d8'),
   speed: S('<path d="M36 8L18 36h12l-4 20 20-30H34l2-18z" fill="#ffe14a" stroke="#1b1530" stroke-width="3" stroke-linejoin="round"/>', '#4cd964'),
   shield: S('<circle cx="32" cy="32" r="17" fill="rgba(255,255,255,0.35)" stroke="#fff" stroke-width="4"/><circle cx="25" cy="25" r="5" fill="#fff"/>', '#b27bff'),
+  barricade: S('<rect x="12" y="20" width="40" height="13" fill="#fff" stroke="#1b1530" stroke-width="3"/><path d="M18 33l8-13M30 33l8-13M42 33l8-13" stroke="#e8304f" stroke-width="5"/><path d="M17 33v15M47 33v15" stroke="#ffb000" stroke-width="5"/><path d="M11 48h12M41 48h12" stroke="#1b1530" stroke-width="4"/>', '#ffd36b'),
+  barrel: S('<rect x="17" y="14" width="30" height="36" rx="7" fill="#2f6fe0" stroke="#1b1530" stroke-width="3"/><path d="M17 24h30M17 40h30" stroke="#1b2340" stroke-width="4"/><path d="M24 18v28" stroke="#7fb0ff" stroke-width="3" stroke-linecap="round"/>', '#9ec5ff'),
 };
 
 export function itemSvg(kind) { return ITEM_SVG[kind] || ''; }

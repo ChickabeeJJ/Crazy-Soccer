@@ -213,6 +213,7 @@ export class BotBrain {
       if (presser && press < 6) {
         const behind = (presser.x - p.x) * s < 0;
         if (behind && Math.random() < 0.05) this.tryItem('oil');
+        if (behind && Math.random() < 0.03) this.tryItem('barricade', Math.atan2(presser.x - p.x, presser.z - p.z));
       }
     }
 
@@ -299,6 +300,9 @@ export class BotBrain {
     const p = this.p;
     const yaw = Math.atan2(owner.x - p.x, owner.z - p.z);
     if (d < 4.5 && this.tryItem('punch', yaw)) return;
+    if (d < 20 && d > 4 && Math.random() < 0.35 && this.tryItem('barrel', yaw)) return;
+    const ownX = p.team === 0 ? -FIELD.halfL : FIELD.halfL;
+    if (Math.abs(owner.x - ownX) < 26 && d > 4 && d < 12 && Math.random() < 0.3 && this.tryItem('barricade', yaw)) return;
     if (d < 22 && d > 4 && Math.random() < 0.3 && this.tryItem('ice', yaw, 0.32)) return;
     if (d > 10 && d < 30 && Math.random() < 0.2) this.tryItem('grapple', yaw);
   }

@@ -191,7 +191,8 @@ export class UI {
       $('stamina').className = `stamina ${s.charging ? 'charge' : ''} ${!s.charging && s.exhausted ? 'tired' : ''}`;
     }
     this.setVal('netStats', 'text', s.showStats ? `${s.fps} fps${s.ping ? ` • ${s.ping} ms` : ''}` : '');
-    this.setVal('replayTag', 'class', `replay-tag ${v.phase === 'replay' ? 'show' : ''}`);
+    const rep = v.phase === 'replay';
+    if (this.cache.rep !== rep) { this.cache.rep = rep; $('recOverlay').classList.toggle('show', rep); $('hud').classList.toggle('replay', rep); }
     const stats = this.statsPinned || s.statsHeld;
     if (stats) this.renderStats(s.session, s.localId);
     $('statsPanel').classList.toggle('show', !!stats);
@@ -209,13 +210,25 @@ export class UI {
     this.setVal('banners', 'html', html);
   }
 
-  toast(text) {
+  toast(text, pts) {
     const d = document.createElement('div');
-    d.className = 'toast';
+    d.className = `toast ${pts >= 40 ? 'big' : ''}`;
     d.textContent = text;
+    if (pts) { const b = document.createElement('b'); b.textContent = `+${pts}`; d.appendChild(b); }
     $('toasts').prepend(d);
     while ($('toasts').children.length > 5) $('toasts').lastChild.remove();
     setTimeout(() => d.remove(), 2600);
+  }
+
+  goalPopup(name, team, assist) {
+    $('gpName').textContent = name || 'Own goal';
+    $('gpSq').className = `sq ${team === 1 ? 'blue' : 'red'}`;
+    $('gpAssist').textContent = assist ? `⚽ ${assist}` : '';
+    const el = $('goalPop');
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+    $('hud').classList.add('goal');
+    clearTimeout(this.gpTimer);
+    this.gpTimer = setTimeout(() => { el.classList.remove('show'); $('hud').classList.remove('goal'); }, 3200);
   }
 
   announce(text, sub = '', hold = false) {

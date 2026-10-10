@@ -25,7 +25,8 @@ function geos() {
     shin: new THREE.CapsuleGeometry(0.14, 0.18, 4, 10),
     shoe: roundedBox(0.3, 0.2, 0.5, 0.08),
     hairCap: new THREE.SphereGeometry(0.665, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.52),
-    spike: new THREE.ConeGeometry(0.17, 0.42, 6),
+    hairCapShort: new THREE.SphereGeometry(0.665, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.43),
+    spike: new THREE.ConeGeometry(0.2, 0.52, 6),
     bun: new THREE.SphereGeometry(0.24, 12, 10),
     brim: new THREE.BoxGeometry(0.62, 0.06, 0.4),
     pom: new THREE.SphereGeometry(0.16, 10, 8),
@@ -224,7 +225,7 @@ export class CharacterModel {
     const h = this.hair;
     while (h.children.length) h.remove(h.children[0]);
     const g = G;
-    const cap = () => { const m = this.mesh(g.hairCap, mat, h, [0, 0.02, -0.02]); m.rotation.x = -0.22; return m; };
+    const cap = () => { const m = this.mesh(g.hairCapShort, mat, h, [0, 0.02, -0.03]); m.rotation.x = -0.36; return m; };
     switch (style) {
       case 'bob': {
         const m = this.mesh(g.hairCap, mat, h, [0, -0.05, -0.04]);
@@ -286,7 +287,7 @@ export class CharacterModel {
       }
       default: { // spiky
         cap();
-        const spots = [[0, 0.62, -0.1, -0.2, 0], [0.28, 0.55, 0.05, -0.1, -0.5], [-0.28, 0.55, 0.05, -0.1, 0.5], [0.18, 0.5, 0.36, 0.5, -0.3], [-0.18, 0.5, 0.36, 0.5, 0.3], [0, 0.42, -0.42, -1.0, 0], [0.34, 0.35, -0.3, -0.7, -0.6], [-0.34, 0.35, -0.3, -0.7, 0.6]];
+        const spots = [[0, 0.66, -0.08, -0.25, 0], [0.3, 0.58, 0.02, -0.15, -0.55], [-0.3, 0.58, 0.02, -0.15, 0.55], [0.16, 0.6, 0.3, 0.55, -0.3], [-0.16, 0.6, 0.3, 0.55, 0.3], [0, 0.6, 0.36, 0.75, 0], [0, 0.45, -0.44, -1.05, 0], [0.36, 0.38, -0.3, -0.75, -0.65], [-0.36, 0.38, -0.3, -0.75, 0.65]];
         for (const [x, y, z, rx, rz] of spots) {
           const s = this.mesh(g.spike, mat, h, [x, y, z]);
           s.rotation.set(rx, 0, rz);

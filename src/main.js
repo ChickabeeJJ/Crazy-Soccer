@@ -263,7 +263,7 @@ class App {
     try { res = await withTimeout(net.joinPrivate(code, this.hello()), 12000); } catch (e) { res = { ok: false, why: 'timeout' }; }
     if (!res.ok) {
       net.close();
-      const why = { unavailable: 'Room not found.', full: 'That room is full.', version: 'Room is on a different game version.', timeout: 'Could not connect to the room.' }[res.why] || 'Could not join the room.';
+      const why = { unavailable: 'Room not found.', full: 'That room is full.', version: 'Room is on a different game version.', timeout: 'Room not found or it has closed.' }[res.why] || 'Could not join the room.';
       $('privateMsg').textContent = why;
       if (!this.ui.isOpen('private')) this.ui.globalToast(why);
       return;
@@ -328,7 +328,7 @@ class App {
     this.ui.modal('pause', false);
     this.ui.touchVisible(true);
     this.renderer.clearWorld();
-    this.renderer.setVariant(s.mode === 'practice' ? 'indoor' : 'outdoor');
+    this.renderer.setVariant(s.mode === 'practice' ? 'indoor' : s.view.map || 'grass');
     this.renderer.ball.setSkin(Save.p.eq.ball);
     this.audio.stopMusic();
     this.audio.startCrowd();
@@ -510,7 +510,8 @@ class App {
         const scorer = ev.scorer >= 0 ? s.playerName(ev.scorer) : '';
         const assist = ev.assist >= 0 ? s.playerName(ev.assist) : '';
         const title = s.mode === 'practice' ? 'GOAL!' : ev.own ? 'OWN GOAL!' : 'GOAL!';
-        this.ui.announce(title, scorer ? `${scorer}${assist ? ` (assist ${assist})` : ''}` : '');
+        this.ui.announce(title);
+        this.ui.goalPopup(ev.own ? `Own goal${scorer ? ` (${scorer})` : ''}` : scorer, ev.team, assist);
         if (ev.scorer === s.localId && !ev.own) { SDK.happytime(); }
         break;
       }
@@ -533,7 +534,7 @@ class App {
       case 'item': A.item(ev.k); break;
       case 'shatter': A.freeze(); break;
       case 'shieldblock': A.boing(); break;
-      case 'toast': if (ev.id === s.localId) { this.ui.toast(ev.text); A.toast(); } break;
+      case 'toast': if (ev.id === s.localId) { this.ui.toast(ev.text, ev.pts); A.toast(); } break;
       case 'chat':
         if (!SDK.settings.disableChat) { const p = s.playerById(ev.id); this.ui.chatLine(p ? p.name : 'Player', p ? p.team : 0, QUICK_CHAT[ev.i] || ''); A.chat(); }
         break;
@@ -695,6 +696,8 @@ class App {
 
     // Render sync
     const v = s.view;
+    const variant = s.mode === 'practice' ? 'indoor' : v.map || 'grass';
+    if (variant !== this.renderer.stadium.variant) this.renderer.setVariant(variant);
     let frame = null, progress = 0;
     if (v.phase === 'replay') {
       progress = clamp((performance.now() - this.replayStart) / 1000 / MATCH.replayTime, 0, 1);
@@ -743,6 +746,11 @@ class App {
       if (!s.net) list.push({ title: 'Offline match', text: 'Bots are playing with you' });
       else if (humans < 8) list.push({ title: 'Waiting for players', text: 'Bots fill empty spots until others join' });
       if (this.session.intermission > 0 && v.phase === 'end') list.push({ title: 'Next match', text: `starts in ${Math.ceil(this.session.intermission)}s`, kind: 'good' });
+      const me = s.me;
+      if (me && s.hasBall() && v.phase === 'play') {
+        const close = v.players.some((q) => q && q.team !== me.team && Math.hypot(q.x - me.x, q.z - me.z) < 6);
+        if (close) list.unshift({ title: 'Dribble to dodge', text: "You can't get tackled while dribbling", kind: 'good' });
+      }
     }
     this.ui.setBanners(list);
     if (s.roomKind === 'priv' && v.phase === 'warmup') {
@@ -792,6 +800,7 @@ class App {
 
 const app = new App();
 window.__app = app;
+window.__NetClass = Net;
 app.boot().catch((e) => {
   console.error(e);
   const t = document.getElementById('loadText');

@@ -271,6 +271,119 @@ function buildOutdoor(root, quality) {
   return g;
 }
 
+function buildDesertWalls(group) {
+  const X = FIELD.wallX + 0.25, Z = FIELD.wallZ + 0.25;
+  const stone = TX.stoneTexture();
+  const wood = new THREE.MeshToonMaterial({ color: 0x7a4a2a });
+  const woodDark = new THREE.MeshToonMaterial({ color: 0x5a341c });
+  const side = (len, x, z, rotY) => {
+    const t = stone.clone();
+    t.needsUpdate = true;
+    t.repeat.set(len / 12, 1);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(len, 0.9, 0.8), new THREE.MeshLambertMaterial({ map: t }));
+    base.position.set(x, 0.45, z);
+    base.rotation.y = rotY;
+    base.castShadow = true; base.receiveShadow = true;
+    group.add(base);
+    for (const y of [1.25, 1.75]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.16, 0.2), wood);
+      rail.position.set(x, y, z);
+      rail.rotation.y = rotY;
+      group.add(rail);
+    }
+    const n = Math.floor(len / 3.2);
+    for (let i = 0; i <= n; i++) {
+      const k = -len / 2 + (i * len) / n;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.28, 1.4, 0.28), woodDark);
+      const px = rotY ? x : x + k, pz = rotY ? z + k : z;
+      post.position.set(px, 1.5, pz);
+      group.add(post);
+    }
+  };
+  side(X * 2 + 0.5, 0, -Z, 0);
+  side(X * 2 + 0.5, 0, Z, 0);
+  side(Z * 2, -X, 0, Math.PI / 2);
+  side(Z * 2, X, 0, Math.PI / 2);
+}
+
+function buildDesert(root, quality) {
+  const g = new THREE.Group();
+  root.add(g);
+  const skyMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    uniforms: { top: { value: new THREE.Color('#8fc4f0') }, mid: { value: new THREE.Color('#e6eef5') }, bottom: { value: new THREE.Color('#ffe9cf') } },
+    vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 bottom; varying vec3 vP; void main(){ float h = vP.y; vec3 c = h > 0.12 ? mix(mid, top, smoothstep(0.12, 0.8, h)) : mix(bottom, mid, smoothstep(-0.05, 0.12, h)); gl_FragColor = vec4(c, 1.0); }',
+  });
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(520, 32, 16), skyMat);
+  sky.renderOrder = -10;
+  g.add(sky);
+  const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: TX.glowTexture(), color: 0xfff4dc, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  sun.position.set(-210, 190, 240);
+  sun.scale.set(140, 140, 1);
+  g.add(sun);
+  const pano = new THREE.Mesh(
+    new THREE.CylinderGeometry(390, 390, 300, 64, 1, true),
+    new THREE.MeshBasicMaterial({ map: TX.desertPanoramaTexture(), side: THREE.BackSide, transparent: true, depthWrite: false, fog: false }),
+  );
+  pano.position.y = -34;
+  pano.renderOrder = -9;
+  g.add(pano);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(386, 64), new THREE.MeshLambertMaterial({ color: 0xdcb87e }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.06;
+  g.add(ground);
+  // Dunes around the arena
+  const rnd = seeded(17);
+  const duneMat = new THREE.MeshLambertMaterial({ color: 0xe8cd9c });
+  for (let i = 0; i < 26; i++) {
+    const a = rnd() * Math.PI * 2, r = 80 + rnd() * 120;
+    const d = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), duneMat);
+    d.position.set(Math.cos(a) * r, -0.5, Math.sin(a) * r);
+    d.scale.set(20 + rnd() * 30, 6 + rnd() * 12, 14 + rnd() * 20);
+    d.rotation.y = rnd() * 3;
+    g.add(d);
+  }
+  // Crystal clusters
+  const crystalMats = [new THREE.MeshToonMaterial({ color: 0x8a6bd8 }), new THREE.MeshToonMaterial({ color: 0xb49cf0 }), new THREE.MeshToonMaterial({ color: 0x6b4fb0 })];
+  for (let i = 0; i < 18; i++) {
+    const a = rnd() * Math.PI * 2, r = 70 + rnd() * 60;
+    const cl = new THREE.Group();
+    for (let k = 0; k < 5; k++) {
+      const h = 6 + rnd() * 16;
+      const sh = new THREE.Mesh(new THREE.ConeGeometry(1.2 + rnd() * 1.6, h, 5), crystalMats[k % 3]);
+      sh.position.set((rnd() - 0.5) * 6, h / 2 - 1, (rnd() - 0.5) * 6);
+      sh.rotation.set((rnd() - 0.5) * 0.7, rnd() * 3, (rnd() - 0.5) * 0.7);
+      cl.add(sh);
+    }
+    cl.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    g.add(cl);
+  }
+  // Rocks
+  const rockMat = new THREE.MeshLambertMaterial({ color: 0xa9603a, flatShading: true });
+  for (let i = 0; i < 22; i++) {
+    const a = rnd() * Math.PI * 2, r = 62 + rnd() * 40;
+    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(2 + rnd() * 4, 0), rockMat);
+    rock.position.set(Math.cos(a) * r, 0.5, Math.sin(a) * r);
+    rock.scale.y = 0.6;
+    g.add(rock);
+  }
+  // Tall wooden poles (like the reference arena)
+  const poleMat = new THREE.MeshToonMaterial({ color: 0x6b3f22 });
+  const spots = [[-1, -1], [1, -1], [-1, 1], [1, 1], [-0.42, -1], [0.42, -1], [-0.42, 1], [0.42, 1]];
+  for (const [sx, sz] of spots) {
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.8, 24, 8), poleMat);
+    const x = sx * (Math.abs(sx) === 1 ? FIELD.wallX + 3.5 : FIELD.wallX), z = sz * (FIELD.wallZ + 3.5);
+    p.position.set(x, 11, z);
+    p.rotation.z = -sx * 0.06;
+    p.rotation.x = sz * 0.08;
+    p.castShadow = quality.shadows;
+    g.add(p);
+  }
+  return g;
+}
+
 function buildIndoor(root) {
   const g = new THREE.Group();
   root.add(g);
@@ -362,26 +475,38 @@ export class Stadium {
     scene.add(this.root);
     this.pitchOutdoor = new THREE.Group();
     this.pitchIndoor = new THREE.Group();
+    this.pitchDesert = new THREE.Group();
     buildPitch(this.pitchOutdoor, false);
     buildPitch(this.pitchIndoor, true);
-    this.root.add(this.pitchOutdoor, this.pitchIndoor);
+    buildPitch(this.pitchDesert, 'desert');
+    this.root.add(this.pitchOutdoor, this.pitchIndoor, this.pitchDesert);
     this.common = new THREE.Group();
     this.root.add(this.common);
-    buildWalls(this.common);
+    this.wallsStd = new THREE.Group();
+    this.wallsDesert = new THREE.Group();
+    this.root.add(this.wallsStd, this.wallsDesert);
+    buildWalls(this.wallsStd);
+    buildDesertWalls(this.wallsDesert);
     this.goals = [buildGoal(this.common, -1, 0), buildGoal(this.common, 1, 1)];
     this.outdoor = buildOutdoor(this.root, quality);
     this.indoor = buildIndoor(this.root);
+    this.desert = buildDesert(this.root, quality);
     this.time = 0;
-    this.setVariant('outdoor');
+    this.setVariant('grass');
   }
 
+  // 'grass' (cliffside arena), 'desert' (canyon arena) or 'indoor' (practice hall)
   setVariant(v) {
+    if (v === 'outdoor') v = 'grass';
     this.variant = v;
-    const indoor = v === 'indoor';
-    this.outdoor.visible = !indoor;
-    this.pitchOutdoor.visible = !indoor;
-    this.indoor.visible = indoor;
-    this.pitchIndoor.visible = indoor;
+    this.outdoor.visible = v === 'grass';
+    this.pitchOutdoor.visible = v === 'grass';
+    this.indoor.visible = v === 'indoor';
+    this.pitchIndoor.visible = v === 'indoor';
+    this.desert.visible = v === 'desert';
+    this.pitchDesert.visible = v === 'desert';
+    this.wallsStd.visible = v !== 'desert';
+    this.wallsDesert.visible = v === 'desert';
   }
 
   flashGoal(side) {

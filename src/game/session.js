@@ -4,7 +4,7 @@
 import { World, animName, kickVelocity } from '../sim/world.js';
 import { createPlayer, movePlayer, setAnim, canAct, stunPlayer } from '../sim/player.js';
 import { createBall, stepBall } from '../sim/ball.js';
-import { FIELD, PLAYER, KICK, PHYS, NET, MATCH, GAME_VERSION } from '../config.js';
+import { FIELD, PLAYER, KICK, PHYS, NET, MATCH, GAME_VERSION, MAPS } from '../config.js';
 import { clamp, lerp, len2, wrapAngle, r2 } from '../util/math.js';
 
 const now = () => performance.now() / 1000;
@@ -70,7 +70,7 @@ export class Session {
     this.rules = opts.rules || {};
     this.localId = 1;
     this.world = null;
-    this.view = { players: [], ball: createBall(), boxes: [], puddles: [], projs: [], phase: 'kickoff', phaseT: 0, clock: 0, score: [0, 0], ot: 0 };
+    this.view = { players: [], ball: createBall(), boxes: [], puddles: [], projs: [], walls: [], phase: 'kickoff', phaseT: 0, clock: 0, score: [0, 0], ot: 0, map: 'grass' };
     this.replay = new ReplayBuffer();
     this.goalT = 0;
     this.acc = 0;
@@ -100,7 +100,8 @@ export class Session {
 
   // ============================================================ HOST / OFFLINE
   startHost(rules = this.rules, warmup = false) {
-    this.rules = rules;
+    this.rules = { ...rules, map: rules.map || MAPS[Math.floor(Math.random() * MAPS.length)] };
+    rules = this.rules;
     this.world = new World({ mode: this.mode, ...rules });
     const w = this.world;
     w.addPlayer({ id: this.localId, name: this.profile.name, team: 0, cos: this.profile.cos });
@@ -167,7 +168,8 @@ export class Session {
     this.flushWorldEvents();
     this.view.phase = w.phase; this.view.phaseT = w.phaseT; this.view.clock = w.clock;
     this.view.score = w.score; this.view.ot = w.overtime ? 1 : w.lastChance ? 2 : 0;
-    this.view.boxes = w.boxes; this.view.puddles = w.puddles; this.view.projs = w.projs;
+    this.view.boxes = w.boxes; this.view.puddles = w.puddles; this.view.projs = w.projs; this.view.walls = w.walls;
+    this.view.map = w.map;
 
     // Intermission (online rooms restart automatically so the room stays together)
     if (w.phase === 'end' && w.phaseT <= 0 && this.net && this.net.isHost && this.intermission <= 0 && !this._interStarted) {
@@ -219,6 +221,7 @@ export class Session {
     this.intermission = 0;
     this.ended = false;
     const humans = old.humans().map((p) => ({ id: p.id, name: p.name, cos: p.cos, remote: p.remote }));
+    this.rules = { ...this.rules, map: MAPS[Math.floor(Math.random() * MAPS.length)] };
     this.world = new World({ mode: this.mode, ...this.rules });
     const w = this.world;
     // Shuffle teams a little, keep it balanced
@@ -313,13 +316,15 @@ export class Session {
     v.phase = s.ph; v.phaseT = s.pt; v.clock = s.c; v.score = s.sc; v.ot = s.ot;
     v.boxes = s.bx.map((x) => ({ id: x[0], x: x[1], z: x[2], c: x[3] }));
     v.puddles = s.pu.map((x) => ({ id: x[0], x: x[1], z: x[2], r: x[3], life: x[4] }));
-    v.projs = s.pr.map((x) => ({ id: x[0], x: x[1], y: x[2], z: x[3], k: x[4] }));
+    v.projs = s.pr.map((x) => ({ id: x[0], x: x[1], y: x[2], z: x[3], k: x[4], ang: x[5], spin: x[6] }));
+    v.walls = (s.wl || []).map((x) => ({ id: x[0], x: x[1], z: x[2], ang: x[3], life: x[4], hw: 2.4, hd: 0.35, h: 1.7 }));
+    v.map = s.mp || v.map;
     const me = s.p.find((r) => r[0] === this.localId);
     if (me && this.localP) {
       const p = this.localP;
       p.items[0] = me[12] || null; p.items[1] = me[13] || null;
       if (p.equip >= 0 && !p.items[p.equip]) p.equip = -1;
-      p.fx.fire = me[17]; p.fx.speed = me[18]; p.fx.shield = me[19];
+      p.fx.fire = me[17]; p.fx.speed = me[18]; p.fx.shield = me[19]; p.fx.oil = me[21] || 0;
       if (me[20] > 0 && p.fx.jet <= 0) p.fx.jet = me[20];
       if (me[20] <= 0) p.fx.jet = Math.min(p.fx.jet, 0.2);
       p.req = (me[11] & 4) ? Math.max(p.req, 0.1) : p.req;
@@ -359,7 +364,7 @@ export class Session {
     this.net = null;
     const me = this.localP;
     const team = me ? me.team : 0;
-    this.world = new World({ mode: this.mode, ...this.rules });
+    this.world = new World({ mode: this.mode, ...this.rules, map: this.view.map });
     const w = this.world;
     const p = w.addPlayer({ id: this.localId, name: this.profile.name, team, cos: this.profile.cos });
     w.start();
@@ -417,6 +422,7 @@ export class Session {
         p.z += (dz / d) * (r2x - d) * 0.6;
       }
     }
+    if (this.view.walls.length) World.prototype.collideWallsCircle.call({ walls: this.view.walls, emit() {} }, p, PLAYER.radius, false);
   }
 
   interpolate() {
@@ -437,7 +443,7 @@ export class Session {
       let o = this.viewMap.get(id);
       const ros = this.roster.get(id);
       if (!o) {
-        o = { id, fx: { fire: 0, speed: 0, shield: 0, jet: 0 }, items: [null, null], stats: {}, in: { yaw: 0 } };
+        o = { id, fx: { fire: 0, speed: 0, shield: 0, jet: 0, oil: 0 }, items: [null, null], stats: {}, in: { yaw: 0 } };
         this.viewMap.set(id, o);
       }
       o.name = ros ? ros.name : 'Player';
@@ -453,7 +459,7 @@ export class Session {
       o.stamina = rb[9]; o.charge = rb[10];
       const fl = rb[11];
       o.sprinting = !!(fl & 1); o.charging = !!(fl & 2); o.req = fl & 4 ? 1 : 0; o.immune = fl & 128 ? 1 : 0;
-      o.fx.fire = rb[17]; o.fx.speed = rb[18]; o.fx.shield = rb[19]; o.fx.jet = rb[20];
+      o.fx.fire = rb[17]; o.fx.speed = rb[18]; o.fx.shield = rb[19]; o.fx.jet = rb[20]; o.fx.oil = rb[21] || 0;
       o.items[0] = rb[12] || null; o.items[1] = rb[13] || null;
       o.stun = rb[14]; o.emote = rb[15] || ''; o.chat = rb[16]; o.chatT = rb[16] >= 0 ? 1 : 0;
       list.push(o);
@@ -488,6 +494,7 @@ export class Session {
         Object.assign(cb, { x: sb[0], y: sb[1], z: sb[2], vx: sb[3], vy: sb[4], vz: sb[5] });
       }
       stepBall(cb, dt, events);
+      if (this.view.walls.length) World.prototype.collideWallsCircle.call({ walls: this.view.walls, emit() {} }, cb, PHYS.ballR, true);
       if (this.ownKickT <= 0) {
         // Server reconciliation: extrapolate server ball to "now" and blend toward it
         const ahead = clamp(now() - this.lastSnapT + this.rtt * 0.5, 0, 0.3);

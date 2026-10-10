@@ -220,34 +220,27 @@ export class Net {
     return res;
   }
 
-  // Quick play: join the first public room with space, otherwise host the lowest free room id.
+  // Quick play: walk the public room ids in order. Claiming a free id makes us its host
+  // (instant); an id that is already taken belongs to a live host, so we try to join it.
   async quickPlay(hello, onStatus) {
-    await this.ensureClientPeer();
     const N = NET.publicRooms;
-    for (let i = 1; i <= N; i += 4) {
-      const batch = [];
-      for (let k = i; k < i + 4 && k <= N; k++) batch.push(k);
-      if (onStatus) onStatus(`Searching rooms ${batch[0]}-${batch[batch.length - 1]}…`);
-      const results = await Promise.all(batch.map((k) => this.tryJoin(roomPeerId('pub', k), hello).then((r) => ({ ...r, k }))));
-      const good = results.filter((r) => r.ok).sort((a, b) => a.k - b.k);
-      if (good.length) {
-        const pick = good[0];
-        for (const r of good.slice(1)) { try { r.conn.send({ t: 'bye' }); r.conn.close(); } catch (e) { /* ignore */ } }
-        this.attachHost(pick.conn);
-        this.roomId = pick.room;
-        return { role: 'client', welcome: pick.welcome, k: pick.k };
+    for (let k = 1; k <= N; k++) {
+      if (onStatus) onStatus(k === 1 ? 'Finding a match…' : `Checking room ${k}…`);
+      const rid = roomPeerId('pub', k);
+      try {
+        this.destroyPeer();
+        await this.host(rid);
+        return { role: 'host', k };
+      } catch (e) {
+        this.isHost = false;
+        if (!e || e.type !== 'unavailable-id') throw e || new Error('network'); // signalling unreachable
       }
-      const empty = results.filter((r) => r.why === 'unavailable').map((r) => r.k).sort((a, b) => a - b);
-      for (const k of empty) {
-        try {
-          this.destroyPeer();
-          await this.host(roomPeerId('pub', k));
-          return { role: 'host', k };
-        } catch (e) {
-          // Someone claimed it at the same moment - keep searching.
-          this.isHost = false;
-          await this.ensureClientPeer();
-        }
+      await this.ensureClientPeer();
+      const res = await this.tryJoin(rid, hello);
+      if (res.ok) {
+        this.attachHost(res.conn);
+        this.roomId = res.room;
+        return { role: 'client', welcome: res.welcome, k };
       }
     }
     throw new Error('no-room');

@@ -50,6 +50,18 @@ export class GameRenderer {
     this.boxTex = BOX_COLORS.map((c) => TX.itemBoxTexture(c));
     this.boxGeo = new THREE.BoxGeometry(1.25, 1.25, 1.25);
     this.puddleTex = TX.puddleTexture();
+    this.oilMat = new THREE.MeshBasicMaterial({ map: this.puddleTex, color: 0x332244, transparent: true, depthWrite: false });
+    this.walls = new Map();
+    this.barrelGeo = new THREE.CylinderGeometry(0.75, 0.75, 1.3, 16);
+    this.barrelMat = new THREE.MeshToonMaterial({ color: 0x2f6fe0 });
+    this.rimGeo = new THREE.TorusGeometry(0.77, 0.06, 6, 20);
+    this.rimGeo.rotateX(Math.PI / 2);
+    this.rimMat = new THREE.MeshToonMaterial({ color: 0x1b2340 });
+    this.fenceGeo = new THREE.BoxGeometry(4.6, 0.75, 0.12);
+    this.fenceMat = new THREE.MeshToonMaterial({ map: TX.barricadeTexture() });
+    this.fenceLegGeo = new THREE.BoxGeometry(0.16, 1.7, 0.16);
+    this.fenceFootGeo = new THREE.BoxGeometry(0.5, 0.16, 0.9);
+    this.fenceLegMat = new THREE.MeshToonMaterial({ color: 0xffb000 });
     this.glowTex = TX.glowTexture();
     this.ringGeo = new THREE.RingGeometry(0.95, 1.2, 40);
     this.discGeo = new THREE.CircleGeometry(1, 24);
@@ -112,7 +124,11 @@ export class GameRenderer {
 
   setVariant(v) {
     this.stadium.setVariant(v);
-    if (v === 'indoor') {
+    if (v === 'desert') {
+      this.scene.fog.color.set(0xf4e2c4); this.scene.fog.near = 120; this.scene.fog.far = 520;
+      this.hemi.color.set(0xfff0dc); this.hemi.groundColor.set(0x9a7a50); this.hemi.intensity = 1.35;
+      this.sun.color.set(0xffe6c0); this.sun.intensity = 2.5;
+    } else if (v === 'indoor') {
       this.scene.fog.color.set(0x5a2a22); this.scene.fog.near = 60; this.scene.fog.far = 200;
       this.hemi.color.set(0xffe2c8); this.hemi.groundColor.set(0x6a3a2a); this.hemi.intensity = 1.5;
       this.sun.color.set(0xffe0b8); this.sun.intensity = 1.8;
@@ -343,12 +359,14 @@ export class GameRenderer {
       this.vfx.trail(bx, by, bz, col, 0.55 + Math.min(0.6, (bspeed - 17) / 50));
       this.vfx.trail((bx + prev.x) / 2, (by + prev.y) / 2, (bz + prev.z) / 2, col, 0.5);
     }
-    // Ball marker
-    const ownerP = ballOwner >= 0 ? view.players.find((q) => q && q.id === ballOwner) : null;
-    this.marker.visible = !frame && view.phase !== 'replay';
-    this.marker.material.color.set(ownerP ? TEAMS[ownerP.team].color : 0xffffff);
-    this.marker.position.set(bx, by + 1.6 + Math.sin(this.time * 4) * 0.15, bz);
-    this.marker.rotation.y += dt * 2;
+    // Team-coloured marker above your own player (as in the reference game)
+    const meP = view.players.find((q) => q && q.id === localId);
+    this.marker.visible = !!meP && !frame && view.phase !== 'replay';
+    if (meP) {
+      this.marker.material.color.set(TEAMS[meP.team].color);
+      this.marker.position.set(meP.x, (meP.y || 0) + 3.55 + Math.sin(this.time * 4) * 0.12, meP.z);
+      this.marker.rotation.y += dt * 2;
+    }
 
     // Item boxes
     this.syncMap(this.boxes, view.boxes, (it) => {
@@ -364,25 +382,72 @@ export class GameRenderer {
       m.rotation.x = Math.sin(this.time * 1.3 + m.userData.phase) * 0.25;
     });
     this.syncMap(this.puddles, view.puddles, (it) => {
-      const m = new THREE.Mesh(this.discGeo, new THREE.MeshBasicMaterial({ map: this.puddleTex, transparent: true, depthWrite: false }));
+      const m = new THREE.Mesh(this.discGeo, this.oilMat);
       m.rotation.x = -Math.PI / 2;
+      m.rotation.z = Math.random() * 6;
       m.renderOrder = 2;
       return m;
     }, (m, it) => {
-      m.position.set(it.x, 0.035, it.z);
+      m.position.set(it.x, 0.03 + (it.id % 7) * 0.0015, it.z);
       const s = it.r * Math.min(1, (it.life ?? 5) / 0.6);
-      m.scale.set(s, s, s);
+      m.scale.set(s, s * 0.8, s);
     });
-    this.syncMap(this.projs, view.projs, () => {
+    this.syncMap(this.projs, view.projs, (it) => {
+      if (it.k === 'barrel') {
+        const g = new THREE.Group();
+        const body = new THREE.Mesh(this.barrelGeo, this.barrelMat);
+        body.rotation.z = Math.PI / 2;
+        body.castShadow = true;
+        g.add(body);
+        for (const x of [-0.45, 0, 0.45]) {
+          const rim = new THREE.Mesh(this.rimGeo, this.rimMat);
+          rim.rotation.z = Math.PI / 2;
+          rim.position.x = x;
+          g.add(rim);
+        }
+        g.userData.body = g;
+        return g;
+      }
       const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), new THREE.MeshBasicMaterial({ color: 0xaaf6ff }));
       const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: 0x5fe3ff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
       g.scale.set(2.6, 2.6, 1);
       m.add(g);
       return m;
     }, (m, it) => {
+      if (it.k === 'barrel') {
+        m.position.set(it.x, 0.8, it.z);
+        m.rotation.set(0, (it.ang ?? 0), 0, 'YXZ');
+        m.rotation.x = (it.spin ?? 0);
+        m.rotation.order = 'YXZ';
+        if (Math.random() < 0.5) this.vfx.dust(it.x, it.z, 1, 0xd8c8a0);
+        return;
+      }
       m.position.set(it.x, it.y, it.z);
       m.rotation.x += dt * 8; m.rotation.y += dt * 6;
       this.vfx.trail(it.x, it.y, it.z, 0x8ff3ff, 0.9);
+    });
+    // Barricades
+    this.syncMap(this.walls, view.walls, () => {
+      const g = new THREE.Group();
+      const panel = new THREE.Mesh(this.fenceGeo, this.fenceMat);
+      panel.position.y = 1.05;
+      panel.castShadow = true;
+      g.add(panel);
+      for (const x of [-2.2, 2.2]) {
+        const leg = new THREE.Mesh(this.fenceLegGeo, this.fenceLegMat);
+        leg.position.set(x, 0.85, 0);
+        g.add(leg);
+        const foot = new THREE.Mesh(this.fenceFootGeo, this.fenceLegMat);
+        foot.position.set(x, 0.08, 0);
+        g.add(foot);
+      }
+      g.scale.y = 0.01;
+      return g;
+    }, (m, it) => {
+      m.position.set(it.x, 0, it.z);
+      m.rotation.y = it.ang;
+      const life = it.life ?? 5;
+      m.scale.y = Math.min(1, m.scale.y + dt * 6) * (life < 0.5 ? life / 0.5 : 1);
     });
 
     // Grapple lines
@@ -481,7 +546,7 @@ export class GameRenderer {
         v.sparkles(p.x, 1.4, p.z, col, 24, 6);
         break;
       }
-      case 'shatter': v.iceShatter(ev.x, ev.y, ev.z); break;
+      case 'shatter': if (ev.k === 'barrel') { v.dust(ev.x, ev.z, 14, 0x9a7b5a); v.sparkles(ev.x, 1, ev.z, 0x3f8bff, 16, 6); } else v.iceShatter(ev.x, ev.y, ev.z); break;
       case 'save': case 'block': { v.sparkles(ball.x, ball.y, ball.z, 0xffffff, 26, 7); break; }
       case 'post': v.ring(ball.x, ball.y, ball.z, 0xffffff, 0.3, 2.4, 0.3, 0.9, true); this.rig.shake(0.2 * (settings.shake / 5)); break;
       case 'shieldblock': { const p = P(ev.id); if (p) v.sparkles(p.x, 1.3, p.z, 0xc27bff, 24, 6); break; }
@@ -521,7 +586,7 @@ export class GameRenderer {
 
   clearWorld() {
     for (const id of [...this.chars.keys()]) this.removeChar(id);
-    for (const map of [this.boxes, this.puddles, this.projs]) { for (const m of map.values()) m.removeFromParent(); map.clear(); }
+    for (const map of [this.boxes, this.puddles, this.projs, this.walls]) { for (const m of map.values()) m.removeFromParent(); map.clear(); }
     for (const g of this.grapples) g.line.removeFromParent();
     this.grapples.length = 0;
     this.aimPivot.visible = false;
@@ -535,8 +600,8 @@ export class GameRenderer {
     this.ball.setSkin(ballSkin);
     const ch = this.menuChar.root;
     const fx = Math.sin(ch.rotation.y), fz = Math.cos(ch.rotation.y);
-    const bob = Math.abs(Math.sin(this.time * 2.2));
-    this.ball.root.position.set(ch.position.x + fx * 1.3 + fz * 0.4, PHYS.ballR + bob * 0.05, ch.position.z + fz * 1.3 - fx * 0.4);
+    // Ball resting beside the hero's left foot
+    this.ball.root.position.set(ch.position.x + fx * 0.6 + fz * 1.25, PHYS.ballR, ch.position.z + fz * 0.6 - fx * 1.25);
     this.ball.mesh.rotation.y += dt * 0.6;
     this.ballShadow.position.set(this.ball.root.position.x, 0.025, this.ball.root.position.z);
     this.marker.visible = false;

@@ -28,6 +28,8 @@ export class World {
     this.boxes = [];
     this.puddles = [];
     this.projs = [];
+    this.walls = [];
+    this.map = opts.map || 'grass';
     this.events = [];
     this.score = [0, 0];
     this.phase = 'kickoff';
@@ -169,6 +171,8 @@ export class World {
     Object.assign(b, createBall());
     if (this.mode === 'practice') { b.x = -3; b.z = 0; }
     this.projs.length = 0;
+    this.walls.length = 0;
+    this.puddles.length = 0;
     this.emit({ e: 'reset', pos: this.players.map((p) => [p.id, r2(p.x), r2(p.z), r2(p.face)]) });
   }
 
@@ -227,6 +231,14 @@ export class World {
     b.lastTeam = p.team;
   }
 
+  // Points + "+N" toast for the player who earned them
+  award(p, label, pts, stat) {
+    if (!p || this.mode === 'practice' && label !== 'Goal' && label !== 'Shot On Goal' && label !== 'Volley' && label !== 'Direct Hit') return;
+    if (stat) p.stats[stat] += 1;
+    p.stats.points += pts;
+    this.emit({ e: 'toast', id: p.id, text: label, pts });
+  }
+
   giveBall(p, reason) {
     const b = this.ball;
     const prevOwner = b.owner >= 0 ? this.byId.get(b.owner) : null;
@@ -234,18 +246,20 @@ export class World {
     if (b.shot && b.shot.team !== p.team) {
       const sp = Math.hypot(b.vx, b.vy, b.vz);
       if (sp > 10) {
-        p.stats.saves += 1; p.stats.points += 50;
+        this.award(p, 'Save', 25, 'saves');
         this.emit({ e: 'save', id: p.id });
-        this.emit({ e: 'toast', id: p.id, text: 'Save +50' });
       }
     }
     if (prevOwner && prevOwner.team !== p.team) {
-      p.stats.steals += 1; p.stats.points += 20;
-      this.emit({ e: 'toast', id: p.id, text: 'Steal +20' });
-    } else if (b.lastTeam >= 0 && b.lastTeam !== p.team && reason === 'tackle') {
-      p.stats.steals += 1; p.stats.points += 20;
-      this.emit({ e: 'toast', id: p.id, text: 'Steal +20' });
+      const lastDitch = reason === 'tackle' && this.inOwnBox(p);
+      this.award(p, lastDitch ? 'Last-Ditch Tackle!' : 'Steal', lastDitch ? 45 : 15, 'steals');
+    } else if (b.pass && b.pass.team === p.team && b.pass.from !== p.id && this.time - b.pass.t < 4) {
+      this.award(p, 'Receive', 10);
+      this.award(this.byId.get(b.pass.from), 'Pass', 15);
+    } else if (b.lastTeam >= 0 && b.lastTeam !== p.team && !b.shot) {
+      this.award(p, 'Recover', 10);
     }
+    b.pass = null;
     b.owner = p.id;
     b.shot = null;
     b.fire = false;
@@ -275,12 +289,13 @@ export class World {
     const c = predictCross(b, gx);
     if (c && Math.abs(c.z) < FIELD.goalW / 2 + 1.2 && c.y < FIELD.goalH + 1.5) {
       b.shot = { team: p.team, id: p.id };
-      p.stats.shots += 1; p.stats.points += 10;
+      this.award(p, 'Shot On Goal', 20, 'shots');
     }
   }
 
   launch(p, vx, vy, vz, kind, power, from) {
     const b = this.ball;
+    const volley = b.owner !== p.id && kind === 'shot' && b.y > 1.3;
     if (b.owner === p.id) {
       b.owner = -1;
       const o = this.ballOffset(p);
@@ -296,6 +311,8 @@ export class World {
     b.kicker = p.id;
     this.touch(p);
     b.shot = null;
+    b.pass = kind === 'pass' || kind === 'lob' ? { from: p.id, team: p.team, t: this.time } : null;
+    if (volley) this.award(p, 'Volley', 15);
     if (kind === 'shot' || kind === 'lob' || kind === 'flick') this.markShot(p);
     this.emit({ e: 'kick', id: p.id, kind, pw: r2(power), fire: b.fire ? 1 : 0 });
   }
@@ -352,7 +369,7 @@ export class World {
             const d = len2(dx, dz);
             if (d < KICK.hitRange + 0.4 && (dx * dir.x + dz * dir.z) / (d || 1) > 0.45 && d < bd) { best = q; bd = d; }
           }
-          if (best) this.hitPlayer(p, best, 'hit', 0.85, dir.x * 7, dir.z * 7, 'Hit +10');
+          if (best) this.hitPlayer(p, best, 'hit', 0.85, dir.x * 7, dir.z * 7, 'Hit');
         }
         return;
       }
@@ -455,7 +472,7 @@ export class World {
 
   pickTeammate(p, yaw, assisted, minDot = 0.5) { return pickTeammate(p, yaw, this.players, assisted, minDot); }
 
-  hitPlayer(by, q, kind, dur, kbx, kbz, toast) {
+  hitPlayer(by, q, kind, dur, kbx, kbz, toast, pts = 10) {
     if (q.fx.shield > 0) { this.emit({ e: 'shieldblock', id: q.id }); return false; }
     if (q.immune > 0 && kind !== 'frozen') return false;
     if (this.ball.owner === q.id) this.loseBall(q, kbx * 0.6, kbz * 0.6, 3);
@@ -463,10 +480,7 @@ export class World {
     q.vx = kbx; q.vz = kbz;
     if (kind === 'fall' || kind === 'hit') q.vy = 4;
     this.emit({ e: 'stun', id: q.id, k: kind, d: dur, kx: r2(kbx), kz: r2(kbz), by: by ? by.id : -1 });
-    if (by) {
-      by.stats.hits += 1; by.stats.points += 10;
-      if (toast) this.emit({ e: 'toast', id: by.id, text: toast });
-    }
+    if (by && toast) this.award(by, toast, pts, 'hits');
     return true;
   }
 
@@ -485,8 +499,18 @@ export class World {
         this.projs.push({ id: this.uid++, k: 'ice', x: p.x + dir.x, y: p.y + 1.6, z: p.z + dir.z, vx: dir.x * 36, vy, vz: dir.z * 36, life: 1.3, owner: p.id, team: p.team });
         break;
       }
-      case 'oil': {
-        this.puddles.push({ id: this.uid++, x: p.x - dir.x * 1.6, z: p.z - dir.z * 1.6, r: 3, life: 12, team: p.team });
+      case 'oil': p.fx.oil = 3.2; p.oilT = 0; break;
+      case 'barricade': {
+        setAnim(p, 'throw', 0.32);
+        const d = 3.4;
+        const ang = yaw;
+        this.walls.push({ id: this.uid++, x: clamp(p.x + dir.x * d, -FIELD.wallX + 2, FIELD.wallX - 2), z: clamp(p.z + dir.z * d, -FIELD.wallZ + 2, FIELD.wallZ - 2), ang, hw: 2.4, hd: 0.35, h: 1.7, life: 12, team: p.team });
+        if (this.walls.length > 8) this.walls.shift();
+        break;
+      }
+      case 'barrel': {
+        setAnim(p, 'throw', 0.32);
+        this.projs.push({ id: this.uid++, k: 'barrel', x: p.x + dir.x * 1.6, y: 0.8, z: p.z + dir.z * 1.6, vx: dir.x * 24, vy: 0, vz: dir.z * 24, life: 2.8, owner: p.id, team: p.team, hits: new Set() });
         break;
       }
       case 'punch': {
@@ -498,7 +522,7 @@ export class World {
           const d = len2(dx, dz);
           if (d < 5 && (dx * dir.x + dz * dir.z) / (d || 1) > 0.5 && d < bd && Math.abs(q.y - p.y) < 2.5) { best = q; bd = d; }
         }
-        if (best) this.hitPlayer(p, best, 'fall', 1.25, dir.x * 15, dir.z * 15, 'Knockout +10');
+        if (best) this.hitPlayer(p, best, 'fall', 1.25, dir.x * 15, dir.z * 15, 'Knockout');
         break;
       }
       case 'grapple': {
@@ -583,6 +607,7 @@ export class World {
       movePlayer(p, dt, b.owner === p.id, frozen);
     }
     separatePlayers(this.players);
+    if (this.walls.length) for (const p of this.players) if (!p.remote) this.collideWallsCircle(p, PLAYER.radius, false);
 
     // Ball
     if (b.owner >= 0) {
@@ -611,6 +636,7 @@ export class World {
       }
     } else {
       stepBall(b, dt, physEvents);
+      if (this.walls.length) this.collideWallsCircle(b, PHYS.ballR, true);
     }
     for (const ev of physEvents) this.emit(ev);
 
@@ -702,7 +728,7 @@ export class World {
           stunPlayer(q, 'fall', had ? 1.1 : 0.9);
           q.vx = p.slideX * 6; q.vz = p.slideZ * 6; q.vy = 3;
           this.emit({ e: 'stun', id: q.id, k: 'fall', d: had ? 1.1 : 0.9, kx: r2(q.vx), kz: r2(q.vz), by: p.id });
-          if (had) { p.stats.steals += 1; p.stats.points += 20; this.emit({ e: 'toast', id: p.id, text: 'Steal +20' }); }
+          if (had) { const ld = this.inOwnBox(p); this.award(p, ld ? 'Last-Ditch Tackle!' : 'Tackle', ld ? 45 : 15, 'steals'); }
         }
       }
     }
@@ -752,9 +778,8 @@ export class World {
             b.vx -= 1.6 * vn * nx; b.vz -= 1.6 * vn * nz;
             b.vx *= 0.55; b.vz *= 0.55; b.vy = Math.abs(b.vy) * 0.4 + 3;
             if (b.shot && b.shot.team !== p.team && (keeper || diving)) {
-              p.stats.saves += 1; p.stats.points += 50;
+              this.award(p, 'Save', 25, 'saves');
               this.emit({ e: 'save', id: p.id });
-              this.emit({ e: 'toast', id: p.id, text: 'Save +50' });
               b.shot = null;
             }
             this.touch(p);
@@ -809,6 +834,22 @@ export class World {
         }
       }
     }
+    // Oil trails
+    for (const p of this.players) {
+      if (p.fx.oil > 0 && p.y < 0.5 && !p.left) {
+        p.oilT = (p.oilT || 0) - dt;
+        if (p.oilT <= 0) {
+          p.oilT = 0.09;
+          this.puddles.push({ id: this.uid++, x: p.x - Math.sin(p.face) * 0.9, z: p.z - Math.cos(p.face) * 0.9, r: 1.35, life: 10, team: p.team });
+          if (this.puddles.length > 120) this.puddles.shift();
+        }
+      }
+    }
+    // Barricades
+    for (let i = this.walls.length - 1; i >= 0; i--) {
+      this.walls[i].life -= dt;
+      if (this.walls[i].life <= 0) this.walls.splice(i, 1);
+    }
     // Puddles
     for (let i = this.puddles.length - 1; i >= 0; i--) {
       const pu = this.puddles[i];
@@ -825,6 +866,7 @@ export class World {
     // Projectiles
     for (let i = this.projs.length - 1; i >= 0; i--) {
       const pr = this.projs[i];
+      if (pr.k === 'barrel') { if (this.stepBarrel(pr, dt)) this.projs.splice(i, 1); continue; }
       pr.life -= dt;
       pr.vy -= 6 * dt;
       pr.x += pr.vx * dt; pr.y += pr.vy * dt; pr.z += pr.vz * dt;
@@ -834,7 +876,7 @@ export class World {
           if (q.team === pr.team || q.left) continue;
           if (len2(q.x - pr.x, q.z - pr.z) < 1.35 && pr.y > q.y - 0.3 && pr.y < q.y + 3) {
             const by = this.byId.get(pr.owner);
-            this.hitPlayer(by, q, 'frozen', 2.4, 0, 0, 'Direct Hit +10');
+            this.hitPlayer(by, q, 'frozen', 2.4, 0, 0, 'Direct Hit');
             dead = true;
             break;
           }
@@ -852,11 +894,62 @@ export class World {
         for (const q of this.players) {
           if (q.id === b.kicker || q.stun > 0 || q.left) continue;
           if (len2(q.x - b.x, q.z - b.z) < PLAYER.radius + PHYS.ballR + 0.2 && b.y - q.y < 2.6) {
-            this.hitPlayer(this.byId.get(b.kicker), q, 'fall', 1.3, b.vx * 0.25, b.vz * 0.25, 'Direct Hit +10');
+            this.hitPlayer(this.byId.get(b.kicker), q, 'fall', 1.3, b.vx * 0.25, b.vz * 0.25, 'Direct Hit');
           }
         }
       }
     }
+  }
+
+  // Barricades are oriented boxes; push a circle (player or ball) out of them.
+  collideWallsCircle(o, r, isBall) {
+    for (const w of this.walls) {
+      if (o.y > w.h + (isBall ? r : 0)) continue;
+      const c = Math.cos(w.ang), s = Math.sin(w.ang);
+      const dx = o.x - w.x, dz = o.z - w.z;
+      // local: lx along the fence width (perpendicular to throw dir), lz along throw dir
+      const lx = dx * c - dz * s, lz = dx * s + dz * c;
+      const ex = w.hw + r, ez = w.hd + r;
+      if (Math.abs(lx) >= ex || Math.abs(lz) >= ez) continue;
+      const px = ex - Math.abs(lx), pz = ez - Math.abs(lz);
+      let nlx = 0, nlz = 0;
+      if (px < pz) nlx = Math.sign(lx) || 1; else nlz = Math.sign(lz) || 1;
+      const nx = nlx * c + nlz * s, nz = -nlx * s + nlz * c;
+      const pen = px < pz ? px : pz;
+      o.x += nx * pen; o.z += nz * pen;
+      const vn = o.vx * nx + o.vz * nz;
+      if (vn < 0) {
+        const k = isBall ? 1.6 : 1;
+        o.vx -= k * vn * nx; o.vz -= k * vn * nz;
+        if (isBall && -vn > 6) this.emit({ e: 'wall', v: -vn });
+      }
+    }
+  }
+
+  stepBarrel(pr, dt) {
+    pr.life -= dt;
+    pr.x += pr.vx * dt; pr.z += pr.vz * dt;
+    pr.spin = (pr.spin || 0) + Math.hypot(pr.vx, pr.vz) * dt / 0.8;
+    const wx = FIELD.wallX - 0.8, wz = FIELD.wallZ - 0.8;
+    if (Math.abs(pr.x) > wx) { pr.x = Math.sign(pr.x) * wx; pr.vx = -pr.vx * 0.6; }
+    if (Math.abs(pr.z) > wz) { pr.z = Math.sign(pr.z) * wz; pr.vz = -pr.vz * 0.6; }
+    if (this.walls.length) { pr.y = 0; this.collideWallsCircle(pr, 0.8, true); pr.y = 0.8; }
+    for (const q of this.players) {
+      if (q.team === pr.team || q.left || q.stun > 0 || pr.hits.has(q.id) || q.y > 1.6) continue;
+      if (len2(q.x - pr.x, q.z - pr.z) < PLAYER.radius + 0.8) {
+        pr.hits.add(q.id);
+        const sp = Math.hypot(pr.vx, pr.vz) || 1;
+        this.hitPlayer(this.byId.get(pr.owner), q, 'fall', 1.3, (pr.vx / sp) * 12, (pr.vz / sp) * 12, 'Direct Hit');
+      }
+    }
+    const b = this.ball;
+    if (b.owner < 0 && b.y < 1.8 && len2(b.x - pr.x, b.z - pr.z) < 0.8 + PHYS.ballR) {
+      const nx = (b.x - pr.x), nz = (b.z - pr.z), l = len2(nx, nz) || 1;
+      b.vx = (nx / l) * 18 + pr.vx * 0.4; b.vz = (nz / l) * 18 + pr.vz * 0.4; b.vy = 5;
+      this.emit({ e: 'bounce', v: 12 });
+    }
+    if (pr.life <= 0) { this.emit({ e: 'shatter', x: r2(pr.x), y: 0.8, z: r2(pr.z), k: 'barrel' }); return true; }
+    return false;
   }
 
   // ------------------------------------------------------------------ goals
@@ -866,12 +959,11 @@ export class World {
     const scorer = this.byId.get(b.lastTouch);
     let own = false, assist = null;
     if (scorer && scorer.team === team) {
-      scorer.stats.goals += 1; scorer.stats.points += 100;
+      this.award(scorer, 'Goal', 100, 'goals');
       if (b.prevTouch >= 0 && b.prevTeam === team && b.prevTouch !== scorer.id && this.time - b.prevT < 10) {
         assist = this.byId.get(b.prevTouch);
-        if (assist) { assist.stats.assists += 1; assist.stats.points += 50; this.emit({ e: 'toast', id: assist.id, text: 'Assist +50' }); }
+        if (assist) this.award(assist, 'Assist', 50, 'assists');
       }
-      this.emit({ e: 'toast', id: scorer.id, text: 'Goal +100' });
     } else own = true;
     const fx = scorer && !own ? scorer.cos.goalfx : 'confetti';
     this.lastGoal = { team, scorer: scorer ? scorer.id : -1, assist: assist ? assist.id : -1, own, t: this.time };
@@ -933,17 +1025,19 @@ export class World {
       c: r2(this.clock),
       sc: this.score,
       ot: this.overtime ? 1 : this.lastChance ? 2 : 0,
+      mp: this.map,
       b: [r2(b.x), r2(b.y), r2(b.z), r2(b.vx), r2(b.vy), r2(b.vz), b.owner, b.fire ? 1 : 0, r2(b.spin % 100), b.grapple],
       p: this.players.map((p) => [
         p.id, r2(p.x), r2(p.y), r2(p.z), r2(p.vx), r2(p.vz), r2(p.face),
         ANIM_INDEX[p.anim] ?? 0, r2(p.animT), r2(p.stamina), r2(p.charge),
         (p.sprinting ? 1 : 0) | (p.charging ? 2 : 0) | (p.req > 0 ? 4 : 0) | (p.fx.fire > 0 ? 8 : 0) | (p.fx.speed > 0 ? 16 : 0) | (p.fx.shield > 0 ? 32 : 0) | (p.fx.jet > 0 ? 64 : 0) | (p.immune > 0 ? 128 : 0),
         p.items[0] || 0, p.items[1] || 0, r2(p.stun), p.emote || 0, p.chatT > 0 ? p.chat : -1,
-        r2(p.fx.fire), r2(p.fx.speed), r2(p.fx.shield), r2(p.fx.jet),
+        r2(p.fx.fire), r2(p.fx.speed), r2(p.fx.shield), r2(p.fx.jet), r2(p.fx.oil || 0),
       ]),
       bx: this.boxes.map((x) => [x.id, r2(x.x), r2(x.z), x.c]),
       pu: this.puddles.map((x) => [x.id, r2(x.x), r2(x.z), r2(x.r), r2(x.life)]),
-      pr: this.projs.map((x) => [x.id, r2(x.x), r2(x.y), r2(x.z), x.k]),
+      pr: this.projs.map((x) => [x.id, r2(x.x), r2(x.y), r2(x.z), x.k, r2(Math.atan2(x.vx, x.vz)), r2(x.spin || 0)]),
+      wl: this.walls.map((w) => [w.id, r2(w.x), r2(w.z), r2(w.ang), r2(w.life)]),
     };
   }
 

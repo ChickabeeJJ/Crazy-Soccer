@@ -86,7 +86,7 @@ export class CameraRig {
     const a = faceYaw + Math.sin(this.time * 0.25) * 0.35 + sway;
     const r = 6.4;
     this.cam.position.set(cx + Math.sin(a) * r, 2.6, cz + Math.cos(a) * r);
-    this.cam.lookAt(cx + Math.sin(a + Math.PI / 2) * 1.9, 1.75, cz + Math.cos(a + Math.PI / 2) * 1.9);
+    this.cam.lookAt(cx - Math.sin(a + Math.PI / 2) * 2.1, 1.75, cz - Math.cos(a + Math.PI / 2) * 2.1);
   }
 
   applyShake(dt) {

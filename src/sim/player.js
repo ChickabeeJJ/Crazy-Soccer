@@ -12,7 +12,7 @@ export function createPlayer({ id, name, team, slot = 0, isBot = false, remote =
     cd: { kick: 0, tackle: 0, dive: 0, dribble: 0, flick: 0, lob: 0, pass: 0, request: 0, item: 0, hit: 0 },
     charging: false, charge: 0,
     items: [null, null], equip: -1,
-    fx: { fire: 0, speed: 0, shield: 0, jet: 0 },
+    fx: { fire: 0, speed: 0, shield: 0, jet: 0, oil: 0 },
     req: 0, emote: '', chat: -1, chatT: 0,
     slideX: 0, slideZ: 0, hitSet: null, slipCd: 0,
     in: { mx: 0, mz: 0, sprint: false, yaw: 0, pitch: 0.28, charging: false },

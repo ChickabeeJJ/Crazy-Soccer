@@ -20,6 +20,8 @@ export const FIELD = {
   postR: 0.22,
 };
 
+export const MAPS = ['grass', 'desert'];
+
 export const PHYS = {
   gravity: 28,
   ballR: 0.55,
@@ -107,14 +109,16 @@ export const NET = {
 };
 
 export const ITEMS = {
-  fire: { name: 'Fire Shot', icon: '🔥', color: '#ff7a1a', desc: 'Your next shot is a blazing, unstoppable fireball.' },
-  ice: { name: 'Ice Blast', icon: '❄️', color: '#5fe3ff', desc: 'Throw a frost orb that freezes the first rival it hits.' },
-  oil: { name: 'Oil Slick', icon: '🛢️', color: '#9b6bff', desc: 'Spill a slippery puddle. Rivals who run through it wipe out.' },
-  jet: { name: 'Jetpack', icon: '🚀', color: '#ffd23f', desc: 'Blast off and fly over everyone for a few seconds.' },
-  grapple: { name: 'Grapple', icon: '🪝', color: '#4cf08a', desc: 'Hook the ball from range and yank it to your feet.' },
-  punch: { name: 'Boxing Glove', icon: '🥊', color: '#ff4466', desc: 'Spring-loaded glove knocks over the rival in front of you.' },
-  speed: { name: 'Lightning Boots', icon: '⚡', color: '#7dff5a', desc: 'Super speed with endless stamina.' },
-  shield: { name: 'Bubble Shield', icon: '🫧', color: '#c27bff', desc: 'Immune to tackles, hits and items for a while.' },
+  fire: { name: 'Fire Shot', color: '#ff7a1a', desc: 'Your next shot is a blazing, unstoppable fireball.' },
+  ice: { name: 'Ice Blast', color: '#5fe3ff', desc: 'Throw a frost orb that freezes the first rival it hits.' },
+  oil: { name: 'Oil Slick', color: '#9b6bff', desc: 'Leave a slippery oil trail behind you. Rivals who cross it wipe out.' },
+  jet: { name: 'Jetpack', color: '#ffd23f', desc: 'Blast off and fly over everyone for a few seconds.' },
+  grapple: { name: 'Grapple', color: '#4cf08a', desc: 'Hook the ball from range and yank it to your feet.' },
+  punch: { name: 'Boxing Glove', color: '#ff4466', desc: 'Spring-loaded glove knocks over the rival in front of you.' },
+  speed: { name: 'Lightning Boots', color: '#7dff5a', desc: 'Super speed with endless stamina.' },
+  shield: { name: 'Bubble Shield', color: '#c27bff', desc: 'Immune to tackles, hits and items for a while.' },
+  barricade: { name: 'Barricade', color: '#ffb000', desc: 'Drop a construction fence that blocks players and the ball.' },
+  barrel: { name: 'Barrel Roll', color: '#3f8bff', desc: 'Bowl a barrel that flattens every rival in its path.' },
 };
 export const ITEM_KINDS = Object.keys(ITEMS);
 
