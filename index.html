@@ -13,20 +13,17 @@
     <canvas id="game"></canvas>
 
     <!-- ============================ LOADING ============================ -->
-    <div id="loading" class="screen show">
-      <div class="load-inner">
-        <div class="logo big"><span class="l1">CRAZY</span><span class="l2">SOCCER</span></div>
-        <div class="load-bar"><div id="loadFill"></div></div>
-        <div id="loadText" class="load-text">Loading…</div>
-      </div>
-    </div>
+
 
     <!-- ============================== MENU ============================== -->
     <div id="menu" class="screen">
       <div class="menu-left">
         <div class="logo"><span class="l1">CRAZY</span><span class="l2">SOCCER</span></div>
-        <div class="menu-sub">4v4 • Items • No referee</div>
-        <button id="playBtn" class="btn btn-play"><span class="ico">▶</span> PLAY</button>
+        <div class="menu-sub">LOBBY · Pick your team</div>
+        <div class="team-pick">
+          <button id="joinRedBtn" class="btn btn-team red"><span class="tp-sq"></span>JOIN RED</button>
+          <button id="joinBlueBtn" class="btn btn-team blue"><span class="tp-sq"></span>JOIN BLUE</button>
+        </div>
         <div class="menu-row">
           <button id="practiceBtn" class="btn btn-sec">PRACTICE</button>
           <button id="privateBtn" class="btn btn-sec">PRIVATE MATCH</button>
@@ -86,6 +83,7 @@
         <div id="stamina" class="stamina"><div class="seg"><i></i></div><div class="seg"><i></i></div><div class="seg"><i></i></div><div class="seg"><i></i></div></div>
       </div>
       <div id="announce" class="announce"></div>
+      <div id="crosshair" class="crosshair"><i></i><i></i><i></i><i></i><b></b></div>
       <div id="hint" class="hint"></div>
 
       <div id="netStats" class="net-stats"></div>
@@ -105,9 +103,9 @@
     <!-- Pause -->
     <div id="pause" class="modal">
       <div class="panel small">
-        <div class="panel-head"><span>Paused</span></div>
+        <div class="panel-head"><span>Menu</span></div>
         <div class="panel-body col">
-          <button id="resumeBtn" class="btn btn-play">RESUME</button>
+          <button id="resumeBtn" class="btn btn-play">BACK TO GAME</button>
           <button id="pauseSettingsBtn" class="btn btn-sec">SETTINGS</button>
           <button id="inviteBtn2" class="btn btn-sec hidden">INVITE FRIENDS</button>
           <button id="leaveBtn" class="btn btn-danger">RETURN TO LOBBY</button>
@@ -200,7 +198,7 @@
         <button class="tb tb-lob" data-act="lob">LOB</button>
         <button class="tb tb-flick" data-act="flick">FLICK</button>
         <button class="tb tb-tackle" data-act="tackle">TACKLE</button>
-        <button class="tb tb-dribble" data-act="dribble">SKILL</button>
+        <button class="tb tb-dribble" data-act="dribble">JUMP</button>
         <button class="tb tb-sprint" data-act="sprint">SPRINT</button>
         <button class="tb tb-req" data-act="request">!</button>
       </div>

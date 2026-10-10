@@ -86,6 +86,8 @@ export class BotBrain {
           const ex = b.x + b.vx * t * 0.8, ez = b.z + b.vz * t * 0.8;
           t = clamp(len2(ex - p.x, ez - p.z) / 12, 0, 1.6);
         }
+        // Jump to catch high balls dropping nearby
+        if (decide && b.y > 2.1 && b.y < 4 && myD < 2.6 && p.y < 0.05 && p.cd.dribble <= 0 && Math.random() < 0.5) w.doAction(p, { a: 'dribble' });
         tx = clamp(b.x + b.vx * t * 0.8, -FIELD.wallX + 1, FIELD.wallX - 1);
         tz = clamp(b.z + b.vz * t * 0.8, -FIELD.wallZ + 1, FIELD.wallZ - 1);
         sprint = p.stamina > 30 || myD < 8;

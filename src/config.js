@@ -4,20 +4,20 @@ export const GAME_VERSION = '1.0.0';
 export const SAVE_KEY = 'crazysoccer_profile_v1';
 
 export const FIELD = {
-  halfL: 42, // goal lines at x = ±halfL
+  halfL: 48, // goal lines at x = ±halfL
   halfW: 27, // touch lines at z = ±halfW
-  wallX: 47, // invisible/physical walls (ball and players stay inside)
+  wallX: 53.5, // invisible/physical walls (ball and players stay inside)
   wallZ: 30,
   wallTop: 40,
-  goalW: 12,
-  goalH: 4.2,
-  goalD: 3.6,
-  boxL: 14,
-  boxW: 30,
-  smallBoxL: 5,
-  smallBoxW: 16,
+  goalW: 15,
+  goalH: 5.2,
+  goalD: 4.2,
+  boxL: 15,
+  boxW: 34,
+  smallBoxL: 5.5,
+  smallBoxW: 20,
   centerR: 9,
-  postR: 0.22,
+  postR: 0.26,
 };
 
 export const MAPS = ['grass', 'desert'];
@@ -70,6 +70,8 @@ export const KICK = {
   diveTime: 0.62,
   diveCooldown: 1.6,
   dribbleCooldown: 1.5,
+  jumpSpeed: 10.5,
+  jumpCooldown: 0.6,
   dribbleImmune: 0.6,
   requestCooldown: 2.5,
   hitRange: 2.3,

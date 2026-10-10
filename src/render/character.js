@@ -201,17 +201,17 @@ export class CharacterModel {
     this.jet.visible = false;
   }
 
-  setAppearance(cos, team) {
+  setAppearance(cos, team, keeper = false) {
     cos = cos || {};
-    const key = JSON.stringify([cos.skin, cos.hair, cos.hairColor, cos.jersey, cos.number, team]);
+    const key = JSON.stringify([cos.skin, cos.hair, cos.hairColor, cos.jersey, cos.number, team, keeper]);
     if (key === this.appKey) return;
     this.appKey = key;
     const T = TEAMS[team] || TEAMS[0];
     const skin = toon(SKIN_TONES[cos.skin ?? 1] || SKIN_TONES[1]);
     const hairC = HAIR_COLORS[cos.hairColor ?? 0] || HAIR_COLORS[0];
-    const shirt = jersey(cos.jersey || 'classic', team, cos.number || 7);
-    const shorts = toon(0xf4f4fa);
-    const socks = toon(T.color);
+    const shirt = jersey(keeper ? 'keeper' : cos.jersey || 'classic', team, keeper ? 1 : cos.number || 7);
+    const shorts = toon(keeper ? 0x2b2f3d : 0xf4f4fa);
+    const socks = toon(keeper ? 0xffffff : T.color);
     const shoes = toon(team === 0 ? 0x2b2340 : 0x23304a);
     this.headM.material = skin;
     this.torsoM.material = shirt;
@@ -449,6 +449,14 @@ export class CharacterModel {
       case 'spin': {
         spin = k * Math.PI * 2;
         t.lsZ = 1.1; t.rsZ = -1.1; t.sX = 0.15; t.hX = 0.2;
+        expr = 1;
+        break;
+      }
+      case 'jump': {
+        // Tucked jump with arms up, ready to trap or volley
+        const air = Math.min(1, (st.y || 0) / 1.2);
+        t.lhX = -0.55 * air; t.rhX = -0.25 * air; t.lkX = 1.1 * air + 0.2; t.rkX = 0.8 * air + 0.2;
+        t.lsZ = 0.9 + air * 0.6; t.rsZ = -0.9 - air * 0.6; t.lsX = -0.4; t.rsX = -0.4; t.sX = -0.12; t.hX = -0.2;
         expr = 1;
         break;
       }

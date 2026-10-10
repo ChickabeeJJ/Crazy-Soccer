@@ -104,7 +104,8 @@ export class Session {
     rules = this.rules;
     this.world = new World({ mode: this.mode, ...rules });
     const w = this.world;
-    w.addPlayer({ id: this.localId, name: this.profile.name, team: 0, cos: this.profile.cos });
+    const myTeam = this.mode === 'practice' ? 0 : (this.profile.team === 1 ? 1 : 0);
+    w.addPlayer({ id: this.localId, name: this.profile.name, team: myTeam, cos: this.profile.cos });
     if (this.mode === 'practice') {
       w.addPlayer({ id: 999, name: 'Keeper', team: 1, isBot: true, cos: { skin: 2, hair: 'cap', hairColor: 5, jersey: 'classic', ball: 'classic', goalfx: 'confetti', number: 1 } });
       w.byId.get(999).slot = 3;
@@ -122,7 +123,10 @@ export class Session {
       if (msg.ver !== GAME_VERSION) return { t: 'reject', why: 'version' };
       if (this.world.humans().length >= MAX_HUMANS) return { t: 'full', why: 'full' };
       const id = this.nextHumanId++;
-      const p = this.world.joinHuman({ id, name: sanitizeName(msg.name), cos: sanitizeCos(msg.cos), remote: true });
+      // Honour the team the player picked in the lobby when that side still has room
+      let team = msg.team === 1 ? 1 : msg.team === 0 ? 0 : undefined;
+      if (team !== undefined && this.world.teamCount(team, true) >= (this.world.rules.teamSize || 4)) team = 1 - team;
+      const p = this.world.joinHuman({ id, name: sanitizeName(msg.name), cos: sanitizeCos(msg.cos), remote: true, team });
       this.peerToPlayer.set(peerId, id);
       this.onEvent({ e: 'joined', id, name: p.name });
       return { t: 'w', you: id, mode: this.mode, rules: this.rules, roster: this.world.roster(), snap: this.world.snapshot(), code: this.roomCode, kind: this.roomKind, inter: this.intermission };
@@ -220,14 +224,17 @@ export class Session {
     this._interStarted = false;
     this.intermission = 0;
     this.ended = false;
-    const humans = old.humans().map((p) => ({ id: p.id, name: p.name, cos: p.cos, remote: p.remote }));
+    const humans = old.humans().map((p) => ({ id: p.id, name: p.name, cos: p.cos, remote: p.remote, team: p.team }));
     this.rules = { ...this.rules, map: MAPS[Math.floor(Math.random() * MAPS.length)] };
     this.world = new World({ mode: this.mode, ...this.rules });
     const w = this.world;
-    // Shuffle teams a little, keep it balanced
-    humans.sort(() => Math.random() - 0.5);
-    humans.forEach((h, i) => {
-      const p = w.addPlayer({ id: h.id, name: h.name, team: i % 2, remote: h.remote, cos: h.cos });
+    // Everyone keeps the team they chose (overflow moves to the other side)
+    const counts = [0, 0];
+    humans.forEach((h) => {
+      let team = h.team === 1 ? 1 : 0;
+      if (counts[team] >= 4) team = 1 - team;
+      counts[team]++;
+      const p = w.addPlayer({ id: h.id, name: h.name, team, remote: h.remote, cos: h.cos });
       p.remote = h.remote;
     });
     w.start();
@@ -268,7 +275,7 @@ export class Session {
     for (const id of [...this.viewMap.keys()]) if (!this.roster.has(id)) this.viewMap.delete(id);
     if (this.localP) {
       const me = this.roster.get(this.localId);
-      if (me) { this.localP.team = me.team; this.localP.stats = me.stats; }
+      if (me) { this.localP.team = me.team; this.localP.stats = me.stats; this.localP.keeper = !!me.gk; this.localP.slot = me.slot; }
     }
     this.onEvent({ e: 'roster' });
   }
@@ -450,6 +457,7 @@ export class Session {
       o.team = ros ? ros.team : 0;
       o.cos = ros ? ros.cos : this.profile.cos;
       o.isBot = ros ? !!ros.bot : true;
+      o.keeper = ros ? !!ros.gk : false;
       o.stats = ros ? ros.stats : o.stats;
       o.x = lerp(ra[1], rb[1], k); o.y = lerp(ra[2], rb[2], k); o.z = lerp(ra[3], rb[3], k);
       o.vx = rb[4]; o.vz = rb[5];
@@ -574,7 +582,7 @@ export class Session {
       case 'tackle': {
         if (mine) return;
         const ml = len2(act.mx || 0, act.mz || 0);
-        if (inOwnBox(p) && this.mode !== 'practice') {
+        if (p.keeper && inOwnBox(p) && this.mode !== 'practice') {
           if (p.cd.dive > 0) return;
           p.cd.dive = KICK.diveCooldown;
           let dx = cb.x - p.x, dz = cb.z - p.z, dl = len2(dx, dz);
@@ -596,7 +604,11 @@ export class Session {
         p.cd.dribble = KICK.dribbleCooldown;
         const ml = len2(act.mx || 0, act.mz || 0);
         if (ml > 0.2) { p.slideX = act.mx / ml; p.slideZ = act.mz / ml; } else { p.slideX = Math.sin(p.face); p.slideZ = Math.cos(p.face); }
-        if (mine) { setAnim(p, 'spin', 0.42); p.immune = KICK.dribbleImmune; } else { setAnim(p, 'dodge', 0.3); p.immune = 0.4; }
+        if (mine) { setAnim(p, 'spin', 0.42); p.immune = KICK.dribbleImmune; } else {
+          p.cd.dribble = KICK.jumpCooldown;
+          if (p.y > 0.05 || p.fx.jet > 0) return;
+          p.vy = KICK.jumpSpeed; setAnim(p, 'jump', 0.75);
+        }
         break;
       }
       case 'request': if (p.cd.request > 0) return; p.cd.request = KICK.requestCooldown; p.req = 2.5; break;

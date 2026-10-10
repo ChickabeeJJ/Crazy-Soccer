@@ -6,7 +6,7 @@ import { clamp, len2, rand, wrapAngle, r2 } from '../util/math.js';
 import { botName, randomCosmetics } from '../cosmetics.js';
 import { BotBrain } from './bots.js';
 
-export const ANIM_CODES = ['idle', 'kick', 'pass', 'flick', 'slide', 'recover', 'dive', 'getup', 'fall', 'slip', 'frozen', 'hit', 'spin', 'dodge', 'celebrate', 'emote', 'punch', 'throw', 'cheer', 'sad'];
+export const ANIM_CODES = ['idle', 'kick', 'pass', 'flick', 'slide', 'recover', 'dive', 'getup', 'fall', 'slip', 'frozen', 'hit', 'spin', 'dodge', 'celebrate', 'emote', 'punch', 'throw', 'cheer', 'sad', 'jump'];
 const ANIM_INDEX = Object.fromEntries(ANIM_CODES.map((a, i) => [a, i]));
 
 let nextBotId = 1000;
@@ -139,16 +139,16 @@ export class World {
   formationPos(p, kicking) {
     const s = p.team === 0 ? -1 : 1; // side the team defends
     if (this.mode === 'practice') {
-      if (p.isBot) return { x: 40.5, z: 0 };
+      if (p.isBot) return { x: FIELD.halfL - 1.6, z: 0 };
       return { x: -6, z: 0 };
     }
     const slot = p.slot % 4;
     const extra = Math.floor(p.slot / 4);
     const spots = [
       kicking ? [1.6, 0] : [10.5, 0],
-      [17, -12],
-      [17, 12],
-      [39.5, 0],
+      [19, -12],
+      [19, 12],
+      [FIELD.halfL - 2.4, 0],
     ];
     const [fx, fz] = spots[slot];
     return { x: s * fx, z: fz + extra * 6 };
@@ -207,6 +207,14 @@ export class World {
 
   // --------------------------------------------------------------- actions
   hasBall(p) { return this.ball.owner === p.id; }
+
+  // Each team's slot-4 player is the goalkeeper (white kit, can dive, can't be tackled).
+  isKeeper(p) {
+    if (this.mode === 'practice') return !!p.isBot;
+    return p.slot % 4 === 3;
+  }
+
+  keeperInBox(p) { return this.isKeeper(p) && this.inOwnBox(p); }
 
   inOwnBox(p) {
     const s = p.team === 0 ? -1 : 1;
@@ -401,7 +409,7 @@ export class World {
         if (this.hasBall(p)) return;
         let mx = Number.isFinite(act.mx) ? act.mx : 0, mz = Number.isFinite(act.mz) ? act.mz : 0;
         const ml = len2(mx, mz);
-        if (this.inOwnBox(p) && this.mode !== 'practice') {
+        if (this.keeperInBox(p)) {
           if (p.cd.dive > 0) return;
           p.cd.dive = KICK.diveCooldown;
           // Dive toward the ball if it's roughly ahead, else in move direction
@@ -437,11 +445,15 @@ export class World {
           setAnim(p, 'spin', 0.42);
           p.immune = KICK.dribbleImmune;
           b.contestT = 0;
+          this.emit({ e: 'skill', id: p.id });
         } else {
-          setAnim(p, 'dodge', 0.3);
-          p.immune = 0.4;
+          // Without the ball the same key jumps (catch high balls, volley them mid-air)
+          p.cd.dribble = KICK.jumpCooldown;
+          if (p.y > 0.05 || p.fx.jet > 0) return;
+          p.vy = KICK.jumpSpeed;
+          setAnim(p, 'jump', 0.75);
+          this.emit({ e: 'jump', id: p.id });
         }
-        this.emit({ e: 'skill', id: p.id });
         return;
       }
       case 'request': {
@@ -603,6 +615,7 @@ export class World {
 
     const frozen = this.phase === 'kickoff';
     for (const p of this.players) {
+      p.keeper = this.isKeeper(p);
       if (p.remote) { this.tickRemote(p, dt); continue; }
       movePlayer(p, dt, b.owner === p.id, frozen);
     }
@@ -712,6 +725,7 @@ export class World {
       for (const q of this.players) {
         if (q === p || q.team === p.team || q.left || q.stun > 0) continue;
         if (p.hitSet && p.hitSet.has(q.id)) continue;
+        if (this.isKeeper(q)) continue; // goalkeepers can't be tackled
         const d = len2(q.x - p.x, q.z - p.z);
         if (d < 1.7 && Math.abs(q.y - p.y) < 1.5) {
           if (p.hitSet) p.hitSet.add(q.id);
@@ -741,7 +755,7 @@ export class World {
         if (q.team === o.team || q.stun > 0 || q.left) continue;
         if (len2(q.x - b.x, q.z - b.z) < PLAYER.radius + R + 0.35 && Math.abs(q.y - o.y) < 1.5) { contested = true; break; }
       }
-      if (contested && o.immune <= 0 && o.fx.shield <= 0) {
+      if (contested && o.immune <= 0 && o.fx.shield <= 0 && !this.isKeeper(o)) {
         b.contestT += dt;
         if (b.contestT > PLAYER.contestTime) {
           const ang = o.face + rand(-1.2, 1.2) + Math.PI * 0.5 * (Math.random() < 0.5 ? 1 : -1);
@@ -763,10 +777,11 @@ export class World {
       const d = len2(dx, dz);
       const rel = b.y - p.y;
       const diving = p.anim === 'dive';
-      const keeper = this.inOwnBox(p) && this.mode !== 'practice';
-      const reach = diving ? 2.4 : p.anim === 'slide' ? 1.95 : PLAYER.pickupReach;
-      const maxH = diving ? 3.6 : keeper ? 2.9 : 1.55;
-      const maxSpeed = diving ? 80 : keeper ? 34 : p.anim === 'slide' ? 30 : 25;
+      const keeper = this.keeperInBox(p) && this.mode !== 'practice';
+      const airborne = p.y > 0.25 && p.fx.jet <= 0;
+      const reach = diving ? 2.4 : p.anim === 'slide' ? 1.95 : airborne ? 1.8 : PLAYER.pickupReach;
+      const maxH = diving ? 3.6 : keeper ? 2.9 : airborne ? 2.2 : 1.55;
+      const maxSpeed = diving ? 80 : keeper ? 34 : p.anim === 'slide' ? 30 : airborne ? 30 : 25;
       if (d < reach && rel < maxH && rel > -0.8) {
         if (speed < maxSpeed && !(b.fire && (diving || keeper) && speed > 20)) {
           if (d < bestD) { best = p; bestD = d; }
@@ -1042,7 +1057,7 @@ export class World {
   }
 
   roster() {
-    return this.players.map((p) => ({ id: p.id, name: p.name, team: p.team, slot: p.slot, bot: p.isBot ? 1 : 0, cos: p.cos, stats: p.stats }));
+    return this.players.map((p) => ({ id: p.id, name: p.name, team: p.team, slot: p.slot, gk: this.isKeeper(p) ? 1 : 0, bot: p.isBot ? 1 : 0, cos: p.cos, stats: p.stats }));
   }
 }
 
@@ -1100,6 +1115,18 @@ export function kickVelocity(p, act, players, fire) {
   // Shot
   const power = clamp(act.pw ?? 0, 0, 1);
   let speed = KICK.minSpeed + (KICK.maxSpeed - KICK.minSpeed) * Math.pow(power, 0.85);
+  if (Number.isFinite(act.tx) && Number.isFinite(act.ty) && Number.isFinite(act.tz)) {
+    // Crosshair aim: send the ball through the aimed point (gravity-compensated)
+    if (fire) speed = Math.min(60, speed * 1.32 + 6);
+    const bx = p.x + Math.sin(p.face) * PLAYER.dribbleDist, bz = p.z + Math.cos(p.face) * PLAYER.dribbleDist, by = (p.y || 0) + PHYS.ballR;
+    const tx = act.tx - bx, tz = act.tz - bz, ty = clamp(act.ty, 0.3, 30) - by;
+    const dh = Math.max(4, len2(tx, tz));
+    const t = dh / speed;
+    let vy = ty / t + 0.5 * PHYS.gravity * t * (fire ? 0.6 : 1);
+    vy = clamp(vy, -4, speed * 0.85);
+    const curve = clamp(act.cv || 0, -1, 1) * (6 + power * 10);
+    return { vx: (tx / dh) * speed, vy, vz: (tz / dh) * speed, pw: power, curve };
+  }
   const lift = clamp(0.5 + (0.28 - pitch) * 2.2, 0, 1.7);
   let vy = 3.5 + lift * 9 + power * 1.5;
   if (fire) { speed = Math.min(60, speed * 1.32 + 6); vy *= 0.8; }

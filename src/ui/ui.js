@@ -28,15 +28,15 @@ export class UI {
   isOpen(id) { return $(id).classList.contains('show'); }
   anyModal() { return ['pause', 'results', 'settings', 'private', 'searching', 'confirm'].some((m) => this.isOpen(m)); }
 
-  setLoading(p, text) {
-    $('loadFill').style.width = `${Math.round(p * 100)}%`;
-    if (text) $('loadText').textContent = text;
-  }
+  setLoading() { /* no visible loading screen */ }
 
   bindButtons() {
     const app = this.app;
     const click = (id, fn) => $(id).addEventListener('click', (e) => { e.stopPropagation(); app.audio.click(); fn(e); });
-    click('playBtn', () => app.quickPlay());
+    click('joinRedBtn', () => app.quickPlay(0));
+    click('joinBlueBtn', () => app.quickPlay(1));
+    $('joinRedBtn').addEventListener('mouseenter', () => { app.menuTeam = 0; });
+    $('joinBlueBtn').addEventListener('mouseenter', () => { app.menuTeam = 1; });
     click('practiceBtn', () => app.startPractice());
     click('privateBtn', () => { $('privateMsg').textContent = ''; this.modal('private', true); });
     click('createRoomBtn', () => app.createPrivate());
@@ -125,7 +125,7 @@ export class UI {
       [state.inBox ? 'Dive' : 'Tackle', L('tackle'), !state.hasBall, 'tackle'],
       ['Lob', L('lob'), state.hasBall, 'lob'],
       ['Request', L('request'), !state.hasBall, 'request'],
-      ['Dribble', L('dribble'), true, 'dribble', true],
+      ['Jump / Dribble', L('dribble'), true, 'dribble', true],
       ['Sprint', L('sprint'), true, 'sprint'],
     ];
     $('controlsList').innerHTML = rows.map(([n, k, on, id, gap]) => `<div class="kbtn ${on ? '' : 'off'} ${gap ? 'gap' : ''}" data-k="${id}"><span>${n}</span><kbd>${esc(k)}</kbd></div>`).join('');

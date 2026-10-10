@@ -227,7 +227,7 @@ export class GameRenderer {
       c.ring.material.color.set(TEAMS[p.team].color);
       c.tagKey = '';
     }
-    c.model.setAppearance(p.cos, p.team);
+    c.model.setAppearance(p.cos, p.team, !!p.keeper);
     const key = `${p.name}|${p.team}|${p.id === localId}`;
     if (c.tagKey !== key) {
       c.tagKey = key;
@@ -255,6 +255,7 @@ export class GameRenderer {
   // frame: optional replay frame overriding positions
   syncWorld(view, localId, dt, opts = {}) {
     this.time += dt;
+    if (this.menuChar) this.menuChar.root.visible = false;
     const frame = opts.replay;
     const ballOwner = frame ? -2 : view.ball.owner;
     const seen = new Set();
@@ -565,7 +566,7 @@ export class GameRenderer {
   }
 
   // ----------------------------------------------------------------- menus
-  showMenuChar(cos, visible, dt, emote) {
+  showMenuChar(cos, visible, dt, emote, team = 0) {
     if (!this.menuChar && visible) {
       this.menuChar = new CharacterModel(cos, 0, { outline: this.quality.outline, shadows: this.quality.shadows });
       this.scene.add(this.menuChar.root);
@@ -574,7 +575,7 @@ export class GameRenderer {
     if (!this.menuChar) return;
     this.menuChar.root.visible = visible;
     if (!visible) return;
-    this.menuChar.setAppearance(cos, 0);
+    this.menuChar.setAppearance(cos, team);
     this.menuChar.root.position.set(-30, 0, 0);
     this.menuChar.root.rotation.y = Math.PI / 2 + 0.5;
     this.menuEmoteT = (this.menuEmoteT || 0) + dt;
@@ -585,6 +586,7 @@ export class GameRenderer {
   resetMenuEmote() { this.menuEmoteT = 0; }
 
   clearWorld() {
+    if (this.menuChar) this.menuChar.root.visible = false; // the lobby hero must never appear in a match
     for (const id of [...this.chars.keys()]) this.removeChar(id);
     for (const map of [this.boxes, this.puddles, this.projs, this.walls]) { for (const m of map.values()) m.removeFromParent(); map.clear(); }
     for (const g of this.grapples) g.line.removeFromParent();
@@ -594,9 +596,9 @@ export class GameRenderer {
   }
 
   // Lobby scene: hero character + ball, slowly orbiting camera
-  menuScene(dt, cos, emote, ballSkin) {
+  menuScene(dt, cos, emote, ballSkin, team = 0) {
     this.time += dt;
-    this.showMenuChar(cos, true, dt, emote);
+    this.showMenuChar(cos, true, dt, emote, team);
     this.ball.setSkin(ballSkin);
     const ch = this.menuChar.root;
     const fx = Math.sin(ch.rotation.y), fz = Math.cos(ch.rotation.y);

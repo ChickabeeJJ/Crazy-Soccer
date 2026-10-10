@@ -10,6 +10,7 @@ import { Net, randomCode, roomPeerId } from './net/net.js';
 import { GAME_VERSION, TEAMS, QUICK_CHAT, ITEMS, MATCH, PLAYER, KICK } from './config.js';
 import { CATALOG } from './cosmetics.js';
 import { clamp, len2 } from './util/math.js';
+import * as THREE from 'three';
 
 const $ = (id) => document.getElementById(id);
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -79,7 +80,7 @@ class App {
     this.renderer.showChat = !SDK.settings.disableChat;
 
     SDK.loadingStop();
-    this.ui.screen('loading', false);
+    const ld = document.getElementById('loading'); if (ld) ld.remove();
     this.showMenu();
     requestAnimationFrame((t) => this.frame(t));
 
@@ -111,7 +112,7 @@ class App {
     const e = Save.p.eq;
     return { skin: e.skin, hair: e.hair, hairColor: e.hairColor, jersey: e.jersey, ball: e.ball, goalfx: e.goalfx, number: e.number };
   }
-  hello() { return { name: Save.displayName(), cos: this.cos() }; }
+  hello() { return { name: Save.displayName(), cos: this.cos(), team: Save.p.team === 1 ? 1 : 0 }; }
 
   // ================================================================== menu
   showMenu() {
@@ -126,7 +127,7 @@ class App {
     if (this.audio.ctx) this.audio.startMusic();
     SDK.gameplayStop();
     const note = $('menuNote');
-    note.textContent = Save.p.stats.matches === 0 ? 'New here? Hit PLAY to jump into a 4v4 match — bots fill empty spots!' : '';
+    note.textContent = Save.p.stats.matches === 0 ? 'New here? Pick a team to jump into a 4v4 match — bots fill empty spots!' : '';
   }
 
   claimDaily() {
@@ -184,8 +185,9 @@ class App {
     if (reason) this.ui.globalToast(reason, 4000);
   }
 
-  async quickPlay() {
+  async quickPlay(team) {
     if (this.state === 'searching') return;
+    if (team === 0 || team === 1) { Save.p.team = team; Save.save(); }
     this.endSession();
     this.state = 'searching';
     this.searchToken = Symbol('search');
@@ -427,9 +429,8 @@ class App {
   }
 
   onLockChange(locked) {
-    if (locked) { this.ui.clickToPlay(false); return; }
-    // Escape (browser) released the mouse: show the pause menu.
-    if (this.state === 'game' && !this.ui.anyModal() && !this.wheelOpen) this.pause();
+    // There is no pausing in a live match: Escape only releases the mouse ("Click to play" shows).
+    if (locked) this.ui.clickToPlay(false);
   }
 
   onCanvasClick() {
@@ -616,7 +617,7 @@ class App {
 
   updateMenu(dt) {
     const emote = this.state === 'locker' ? this.menuEmote : null;
-    this.renderer.menuScene(dt, this.cos(), emote, Save.p.eq.ball);
+    this.renderer.menuScene(dt, this.cos(), emote, Save.p.eq.ball, this.menuTeam ?? (Save.p.team === 1 ? 1 : 0));
     if (this.state === 'menu' && !this.ui.anyModal()) {
       // Idle character occasionally emotes
       this.menuEmoteT += dt;
@@ -659,6 +660,7 @@ class App {
     if (ml > 0.1) this.tut.moved = (this.tut.moved || 0) + dt;
 
     const aim = { yaw: rig.yaw, pitch: rig.pitch };
+    const shotAim = { ...aim, ...this.aimTarget(me) };
     if (me && active) {
       const equip = me.equip >= 0 && me.items[me.equip] ? me.equip : -1;
       if (this.wheelOpen) {
@@ -679,8 +681,8 @@ class App {
       }
       if (inp.wasReleased('kick')) {
         if (this.kickSuppressed) this.kickSuppressed = false;
-        else if (me.charging) s.action({ a: 'kick', pw: me.charge, ...aim, cv: settings.autoCurve ? right : 0 });
-        else s.action({ a: 'kick', pw: 0, ...aim, cv: 0 });
+        else if (me.charging) s.action({ a: 'kick', pw: me.charge, ...shotAim, cv: settings.autoCurve ? right : 0 });
+        else s.action({ a: 'kick', pw: 0, ...shotAim, cv: 0 });
       }
       const simple = (name, extra = {}) => { if (inp.wasPressed(name)) { s.action({ a: name, ...aim, mx, mz, ...extra }); this.ui.flashControl(name); } };
       if (inp.wasPressed('pass') && equip >= 0) me.equip = -1;
@@ -722,7 +724,10 @@ class App {
     // HUD
     const hasBall = s.hasBall();
     const nearBall = me && ball && ball.owner < 0 && len2(ball.x - me.x, ball.z - me.z) < KICK.hitRange;
-    const inBox = me && s.mode !== 'practice' && inOwnBox(me);
+    const inBox = me && me.keeper && s.mode !== 'practice' && inOwnBox(me);
+    const xh = document.getElementById('crosshair');
+    xh.classList.toggle('show', !!me && v.phase !== 'replay');
+    xh.classList.toggle('charging', !!(me && me.charging));
     const equip = me && me.equip >= 0 && me.items[me.equip] ? me.items[me.equip] : null;
     this.ui.buildControls({ hasBall: !!hasBall, item: !!equip, inBox: !!inBox && !hasBall, nearBall: !!nearBall });
     this.ui.setTackleLabel(!!inBox);
@@ -735,6 +740,21 @@ class App {
     this.updateBanners(s, v);
     this.updatePhaseAnnouncements(s, v);
     this.updateTutorial(dt, s, hasBall);
+  }
+
+  // World point under the crosshair (screen x 50%, y 36%): shots fly through it.
+  aimTarget(me) {
+    if (!me) return {};
+    const cam = this.renderer.cam;
+    const v = this._aimV || (this._aimV = new THREE.Vector3());
+    v.set(0, 0.28, 0.5).unproject(cam).sub(cam.position).normalize();
+    const o = cam.position;
+    const minD = o.distanceTo(new THREE.Vector3(me.x, me.y || 0, me.z)) + 14;
+    let d = 60;
+    if (v.y < -0.01) d = Math.min(60, Math.max(minD, (o.y - 0.4) / -v.y));
+    let tx = o.x + v.x * d, ty = o.y + v.y * d, tz = o.z + v.z * d;
+    if (ty < 0.4) ty = 0.4;
+    return { tx, ty, tz };
   }
 
   updateBanners(s, v) {
@@ -783,7 +803,7 @@ class App {
       { html: 'Run into the ball to dribble it ⚽', done: () => hasBall },
       { html: mob ? 'Hold KICK to charge, release to shoot!' : `Hold ${L('kick')} to charge a shot, release to kick! Aim with your mouse`, done: () => T.kicked },
       { html: mob ? 'PASS, LOB and FLICK to beat defenders' : `${L('pass')} Pass • ${L('lob')} Lob • ${L('flick')} Flick over defenders`, done: () => T.t > 6 },
-      { html: mob ? 'TACKLE to steal — in your own box it becomes a DIVE' : `${L('tackle')} Slide tackle to steal • In your own box it's a goalkeeper DIVE`, done: () => T.t > 6 },
+      { html: mob ? 'TACKLE to steal • JUMP to catch high balls and volley them' : `${L('tackle')} Slide tackle to steal • ${L('dribble')} Jump to catch high balls, then shoot mid-air!`, done: () => T.t > 6 },
       { html: 'Grab the glowing <b>?</b> boxes for crazy items! 🔥❄️🚀', done: () => T.t > 6 },
     ];
     const st = steps[T.step];

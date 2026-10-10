@@ -340,7 +340,17 @@ export function jerseyTexture(pattern, teamIdx, number) {
   const light = '#ffffff';
   g.fillStyle = base;
   g.fillRect(0, 0, 512, 256);
-  switch (pattern) {
+  if (pattern === 'keeper') {
+    // Goalkeeper kit: white with team-coloured trim
+    g.fillStyle = '#f7f7fb';
+    g.fillRect(0, 0, 512, 256);
+    g.fillStyle = base;
+    g.fillRect(0, 0, 512, 26);
+    for (let x = 0; x < 512; x += 64) { g.fillRect(x + 4, 200, 56, 10); }
+    g.fillStyle = '#d9dbe6';
+    for (let y = 40; y < 190; y += 22) g.fillRect(0, y, 512, 3);
+  }
+  switch (pattern === 'keeper' ? '' : pattern) {
     case 'stripes':
       g.fillStyle = light;
       for (let x = 0; x < 512; x += 64) g.fillRect(x + 20, 0, 24, 256);
@@ -390,9 +400,9 @@ export function jerseyTexture(pattern, teamIdx, number) {
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.lineWidth = 12;
-  g.strokeStyle = dark;
+  g.strokeStyle = pattern === 'keeper' ? '#ffffff' : dark;
   g.strokeText(String(number), 256, 140);
-  g.fillStyle = light;
+  g.fillStyle = pattern === 'keeper' ? base : light;
   g.fillText(String(number), 256, 140);
   // Chest badge (front-left)
   g.fillStyle = light;
