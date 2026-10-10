@@ -62,6 +62,9 @@ export class Video {
     [this.hero, this.r2, this.r3, this.r4].forEach((p, i) => { p.slot = i; });
     [this.d1, this.d2, this.d3, this.gk].forEach((p, i) => { p.slot = i; });
     w.resetKickoff(0);
+    // resetKickoff shuffles positions; the script needs fixed roles and keepers
+    [this.hero, this.r2, this.r3, this.r4].forEach((p, i) => { p.slot = i; p.keeper = i === 3; });
+    [this.d1, this.d2, this.d3, this.gk].forEach((p, i) => { p.slot = i; p.keeper = i === 3; });
     w.phase = 'play';
     w.phaseT = 0;
     w.clock = 263;
