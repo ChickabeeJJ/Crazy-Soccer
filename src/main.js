@@ -389,7 +389,6 @@ class App {
     this.renderer.rig.pitch = 0.3;
     if (me) this.renderer.rig.snapTo(me.x, me.y, me.z);
     this.ui.statsPinned = false;
-    this.myRole = '';
     this.lastPhase = null;
     if (!SDK.isMobile && !this.lockFailed) this.input.requestLock();
     SDK.gameplayStart();
@@ -602,11 +601,6 @@ class App {
         if (ev.id === s.localId) { this.ui.announce('YOU\'RE THE KEEPER!', 'Stay in your box to keep the gloves'); A.pickup(); }
         else if (ev.prev === s.localId) this.ui.toast('You left the box: no longer keeper');
         else if (ev.team === myTeam && ev.id >= 0) this.ui.toast(`${s.playerName(ev.id)} is your keeper`);
-        break;
-      }
-      case 'reset': {
-        const row = (ev.pos || []).find((r) => r[0] === s.localId);
-        if (row && s.mode !== 'practice') this.myRole = row[5] ? 'GOALKEEPER' : ROLE_NAMES[(row[4] ?? 0) % 4];
         break;
       }
       case 'target': A.goalHorn(); break;

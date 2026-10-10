@@ -663,7 +663,7 @@ export class UI {
       <div class="set-sec" data-sec="keys">Gameplay Keybinds</div>
       ${['kick', 'pass', 'flick', 'tackle', 'lob', 'request', 'dribble', 'sprint', 'item1', 'item2'].map(bindRow).join('')}
       <div class="set-sec">Movement & UI Keybinds</div>
-      ${['forward', 'back', 'left', 'right', 'stats', 'lobby', 'chat', 'emote', 'unlock'].map(bindRow).join('')}
+      ${['forward', 'back', 'left', 'right', 'stats', 'lobby', 'chat', 'emote'].map(bindRow).join('')}
       <div class="set-row"><div class="lbl"><b>Reset all keybinds</b><span>Restore the default controls</span></div><button class="bind-reset" id="resetBinds">Reset</button></div>
       <div class="set-sec" style="text-align:center">Crazy Soccer v${app.version}</div>`;
     body.querySelectorAll('[data-tog]').forEach((b) => b.addEventListener('click', () => { const k = b.dataset.tog; s[k] = !s[k]; app.audio.click(); this.renderSettings(); app.applySettings(); }));
