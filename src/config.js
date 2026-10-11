@@ -4,10 +4,10 @@ export const GAME_VERSION = '1.1.0';
 export const SAVE_KEY = 'crazysoccer_profile_v1';
 
 export const FIELD = {
-  halfL: 48, // goal lines at x = ±halfL
-  halfW: 27, // touch lines at z = ±halfW
-  wallX: 53.5, // invisible/physical walls (ball and players stay inside)
-  wallZ: 30,
+  halfL: 58, // goal lines at x = ±halfL
+  halfW: 33, // touch lines at z = ±halfW
+  wallX: 63.5, // invisible/physical walls (ball and players stay inside)
+  wallZ: 36,
   wallTop: 40,
   goalW: 18.5,
   goalH: 6.6,
@@ -73,6 +73,7 @@ export const KICK = {
   diveCooldown: 1.6,
   dribbleCooldown: 1.5,
   jumpSpeed: 12.5,
+  gkStunSpeed: 15, // a keeper's throw/punt only bowls rivals over while the ball is this fast
   bikeHold: 0.8, // bicycle kick: seconds you hang in the air aiming before it fires on its own
   bikeBallY: 2.7, // the ball floats up to at least this height during the hang
   bikeMinH: 1.5, // ball this far above your feet (or more) turns a volley into a bicycle kick
@@ -96,7 +97,7 @@ export const MATCH = {
   endTime: 4,
   lastChanceMax: 15,
   itemInterval: [9, 15],
-  maxItems: 3,
+  maxItems: 4,
   practiceItemInterval: [2.5, 4],
   practiceMaxItems: 6,
 };

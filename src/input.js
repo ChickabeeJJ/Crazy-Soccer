@@ -124,7 +124,7 @@ export class Input {
 
   label(code) {
     if (!code) return '—';
-    if (code.startsWith('Mouse')) return { Mouse0: 'LMB', Mouse1: 'MMB', Mouse2: 'RMB' }[code] || code;
+    if (code.startsWith('Mouse')) return { Mouse0: 'Left Click', Mouse1: 'Middle Click', Mouse2: 'Right Click' }[code] || code;
     if (this.layout && code.startsWith('Key')) {
       const v = this.layout.get(code);
       if (v) return v.toUpperCase();

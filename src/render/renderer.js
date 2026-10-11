@@ -55,14 +55,12 @@ export class GameRenderer {
     this.oilMat = new THREE.MeshBasicMaterial({ map: this.puddleTex, color: 0x332244, transparent: true, depthWrite: false });
     this.walls = new Map();
     // Ball trajectory dots (aim preview + predicted flight)
-    this.trajN = 56;
-    this.traj = new THREE.InstancedMesh(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false }), this.trajN);
-    this.traj.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.traj.frustumCulled = false;
-    this.traj.renderOrder = 7;
-    this.traj.count = 0;
-    this.scene.add(this.traj);
-    this.trajLand = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.75, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+    // Ball path: a thick camera-facing ribbon (bright core over a dark halo) so it reads on any background
+    this.trajHalo = new Ribbon(160, 0x140f26);
+    this.trajCore = new Ribbon(160, 0xffffff);
+    this.trajHalo.mesh.renderOrder = 7; this.trajCore.mesh.renderOrder = 8;
+    this.scene.add(this.trajHalo.mesh, this.trajCore.mesh);
+    this.trajLand = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.15, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
     this.trajLand.rotation.x = -Math.PI / 2;
     this.trajLand.renderOrder = 7;
     this.trajLand.visible = false;
@@ -118,7 +116,7 @@ export class GameRenderer {
     sun.castShadow = this.quality.shadows;
     sun.shadow.mapSize.set(this.quality.shadowSize, this.quality.shadowSize);
     const s = sun.shadow.camera;
-    s.left = -58; s.right = 58; s.top = 42; s.bottom = -42; s.near = 10; s.far = 160;
+    s.left = -72; s.right = 72; s.top = 52; s.bottom = -52; s.near = 10; s.far = 200;
     sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = 0.03;
     this.scene.add(sun);
@@ -542,22 +540,14 @@ export class GameRenderer {
 
   // pts: [{x,y,z}] predicted ball path; kind 'aim' (bright, your shot) or 'flight' (faint)
   syncTrajectory(pts, kind, land) {
-    const t = this.traj;
-    if (!pts || pts.length < 2) { t.count = 0; this.trajLand.visible = false; return; }
-    const n = Math.min(this.trajN, pts.length);
-    const m = this.trajM;
-    for (let i = 0; i < n; i++) {
-      const p = pts[i];
-      const s = kind === 'aim' ? 1 - (i / n) * 0.45 : 0.75 - (i / n) * 0.4;
-      m.makeScale(s, s, s).setPosition(p.x, p.y, p.z);
-      t.setMatrixAt(i, m);
-    }
-    t.count = n;
-    t.instanceMatrix.needsUpdate = true;
-    t.material.color.set(kind === 'aim' ? 0xffffff : 0xffe14a);
-    t.material.opacity = kind === 'aim' ? 0.9 : 0.55;
+    if (!pts || pts.length < 2) { this.trajHalo.hide(); this.trajCore.hide(); this.trajLand.visible = false; return; }
+    const aim = kind === 'aim';
+    const cam = this.cam.position;
+    this.trajHalo.update(pts, cam, aim ? 0.62 : 0.5, aim ? 0.55 : 0.4);
+    this.trajCore.setColor(aim ? 0xffffff : 0xffe14a);
+    this.trajCore.update(pts, cam, aim ? 0.3 : 0.24, aim ? 1 : 0.85);
     this.trajLand.visible = !!land;
-    if (land) { this.trajLand.position.set(land.x, 0.05, land.z); this.trajLand.material.opacity = kind === 'aim' ? 0.85 : 0.45; this.trajLand.scale.setScalar(1 + Math.sin(this.time * 6) * 0.08); }
+    if (land) { this.trajLand.position.set(land.x, 0.06, land.z); this.trajLand.material.color.set(aim ? 0xffffff : 0xffe14a); this.trajLand.material.opacity = aim ? 0.95 : 0.7; this.trajLand.scale.setScalar(1 + Math.sin(this.time * 6) * 0.1); }
   }
 
   // Local player's aim arrow + charge meter
@@ -745,4 +735,50 @@ function makeArrow(color) {
   g.add(head, shaft);
   g.userData.setColor = (c) => { mat.color.set(c); mat.emissive.set(c); };
   return g;
+}
+
+// Camera-facing ribbon through a list of points, fading out towards the end
+class Ribbon {
+  constructor(max, color) {
+    this.max = max;
+    const g = new THREE.BufferGeometry();
+    this.pos = new Float32Array(max * 2 * 3);
+    this.col = new Float32Array(max * 2 * 4);
+    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('color', new THREE.BufferAttribute(this.col, 4).setUsage(THREE.DynamicDrawUsage));
+    const idx = [];
+    for (let i = 0; i < max - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    g.setIndex(idx);
+    this.geo = g;
+    this.color = new THREE.Color(color);
+    this.mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+    this.mesh.frustumCulled = false;
+    this.mesh.visible = false;
+  }
+  setColor(c) { this.color.set(c); }
+  hide() { this.mesh.visible = false; }
+  update(pts, cam, width, alpha) {
+    const n = Math.min(this.max, pts.length);
+    const t = new THREE.Vector3(), v = new THREE.Vector3(), side = new THREE.Vector3();
+    for (let i = 0; i < n; i++) {
+      const p = pts[i], q = pts[Math.min(n - 1, i + 1)], o = pts[Math.max(0, i - 1)];
+      t.set(q.x - o.x, q.y - o.y, q.z - o.z).normalize();
+      v.set(cam.x - p.x, cam.y - p.y, cam.z - p.z).normalize();
+      side.crossVectors(t, v).normalize();
+      const k = i / Math.max(1, n - 1);
+      const w = width * (1 - k * 0.35) * (i === 0 ? 0.4 : 1);
+      for (let j = 0; j < 2; j++) {
+        const sg = j ? -1 : 1, b = (i * 2 + j);
+        this.pos[b * 3] = p.x + side.x * w * sg;
+        this.pos[b * 3 + 1] = p.y + side.y * w * sg;
+        this.pos[b * 3 + 2] = p.z + side.z * w * sg;
+        this.col[b * 4] = this.color.r; this.col[b * 4 + 1] = this.color.g; this.col[b * 4 + 2] = this.color.b;
+        this.col[b * 4 + 3] = alpha * (1 - k * 0.7);
+      }
+    }
+    this.geo.setDrawRange(0, (n - 1) * 6);
+    this.geo.attributes.position.needsUpdate = true;
+    this.geo.attributes.color.needsUpdate = true;
+    this.mesh.visible = true;
+  }
 }

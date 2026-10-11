@@ -251,7 +251,7 @@ export class Training {
       const mob = !!this.opts.mobile;
       return {
         timer: 'TUTORIAL',
-        tut: { step: Math.min(this.tut.i + 1, TUT_STEPS.length), total: TUT_STEPS.length, title: st.title, html: (mob && st.mob) ? st.mob : st.html(L2), progress: st.progress ? st.progress(this) : 0, skip: `${L2('lobby')} to leave` },
+        tut: { step: Math.min(this.tut.i + 1, TUT_STEPS.length), total: TUT_STEPS.length, title: st.title, html: (mob && st.mob) ? st.mob : st.html(L2), progress: st.progress ? st.progress(this) : 0, skip: mob ? '' : `${L2('lobby')} to skip`, skippable: true },
       };
     }
     return { timer: 'PRACTICE', banner: { title: this.power ? `Trying ${ITEMS[this.power].name}` : 'Free practice', text: `Press ${this.key('request')} to get the ball back • ${this.key('lobby')} returns to the menu` } };

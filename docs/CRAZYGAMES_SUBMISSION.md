@@ -27,7 +27,7 @@ Grab the glowing mystery cubes for 14 items: Bazooka, Freeze Gun, Grappling Hook
 
 Every kickoff gives you a new random position. Walk into your own box to take the goalkeeper gloves: keepers can't be tackled, hold the ball in their hands and bowl over anyone in the path of their throw. Step out of the box and you lose the gloves, so your team might be left with an empty net.
 
-Join a team and play live against real players straight away. Bots fill any empty spot until people join, and you can invite friends to a private room. Earn coins to unlock new items with the Item Roll and customise your player with jerseys, hairstyles, balls, goal effects and emotes. New players can take the optional tutorial or practise their shooting and goalkeeping in the training ground.
+New players get a quick, skippable tutorial and a free roll for their first item. Join a team and play live against real players straight away. Bots fill any empty spot until people join, and you can invite friends to a private room. Earn coins to unlock new items with the Item Roll and customise your player with jerseys, hairstyles, balls, goal effects and emotes. New players can take the optional tutorial or practise their shooting and goalkeeping in the training ground.
 
 ### Features
 

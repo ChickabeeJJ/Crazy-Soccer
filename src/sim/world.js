@@ -170,8 +170,8 @@ export class World {
     const extra = Math.floor(p.slot / 4);
     const spots = [
       kicking ? [1.6, 0] : [10.5, 0],
-      [19, -12],
-      [19, 12],
+      [23, -14],
+      [23, 14],
       [FIELD.halfL - 2.4, 0],
     ];
     const [fx, fz] = spots[slot];
@@ -379,7 +379,7 @@ export class World {
       b.owner = -1;
       const o = this.ballOffset(p);
       // A keeper's throw/punt from the hands bowls over any rival in its path (like a tackle)
-      if (b.held) b.gkThrow = { team: p.team, by: p.id, t: 1.4 };
+      if (b.held) b.gkThrow = { team: p.team, by: p.id };
       b.x = o.x; b.z = o.z; b.y = b.held ? p.y + 1.35 : Math.max(PHYS.ballR, p.y + PHYS.ballR);
       b.held = false;
     } else if (from) {
@@ -950,7 +950,7 @@ export class World {
     for (const p of this.players) {
       if (p.left || p.stun > 0 || p.anim === 'frozen' || p.anim === 'getup') continue;
       if (b.block === p.id) continue;
-      if (b.gkThrow && b.gkThrow.team !== p.team && speed > 9) continue; // they get bowled over instead
+      if (b.gkThrow && b.gkThrow.team !== p.team && len2(b.vx, b.vz) >= KICK.gkStunSpeed) continue; // too fast to control: they get bowled over instead
       const dx = b.x - p.x, dz = b.z - p.z;
       const d = len2(dx, dz);
       const rel = b.y - p.y;
@@ -1106,9 +1106,9 @@ export class World {
       }
     }
     if (b.gkThrow && b.owner < 0) {
-      b.gkThrow.t -= dt;
-      const sp = Math.hypot(b.vx, b.vy, b.vz);
-      if (b.gkThrow.t <= 0 || sp < 9) b.gkThrow = null;
+      // Purely speed based: once the ball has slowed down it can be received normally
+      const sp = len2(b.vx, b.vz);
+      if (sp < KICK.gkStunSpeed) b.gkThrow = null;
       else {
         for (const q of this.players) {
           if (q.team === b.gkThrow.team || q.stun > 0 || q.left) continue;

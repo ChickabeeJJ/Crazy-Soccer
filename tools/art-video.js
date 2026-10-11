@@ -143,9 +143,9 @@ export class Video {
       this.shot = 'bike';
       this.clearField();
       this.benchAll([H, gk, this.d2]);
-      this.place(H, 28, -1, Math.PI / 2);
+      this.place(H, goalX - 20, -1, Math.PI / 2);
       this.place(gk, goalX - 1.8, 0.5, -Math.PI / 2);
-      this.place(this.d2, 37, -12, -Math.PI / 2 - 0.6);
+      this.place(this.d2, goalX - 11, -12, -Math.PI / 2 - 0.6);
       this.move(this.d2, -0.7, 0.7, true);
       this.own(H);
       this.bike = { stage: 0 };
@@ -235,9 +235,9 @@ export class Video {
       this.shot = 'finale';
       this.clearField();
       this.benchAll([H, gk, d1]);
-      this.place(H, 24, 6, Math.PI / 2 - 0.2);
+      this.place(H, goalX - 24, 6, Math.PI / 2 - 0.2);
       this.place(gk, goalX - 1.8, 1, -Math.PI / 2);
-      this.place(d1, 30, 2, -Math.PI / 2);
+      this.place(d1, goalX - 18, 2, -Math.PI / 2);
       this.own(H);
       this.move(H, 1, -0.2, true);
       this.move(d1, -1, 0.3, true);

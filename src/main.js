@@ -105,6 +105,30 @@ class App {
     const invite = SDK.getInviteParam('roomId');
     if (invite) this.joinFromInvite(invite);
     else if (SDK.isInstantMultiplayer) this.createPrivate();
+    else this.newPlayerFlow();
+  }
+
+  // First launch: tutorial (skippable) -> free roll for your first item. Friends arriving through an
+  // invite go straight into the match and get their free roll back in the menu.
+  newPlayerFlow() {
+    if (Save.p.starterRoll) return;
+    if (!Save.p.tutDone) this.startTraining('tutorial', { firstRun: true });
+    else this.ui.showStarterRoll();
+  }
+
+  starterRoll() {
+    if (Save.p.starterRoll) { this.ui.modal('rollReveal', false); return; }
+    const res = Save.roll(1, true);
+    if (!res) return;
+    this.audio.whoosh();
+    this.ui.showRoll(res, { starter: true });
+    this.ui.refreshProfile();
+  }
+
+  skipTutorial() {
+    Save.p.tutDone = true;
+    Save.save(true);
+    this.leaveToLobby(true, Save.p.starterRoll ? 'training' : 'play');
   }
 
   // ================================================================ settings
@@ -221,6 +245,15 @@ class App {
       if (r.score > prev) { p.best[r.kind] = r.score; newBest = prev > 0 || r.score > 0; }
     }
     if (r.kind === 'tutorial' && !p.tutDone) { p.tutDone = true; coins = 100; }
+    if (r.kind === 'tutorial' && !p.starterRoll) {
+      // New player: straight on to the free first item roll
+      if (coins) Save.addCoins(coins);
+      Save.save(true);
+      SDK.happytime();
+      this.leaveToLobby(true, 'play');
+      if (coins) { this.audio.coins(); this.ui.globalToast(`Tutorial complete! +${coins} coins`, 3000); }
+      return;
+    }
     if (coins) Save.addCoins(coins);
     Save.save(true);
     this.input.exitLock();
@@ -326,7 +359,7 @@ class App {
     if (!ok) {
       net.close();
       this.state = 'menu';
-      this.ui.globalToast('Could not create an online room right now. Try Practice or Play vs bots.', 4000);
+      this.ui.globalToast('Could not create an online room right now. Try a Practice Match instead.', 4000);
       return;
     }
     this.session = new Session({ mode: 'match', role: 'host', net, roomKind: 'priv', roomCode: code, profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
@@ -441,6 +474,11 @@ class App {
   async askLeave() {
     if (this.state !== 'game') return;
     this.input.exitLock();
+    if (this.session && this.session.training && this.session.training.kind === 'tutorial') {
+      const skip = await this.ui.confirm('Skip the tutorial?', 'You can replay it any time from Training.');
+      if (skip) this.skipTutorial(); else this.resume();
+      return;
+    }
     const ok = await this.ui.confirm('Return to Lobby?', this.session && this.session.mode === 'practice' ? 'Leave the practice area.' : 'You will leave this match.');
     if (ok) this.leaveToLobby(true);
     else this.resume();
@@ -460,6 +498,8 @@ class App {
     this.ui.tutorialBox(null);
     this.ui.modal('trainRes', false);
     this.showMenu(page || (wasTraining ? 'training' : 'play'));
+    // Nobody leaves the first session without their free starter item
+    if (!Save.p.starterRoll && !this.ui.isOpen('rollReveal')) { Save.p.tutDone = true; Save.save(true); this.ui.showStarterRoll(); }
     if (wasMatch && !early) this.midgameAd();
   }
 
@@ -933,9 +973,11 @@ class App {
     for (let i = 1; i <= steps; i++) {
       const wasAir = sim.y > 0.6;
       stepBall(sim, 1 / 60, ev);
-      if (i % 3 === 0) pts.push({ x: sim.x, y: sim.y, z: sim.z });
+      if (i % 2 === 0) pts.push({ x: sim.x, y: sim.y, z: sim.z });
       if (!land && wasAir && sim.y <= 0.56 && i > 3) land = { x: sim.x, z: sim.z };
       if (sim.inNet) { pts.push({ x: sim.x, y: sim.y, z: sim.z }); break; }
+      // End the line where the ball first hits a wall, post or net (rebounds only confuse the read)
+      if (ev.some((e) => e.e !== 'bounce')) { pts.push({ x: sim.x, y: sim.y, z: sim.z }); break; }
       if (Math.hypot(sim.vx, sim.vz) < 3 && sim.y < 0.6) break;
     }
     R.syncTrajectory(pts, kind, land);

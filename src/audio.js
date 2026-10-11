@@ -168,6 +168,8 @@ export class Audio {
   freeze() { if (this.ok('freeze')) { this.noise(0.4, 0.3, 'highpass', 3000, 6000, 1); this.tone('sine', 2000, 900, 0.3, 0.12); } }
   slip() { if (this.ok('slip')) { this.tone('sine', 900, 200, 0.35, 0.3); } }
   boing() { if (this.ok('boing')) this.tone('sine', 220, 880, 0.18, 0.4); }
+  tick() { if (this.ok('tick', 0.025)) this.tone('square', 1800, 1500, 0.025, 0.06); }
+  reveal(big) { if (this.ok('reveal', 0.2)) { [523, 659, 784, big ? 1047 : 988].forEach((f, i) => this.tone('triangle', f, f, 0.16, 0.16, this.sfxBus, i * 0.07)); if (big) this.noise(0.6, 0.18, 'highpass', 4000, 9000, 1); } }
   click() { if (this.ok('click', 0.03)) this.tone('triangle', 900, 700, 0.05, 0.18); }
   hover() { if (this.ok('hover', 0.05)) this.tone('sine', 1200, 1200, 0.03, 0.05); }
   coins() { if (this.ok('coins', 0.2)) [1300, 1700, 2100, 2600].forEach((f, i) => this.tone('square', f, f, 0.06, 0.08, this.sfxBus, i * 0.07)); }

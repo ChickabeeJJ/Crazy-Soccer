@@ -74,8 +74,11 @@ export class UI {
     click('botsBtn', () => { this.modal('playSheet', false); app.startOffline(null, Save.p.team === 1 ? 1 : 0); });
     click('privateBtn', () => { this.modal('playSheet', false); $('privateMsg').textContent = ''; this.modal('private', true); });
     click('switchTeamBtn', () => app.switchTeam());
-    click('rrDoneBtn', () => this.modal('rollReveal', false));
+    click('rrDoneBtn', () => { this.modal('rollReveal', false); if (this.page === 'shop') this.renderShop(); if (this.page === 'inventory') this.renderInventory(); this.refreshProfile(); });
     click('rrAgainBtn', () => app.rollItems(this.lastRollN || 1));
+    click('rrSkipBtn', () => this.skipRoll());
+    click('tutSkipBtn', () => app.askLeave());
+    click('rrStartBtn', () => app.starterRoll());
     click('createRoomBtn', () => app.createPrivate());
     click('joinCodeBtn', () => app.joinPrivate($('codeInput').value.trim().toUpperCase()));
     $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') app.joinPrivate($('codeInput').value.trim().toUpperCase()); });
@@ -84,7 +87,6 @@ export class UI {
     click('pauseControlsBtn', () => { this.openSettings(); setTimeout(() => { const el = document.querySelector('[data-sec="keys"]'); if (el) el.scrollIntoView(); }, 30); });
     click('dailyBtn', () => app.claimDaily());
     click('loginBtn', () => app.login());
-    click('tutBtn', () => app.startTraining('tutorial'));
     click('powerShopBtn', () => { this.shopTab = 'roll'; this.setPage('shop'); });
     click('resumeBtn', () => app.resume());
     click('leaveBtn', () => app.leaveToLobby(true));
@@ -166,8 +168,6 @@ export class UI {
     $('powerStrip').innerHTML = ITEM_KINDS.map((k) => `<span class="ps ${Save.ownsPower(k) ? '' : 'locked'}" style="--rc:${RARITY[ITEMS[k].rarity].color}" title="${esc(ITEMS[k].name)}">${itemSvg(k)}</span>`).join('');
     $('powerCount').textContent = `${p.powers.length}/${ITEM_KINDS.length}`;
     $('powerShopBtn').textContent = p.powers.length >= ITEM_KINDS.length ? 'ALL ITEMS OWNED' : 'ROLL FOR ITEMS';
-    $('tutPromo').classList.toggle('done', !!p.tutDone);
-    $('tutBtn').textContent = p.tutDone ? 'REPLAY TUTORIAL' : 'HOW TO PLAY';
   }
 
   renderTraining() {
@@ -340,6 +340,7 @@ export class UI {
       $('tutTitle').textContent = t.title;
       $('tutText').innerHTML = t.html;
       $('tutSkipHint').innerHTML = t.skip || '';
+      $('tutSkipBtn').classList.toggle('hidden', !t.skippable);
       el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
     }
     $('tutBar').style.width = `${clamp(t.progress || 0, 0, 1) * 100}%`;
@@ -549,7 +550,7 @@ export class UI {
       }).join('');
       const done = owned >= total;
       grid.innerHTML = `<div class="roll-hero">
-        <div class="roll-machine ${done ? 'done' : ''}"><div class="rm-glow"></div><svg class="rm-crate" viewBox="0 0 120 120"><defs><linearGradient id="rmT" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4b3d8f"/><stop offset="1" stop-color="#2a2160"/></linearGradient><linearGradient id="rmL" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2d2468"/><stop offset="1" stop-color="#1a1442"/></linearGradient><linearGradient id="rmR" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2f7c"/><stop offset="1" stop-color="#221a52"/></linearGradient></defs><path d="M60 14l42 22-42 22-42-22z" fill="url(#rmT)" stroke="#9d8cff" stroke-width="2"/><path d="M18 36l42 22v48L18 84z" fill="url(#rmL)" stroke="#9d8cff" stroke-width="2"/><path d="M102 36L60 58v48l42-22z" fill="url(#rmR)" stroke="#9d8cff" stroke-width="2"/><path d="M39 47l42-22M60 58v48" stroke="#ffcf3f" stroke-width="3" opacity="0.85"/><text x="60" y="40" text-anchor="middle" font-family="Roboto Condensed, Arial" font-weight="700" font-size="22" fill="#ffcf3f">?</text></svg><div class="rm-count">${owned}/${total} ITEMS</div></div>
+        <div class="roll-machine ${done ? 'done' : ''}">${this.cubeHtml()}<div class="rm-count">${owned}/${total} ITEMS</div></div>
         <div class="roll-side">
           <div class="roll-btns">
             <button class="roll-btn" data-roll="1" ${done ? 'disabled' : ''}><b>ROLL ×1</b><span class="rb-cost"><span class="coin"></span>${ROLL.cost}</span></button>
@@ -559,30 +560,156 @@ export class UI {
           <div class="odds">${odds}</div>
         </div>
       </div>`;
-      grid.querySelectorAll('[data-roll]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.rollItems(+b.dataset.roll); }));
+      grid.querySelectorAll('[data-roll]').forEach((b) => b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const n = +b.dataset.roll;
+        const m = grid.querySelector('.roll-machine');
+        if (Save.canAfford(n)) { if (m) m.classList.add('opening'); this.app.audio.whoosh(); setTimeout(() => { if (m) m.classList.remove('opening'); this.app.rollItems(n); }, 650); }
+        else this.app.rollItems(n);
+      }));
       return;
     }
     for (const it of CATALOG[tab]) grid.appendChild(this.cosmeticCard(tab, it, true));
   }
 
-  // Item roll reveal: cards flip one after another
-  showRoll(results) {
+  // 3D mystery cube (same look as the in-game item cubes)
+  cubeHtml(cls = '') {
+    const face = (f) => `<i class="cf ${f}"><b>?</b></i>`;
+    return `<div class="cube-scene ${cls}"><div class="cube-rays"></div><div class="cube-float"><div class="cube">${['front', 'back', 'right', 'left', 'top', 'bottom'].map(face).join('')}</div></div><div class="cube-shadow"></div></div>`;
+  }
+
+  // Item roll reveal: a horizontal strip of items spins past the marker and lands on the result
+  // (5-rolls spin one after another and collect below). opts.starter = the free first roll.
+  showRoll(results, opts = {}) {
     this.lastRollN = results.length;
-    const cards = $('rrCards');
-    cards.className = `rr-cards n${results.length}`;
-    cards.innerHTML = results.map((r, i) => `<div class="rr-card ${r.rarity}" style="--rc:${RARITY[r.rarity].color};--d:${0.25 + i * 0.45}s">
-        <div class="rr-inner"><div class="rr-back"><b>?</b></div>
-        <div class="rr-front"><div class="rr-rar">${RARITY[r.rarity].name.toUpperCase()}</div><div class="rr-ico">${itemSvg(r.k)}</div><div class="rr-name">${esc(ITEMS[r.k].name)}</div>
-        ${r.isNew ? '<div class="rr-new">NEW!</div>' : `<div class="rr-dup">DUPLICATE · <span class="coin"></span>+${r.refund}</div>`}</div></div></div>`).join('');
-    const again = $('rrAgainBtn');
-    const cost = results.length === 5 ? ROLL.cost5 : ROLL.cost;
-    again.innerHTML = `ROLL AGAIN <span class="coin"></span>${cost}`;
-    again.disabled = Save.p.coins < cost || Save.p.powers.length >= ITEM_KINDS.length;
+    this.rollState = { results, i: 0, starter: !!opts.starter, done: false };
+    $('rrHead').textContent = opts.starter ? 'YOUR FIRST ITEM' : results.length > 1 ? 'ITEM ROLL ×5' : 'ITEM ROLL';
+    $('rrIntro').innerHTML = '';
+    $('rrIntro').classList.remove('show');
+    $('rrStrip').classList.add('show');
+    $('rrCards').innerHTML = '';
+    $('rrCards').className = 'rr-cards';
+    this.rollButtons('spinning');
     this.modal('rollReveal', true);
-    results.forEach((r, i) => setTimeout(() => {
-      if (!this.isOpen('rollReveal')) return;
-      if (r.rarity === 'legendary' || r.rarity === 'epic') this.app.audio.goalHorn(); else this.app.audio.pickup();
-    }, (0.25 + i * 0.45) * 1000 + 300));
+    this.spinNext();
+  }
+
+  // Starter flow: intro with the cube and a free roll button
+  showStarterRoll() {
+    this.rollState = null;
+    $('rrHead').textContent = 'YOUR FIRST ITEM';
+    $('rrIntro').innerHTML = `${this.cubeHtml('big')}<p>Items drop from the cubes on the pitch. Roll for your first one!</p>`;
+    $('rrIntro').classList.add('show');
+    $('rrStrip').classList.remove('show');
+    $('rrCards').innerHTML = '';
+    this.rollButtons('intro');
+    this.modal('rollReveal', true);
+  }
+
+  rollButtons(state) {
+    const st = this.rollState;
+    $('rrStartBtn').classList.toggle('hidden', state !== 'intro');
+    $('rrSkipBtn').classList.toggle('hidden', state !== 'spinning');
+    const again = $('rrAgainBtn');
+    const showAgain = state === 'done' && !(st && st.starter);
+    again.classList.toggle('hidden', !showAgain);
+    if (showAgain) {
+      const cost = this.lastRollN === 5 ? ROLL.cost5 : ROLL.cost;
+      again.innerHTML = `ROLL AGAIN <span class="coin"></span>${cost}`;
+      again.disabled = Save.p.coins < cost || Save.p.powers.length >= ITEM_KINDS.length;
+    }
+    $('rrDoneBtn').classList.toggle('hidden', state !== 'done');
+    $('rrDoneBtn').textContent = st && st.starter ? "LET'S PLAY" : 'DONE';
+  }
+
+  stripCard(k) {
+    const it = ITEMS[k];
+    return `<div class="rs-card ${it.rarity}" style="--rc:${RARITY[it.rarity].color}"><div class="rs-ico">${itemSvg(k)}</div><div class="rs-name">${esc(it.name)}</div></div>`;
+  }
+
+  // Weighted filler for the strip so it looks like the real odds (lots of commons, the odd mythic)
+  randomItem() {
+    let r = Math.random();
+    for (const rar of RARITY_ORDER) {
+      r -= ROLL.odds[rar];
+      if (r <= 0) { const pool = ITEM_KINDS.filter((k) => ITEMS[k].rarity === rar); return pool[Math.floor(Math.random() * pool.length)]; }
+    }
+    return ITEM_KINDS[0];
+  }
+
+  spinNext() {
+    const st = this.rollState;
+    if (!st || st.done) return;
+    const res = st.results[st.i];
+    const N = 52, WIN = 44;
+    const track = $('rrTrack');
+    const items = [];
+    for (let i = 0; i < N; i++) items.push(i === WIN ? res.k : this.randomItem());
+    track.innerHTML = items.map((k) => this.stripCard(k)).join('');
+    track.style.transform = 'translateX(0px)';
+    const strip = $('rrStrip');
+    const card = track.children[0];
+    const step = card.offsetWidth + 10;
+    const center = strip.clientWidth / 2;
+    const jitter = (Math.random() - 0.5) * card.offsetWidth * 0.7;
+    const target = WIN * step + card.offsetWidth / 2 - center + jitter;
+    const dur = (st.starter ? 5.2 : st.i === 0 ? 4.2 : 2.1) * 1000;
+    const t0 = performance.now();
+    let lastIdx = -1;
+    st.anim = { target, step, center, t0, dur };
+    const frame = (now) => {
+      if (this.rollState !== st || st.done) return;
+      const t = Math.min(1, (now - t0) / dur);
+      const e = 1 - Math.pow(1 - t, 4);
+      const x = target * e;
+      track.style.transform = `translateX(${-x}px)`;
+      const idx = Math.floor((x + center) / step);
+      if (idx !== lastIdx) { lastIdx = idx; if (t < 1) this.app.audio.tick(); }
+      if (t < 1) requestAnimationFrame(frame);
+      else this.landRoll();
+    };
+    requestAnimationFrame(frame);
+  }
+
+  landRoll() {
+    const st = this.rollState;
+    const res = st.results[st.i];
+    const win = $('rrTrack').children[44];
+    if (win) win.classList.add('win');
+    const big = res.rarity === 'epic' || res.rarity === 'mythic';
+    this.app.audio.reveal(big);
+    $('rrStrip').style.setProperty('--rc', RARITY[res.rarity].color);
+    $('rrStrip').classList.remove('flash'); void $('rrStrip').offsetWidth; $('rrStrip').classList.add('flash');
+    this.addRollCard(res);
+    st.i++;
+    if (st.i < st.results.length) setTimeout(() => this.spinNext(), 650);
+    else { st.done = true; this.rollButtons('done'); }
+  }
+
+  addRollCard(r) {
+    const d = document.createElement('div');
+    d.className = `rr-card ${r.rarity}`;
+    d.style.setProperty('--rc', RARITY[r.rarity].color);
+    d.innerHTML = `<div class="rr-front"><div class="rr-rar">${RARITY[r.rarity].name.toUpperCase()}</div><div class="rr-ico">${itemSvg(r.k)}</div><div class="rr-name">${esc(ITEMS[r.k].name)}</div>
+      ${r.isNew ? '<div class="rr-new">NEW!</div>' : `<div class="rr-dup">DUPLICATE · <span class="coin"></span>+${r.refund}</div>`}</div>`;
+    $('rrCards').appendChild(d);
+  }
+
+  // Skip straight to the results
+  skipRoll() {
+    const st = this.rollState;
+    if (!st || st.done) return;
+    st.done = true;
+    const last = st.results[st.results.length - 1];
+    const track = $('rrTrack');
+    track.innerHTML = Array.from({ length: 52 }, (_, i) => this.stripCard(i === 44 ? last.k : this.randomItem())).join('');
+    const card = track.children[0];
+    const step = card.offsetWidth + 10;
+    track.style.transform = `translateX(${-(44 * step + card.offsetWidth / 2 - $('rrStrip').clientWidth / 2)}px)`;
+    track.children[44].classList.add('win');
+    for (let i = st.i; i < st.results.length; i++) this.addRollCard(st.results[i]);
+    this.app.audio.reveal(st.results.some((r) => r.rarity === 'epic' || r.rarity === 'mythic'));
+    this.rollButtons('done');
   }
 
   cosmeticCard(cat, it, shop) {

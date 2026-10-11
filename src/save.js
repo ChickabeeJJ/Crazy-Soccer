@@ -75,7 +75,8 @@ function freshProfile() {
     stats: { matches: 0, wins: 0, goals: 0, assists: 0, saves: 0 },
     daily: { last: '', streak: 0 },
     tut: 0,
-    powers: ITEM_KINDS.filter((k) => ITEMS[k].rarity === 'common'),
+    powers: [], // new players start with only the item from their free first roll
+    starterRoll: false,
     pity: 0,
     rolls: 0,
     powersOff: [],
@@ -120,7 +121,9 @@ export const Save = {
       };
       // Older saves: Barrel Roll was replaced by the Bazooka
       const old = (Array.isArray(data.powers) ? data.powers : []).map((k) => (k === 'barrel' ? 'bazooka' : k));
-      this.p.powers = [...new Set([...base.powers, ...old])].filter((k) => ITEMS[k]);
+      this.p.powers = [...new Set(old)].filter((k) => ITEMS[k]);
+      // Saves from before the starter roll already have their items
+      this.p.starterRoll = data.starterRoll ?? this.p.powers.length > 0;
       this.p.powersOff = (Array.isArray(data.powersOff) ? data.powersOff : []).filter((k) => this.p.powers.includes(k));
       for (const cat of Object.keys(CATALOG)) {
         for (const it of CATALOG[cat]) if (it.price === 0 && !this.p.owned[cat].includes(it.id)) this.p.owned[cat].push(it.id);
@@ -188,8 +191,10 @@ export const Save = {
   // ---- Powers (mystery cube contents) ----
   ownsPower(k) { return this.p.powers.includes(k); },
   // Item Roll (gacha). Returns [{ k, rarity, isNew, refund }] or null if not enough coins.
-  roll(n = 1) {
-    const cost = n === 5 ? ROLL.cost5 : ROLL.cost * n;
+  rollCost(n) { return n === 5 ? ROLL.cost5 : ROLL.cost * n; },
+  canAfford(n) { return this.p.coins >= this.rollCost(n); },
+  roll(n = 1, free = false) {
+    const cost = free ? 0 : this.rollCost(n);
     if (this.p.coins < cost) return null;
     this.p.coins -= cost;
     const out = [];
@@ -206,6 +211,7 @@ export const Save = {
       out.push({ k, rarity, isNew, refund });
     }
     this.p.rolls = (this.p.rolls || 0) + n;
+    if (free) this.p.starterRoll = true;
     this.save(true);
     return out;
   },

@@ -42,16 +42,13 @@
       <!-- PLAY -->
       <section id="pg-play" class="mn-page show">
         <div class="mn-col mn-left">
-          <button id="playBtn" class="play-hero"><span class="ph-text"><span class="ph-label">PLAY</span><span class="ph-sub">4v4 · ONLINE</span></span><span class="ph-go"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+          <button id="playBtn" class="play-hero"><span class="ph-text"><span class="ph-label">PLAY</span></span><span class="ph-go"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
         </div>
         <div class="mn-col mn-rightcol">
           <div class="mn-card daily">
             <div class="mc-head"><span>DAILY REWARD</span><em id="dailyStreak">Day 1</em></div>
             <div id="dailyDays" class="daily-days"></div>
             <button id="dailyBtn" class="btn btn-gold mc-btn">CLAIM</button>
-          </div>
-          <div class="mn-card promo" id="tutPromo">
-            <button id="tutBtn" class="btn btn-play mc-btn">HOW TO PLAY</button>
           </div>
           <div class="mn-card powers">
             <div class="mc-head"><span>YOUR ITEMS</span><em id="powerCount">4/10</em></div>
@@ -135,7 +132,7 @@
 
       <div id="netStats" class="net-stats"></div>
       <div id="clickToPlay" class="click-to-play"><div><b>Click to play</b><span id="unlockHint" class="ctp-sub"></span></div></div>
-      <div id="tutBox" class="tut-box"><div class="tb-top"><span id="tutStep" class="tb-step">STEP 1/10</span><span class="tb-skip" id="tutSkipHint"></span></div><div id="tutTitle" class="tb-title"></div><div id="tutText" class="tb-text"></div><div class="tb-bar"><i id="tutBar"></i></div></div>
+      <div id="tutBox" class="tut-box"><div class="tb-top"><span id="tutStep" class="tb-step">STEP 1/10</span><span class="tb-skip" id="tutSkipHint"></span><button id="tutSkipBtn" class="tb-skipbtn">SKIP</button></div><div id="tutTitle" class="tb-title"></div><div id="tutText" class="tb-text"></div><div class="tb-bar"><i id="tutBar"></i></div></div>
       <div id="roomPanel" class="room-panel"></div>
     </div>
 
@@ -194,7 +191,7 @@
             <button class="ps-team red" data-team="0"><span class="pt-emb"><svg viewBox="0 0 64 72"><path d="M32 4 56 12v21c0 16-10 27-24 33C18 60 8 49 8 33V12z" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="32" cy="34" r="10" fill="none" stroke="currentColor" stroke-width="4"/><path d="M32 27l5 4-2 6h-6l-2-6z" fill="currentColor"/></svg></span><span class="pt-txt"><small>JOIN</small><b>RED</b></span><span class="pt-go">PLAY</span></button>
             <button class="ps-team blue" data-team="1"><span class="pt-emb"><svg viewBox="0 0 64 72"><path d="M32 4 56 12v21c0 16-10 27-24 33C18 60 8 49 8 33V12z" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="32" cy="34" r="10" fill="none" stroke="currentColor" stroke-width="4"/><path d="M32 27l5 4-2 6h-6l-2-6z" fill="currentColor"/></svg></span><span class="pt-txt"><small>JOIN</small><b>BLUE</b></span><span class="pt-go">PLAY</span></button>
           </div>
-          <div class="ps-row"><button id="privateBtn" class="btn btn-sec">PRIVATE ROOM</button><button id="botsBtn" class="btn btn-sec">OFFLINE MATCH</button></div>
+          <div class="ps-row"><button id="privateBtn" class="btn btn-sec">PRIVATE ROOM</button><button id="botsBtn" class="btn btn-sec">PRACTICE MATCH</button></div>
         </div>
       </div>
     </div>
@@ -202,8 +199,11 @@
     <!-- Item roll reveal -->
     <div id="rollReveal" class="modal roll-reveal">
       <div class="rr-wrap">
+        <div id="rrHead" class="rr-head">ITEM ROLL</div>
+        <div id="rrIntro" class="rr-intro"></div>
+        <div id="rrStrip" class="rr-strip"><div id="rrTrack" class="rr-track"></div><i class="rr-mark top"></i><i class="rr-mark bot"></i><i class="rr-line"></i></div>
         <div id="rrCards" class="rr-cards"></div>
-        <div class="row"><button id="rrAgainBtn" class="btn btn-gold">ROLL AGAIN</button><button id="rrDoneBtn" class="btn btn-sec">DONE</button></div>
+        <div class="row rr-btns"><button id="rrStartBtn" class="btn btn-gold">ROLL FREE</button><button id="rrSkipBtn" class="btn btn-sec">SKIP</button><button id="rrAgainBtn" class="btn btn-gold">ROLL AGAIN</button><button id="rrDoneBtn" class="btn btn-sec">DONE</button></div>
       </div>
     </div>
 

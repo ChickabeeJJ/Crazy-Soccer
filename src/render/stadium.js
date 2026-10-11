@@ -212,21 +212,22 @@ function buildOutdoor(root, quality) {
     g.add(cl);
   }
 
-  // Arena base: grassy cliff plateau
+  // Arena base: grassy cliff plateau, sized to the pitch
+  const IR = Math.hypot(FIELD.wallX, FIELD.wallZ) + 9;
   const base = new THREE.Mesh(
-    new THREE.CylinderGeometry(70, 52, 24, 40, 1),
+    new THREE.CylinderGeometry(IR, IR - 18, 24, 48, 1),
     new THREE.MeshLambertMaterial({ color: 0x6d6aa8 }),
   );
   base.position.y = -12.05;
   g.add(base);
-  const topRing = new THREE.Mesh(new THREE.CylinderGeometry(70.5, 70.5, 0.6, 40), new THREE.MeshLambertMaterial({ color: 0x5fae4f }));
+  const topRing = new THREE.Mesh(new THREE.CylinderGeometry(IR + 0.5, IR + 0.5, 0.6, 48), new THREE.MeshLambertMaterial({ color: 0x5fae4f }));
   topRing.position.y = -0.35;
   g.add(topRing);
   // Rocks around
   const rockMat = new THREE.MeshLambertMaterial({ color: 0x7c76b8, flatShading: true });
   for (let i = 0; i < 26; i++) {
     const a = rnd() * Math.PI * 2;
-    const r = 58 + rnd() * 20;
+    const r = IR - 12 + rnd() * 20;
     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(3 + rnd() * 6, 0), rockMat);
     rock.position.set(Math.cos(a) * r, -6 - rnd() * 10, Math.sin(a) * r);
     rock.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
@@ -237,7 +238,7 @@ function buildOutdoor(root, quality) {
   const leafMats = [new THREE.MeshToonMaterial({ color: 0x3f9a45 }), new THREE.MeshToonMaterial({ color: 0x58b84c })];
   for (let i = 0; i < 22; i++) {
     const a = rnd() * Math.PI * 2;
-    const r = 60 + rnd() * 8;
+    const r = IR - 10 + rnd() * 8;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     if (Math.abs(x) < FIELD.wallX + 4 && Math.abs(z) < FIELD.wallZ + 4) continue;
     const tree = new THREE.Group();
@@ -268,7 +269,7 @@ function buildOutdoor(root, quality) {
     g.add(p);
   }
   // Outer floor between wall and plateau edge
-  const outer = new THREE.Mesh(new THREE.RingGeometry(Math.hypot(FIELD.wallX, FIELD.wallZ) - 6, 70.5, 48), new THREE.MeshLambertMaterial({ color: 0x4f9a3f }));
+  const outer = new THREE.Mesh(new THREE.RingGeometry(Math.hypot(FIELD.wallX, FIELD.wallZ) - 6, IR + 0.5, 48), new THREE.MeshLambertMaterial({ color: 0x4f9a3f }));
   outer.rotation.x = -Math.PI / 2;
   outer.position.y = -0.04;
   g.add(outer);
