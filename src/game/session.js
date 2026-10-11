@@ -181,13 +181,14 @@ export class Session {
     this.acc += dt;
     const step = 1 / 60;
     let n = 0;
-    while (this.acc >= step && n < 6) {
+    const maxSteps = this.net ? 60 : 6; // online rooms catch up on real time
+    while (this.acc >= step && n < maxSteps) {
       w.step(step);
       if (this.training) this.training.step(step);
       this.acc -= step;
       n++;
     }
-    if (n === 6) this.acc = 0;
+    if (n === maxSteps) this.acc = 0;
     this.flushWorldEvents();
     this.view.phase = w.phase; this.view.phaseT = w.phaseT; this.view.clock = w.clock;
     this.view.score = w.score; this.view.ot = w.overtime ? 1 : w.lastChance ? 2 : 0;
@@ -378,9 +379,9 @@ export class Session {
       if (this.cball.owner === this.localId) this.cball.owner = -1;
     } else if (ev.e === 'reset' && p) {
       const row = ev.pos.find((r) => r[0] === this.localId);
-      if (row) { p.x = row[1]; p.z = row[2]; p.face = row[3]; p.vx = p.vz = 0; p.y = 0; p.anim = 'idle'; p.actT = 0; p.stun = 0; p.charging = false; if (row[4] !== undefined) p.slot = row[4]; p.keeper = !!row[5]; }
+      if (row) { p.x = row[1]; p.z = row[2]; p.face = row[3]; p.vx = p.vz = 0; p.y = 0; p.anim = 'idle'; p.actT = 0; p.stun = 0; p.charging = false; p.bikeT = 0; if (row[4] !== undefined) p.slot = row[4]; p.keeper = !!row[5]; }
       this.cball = createBall();
-      this.ownKickT = 0; this.predOwnT = 0;
+      this.ownKickT = 0; this.predOwnT = 0; this.bikeLocalT = 0;
     } else if (ev.e === 'own' && ev.id !== this.localId) {
       this.predOwnT = 0;
     } else if (ev.e === 'teamswitch' && ev.id === this.localId && p) {
@@ -423,7 +424,7 @@ export class Session {
     // Own player prediction
     const hasBall = this.cball.owner === this.localId || this.predOwnT > 0;
     if (p.zipT > 0) { const dx = this.cball.x - p.x, dz = this.cball.z - p.z, d = len2(dx, dz) || 1; p.zipX = dx / d; p.zipZ = dz / d; if (d < 1.6) p.zipT = 0; }
-    if (v.phase !== 'replay') movePlayer(p, dt, hasBall, frozen || v.phase === 'end');
+    if (v.phase !== 'replay') movePlayer(p, dt, hasBall, frozen || v.phase === 'end', v.phase !== 'play');
     if (this.cball.owner === this.localId && this.cball.held && p.keeper) clampInOwnBox(p);
     this.collideLocal(p);
 
@@ -525,6 +526,12 @@ export class Session {
       this.predOwnT = 0;
     } else if (this.predOwnT > 0) {
       cb.owner = this.localId;
+    } else if (this.bikeLocalT > 0 || (sb[12] >= 0 && this.ownKickT <= 0)) {
+      // Bicycle kick hang time: the ball floats in place
+      cb.owner = -1;
+      if (this.bikeLocalT > 0) { this.bikeLocalT -= dt; cb.y += (this.bikeBallY - cb.y) * Math.min(1, dt * 7); }
+      else { const k = clamp(dt * 10, 0, 1); cb.x += (sb[0] - cb.x) * k; cb.y += (sb[1] - cb.y) * k; cb.z += (sb[2] - cb.z) * k; }
+      cb.vx = 0; cb.vy = 0; cb.vz = 0;
     } else {
       if (cb.owner >= 0) {
         // Was attached - continue from server state
@@ -603,14 +610,27 @@ export class Session {
       this.handleEvent({ e: 'kick', id: this.localId, kind, pw: k.pw, fire: fire ? 1 : 0, local: 1 });
     };
     switch (a) {
-      case 'kick':
+      case 'bike':
+        if (p.cd.kick > 0 || !volleyable || rel <= KICK.bikeMinH) return;
+        p.charging = false; p.charge = 0;
+        this.bikeBallY = Math.max(cb.y, KICK.bikeBallY);
+        p.bikeT = KICK.bikeHold; p.bikeY = clamp(this.bikeBallY - 1.9, 0.5, 4);
+        setAnim(p, 'bike', KICK.bikeHold + 0.6);
+        cb.vx = 0; cb.vy = 0; cb.vz = 0; cb.curve = 0;
+        this.bikeLocalT = KICK.bikeHold + 0.2;
+        break;
+      case 'kick': {
         p.charging = false; p.charge = 0;
         if (p.cd.kick > 0) return;
         p.cd.kick = KICK.cooldown;
+        const fromBike = p.anim === 'bike';
+        p.bikeT = 0; this.bikeLocalT = 0;
         if (volleyable && !mine) { act = { ...act, volley: 1, pw: Math.max(act.pw || 0, 0.85), sx: cb.x, sy: cb.y, sz: cb.z }; }
-        setAnim(p, volleyable && rel > 1.9 ? 'volley' : 'kick', volleyable ? 0.5 : 0.38);
+        setAnim(p, volleyable && (fromBike || rel > 1.9) ? 'volley' : 'kick', volleyable ? 0.5 : 0.38);
+        if (fromBike) p.animT = 0.12;
         if (mine || near || volleyable) { launch('shot', p.fx.fire > 0); spendStamina(p, STAMINA.kickBase + STAMINA.kickPower * clamp(act.pw || 0, 0, 1)); }
         break;
+      }
       case 'pass': if (p.cd.pass > 0 || !(mine || near)) return; p.cd.pass = KICK.cooldown; setAnim(p, 'pass', 0.3); launch('pass'); spendStamina(p, STAMINA.pass); break;
       case 'lob': if (p.cd.lob > 0 || !(mine || near)) return; p.cd.lob = KICK.cooldown; setAnim(p, 'kick', 0.38); launch('lob'); spendStamina(p, STAMINA.lob); break;
       case 'flick': if (p.cd.flick > 0 || !(mine || near)) return; p.cd.flick = 0.8; setAnim(p, 'flick', 0.35); launch('flick'); spendStamina(p, STAMINA.flick); break;
@@ -643,8 +663,8 @@ export class Session {
         const ml = len2(act.mx || 0, act.mz || 0);
         if (ml > 0.2) { p.slideX = act.mx / ml; p.slideZ = act.mz / ml; } else { p.slideX = Math.sin(p.face); p.slideZ = Math.cos(p.face); }
         if (mine) {
-          if (cb.held || (p.stamina < STAMINA.skill && p.fx.speed <= 0)) { p.cd.dribble = 0.3; return; }
-          spendStamina(p, STAMINA.skill); setAnim(p, 'spin', 0.42); p.immune = KICK.dribbleImmune;
+          if (cb.held) { p.cd.dribble = 0.3; return; }
+          setAnim(p, 'spin', 0.42); p.immune = KICK.dribbleImmune;
         } else {
           p.cd.dribble = KICK.jumpCooldown;
           if (p.y > 0.05 || p.fx.jet > 0) return;

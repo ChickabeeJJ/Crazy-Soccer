@@ -24,7 +24,7 @@ export function createPlayer({ id, name, team, slot = 0, isBot = false, remote =
 
 // Stamina spending shared by the host and client prediction
 export function spendStamina(p, n) {
-  if (p.fx.speed > 0 || p.fx.jet > 0) return;
+  if (p.fx.speed > 0 || p.fx.jet > 0 || p.noDrain) return;
   p.stamina = Math.max(0, p.stamina - n);
   p.regenT = PLAYER.regenDelay;
 }
@@ -67,7 +67,9 @@ export function speedFor(p, hasBall) {
 }
 
 // Integrates one player. `hasBall` tells movement whether the ball is at its feet.
-export function movePlayer(p, dt, hasBall, frozenPhase) {
+// noDrain: outside live play (countdown, intermission, warmup) stamina is never spent
+export function movePlayer(p, dt, hasBall, frozenPhase, noDrain = false) {
+  p.noDrain = !!(noDrain || frozenPhase);
   p.animT += dt;
   for (const k in p.cd) if (p.cd[k] > 0) p.cd[k] -= dt;
   for (const k in p.fx) if (p.fx[k] > 0) p.fx[k] = Math.max(0, p.fx[k] - dt);
@@ -92,7 +94,7 @@ export function movePlayer(p, dt, hasBall, frozenPhase) {
       }
     }
   }
-  if (p.stun > 0) p.stun -= dt;
+  if (p.stun > 0) { p.stun -= dt; p.bikeT = 0; }
 
   const inp = p.in;
   let wantX = 0, wantZ = 0;
@@ -106,7 +108,7 @@ export function movePlayer(p, dt, hasBall, frozenPhase) {
   if (p.stamina <= 0.5) p.exhausted = true;
   if (p.exhausted && p.stamina >= PLAYER.minSprintStamina) p.exhausted = false;
   p.sprinting = !!inp.sprint && moving && !p.exhausted && !p.charging;
-  if (p.sprinting && !freeStamina) {
+  if (p.sprinting && !freeStamina && !p.noDrain) {
     p.stamina = Math.max(0, p.stamina - PLAYER.sprintDrain * dt);
     p.regenT = PLAYER.regenDelay;
   } else {
@@ -158,7 +160,7 @@ export function movePlayer(p, dt, hasBall, frozenPhase) {
   // Facing: aim direction while charging/aiming, otherwise movement direction.
   const sp = len2(p.vx, p.vz);
   if (p.stun <= 0 && a !== 'frozen' && a !== 'getup') {
-    if (p.charging || a === 'kick' || a === 'pass' || a === 'punch' || a === 'throw') {
+    if (p.charging || a === 'kick' || a === 'pass' || a === 'punch' || a === 'throw' || a === 'bike') {
       p.face = moveAngle(p.face, inp.yaw, PLAYER.turnRate * 1.4 * dt);
     } else if (a === 'slide' || a === 'dive' || a === 'spin' || a === 'dodge') {
       // keep
@@ -167,8 +169,13 @@ export function movePlayer(p, dt, hasBall, frozenPhase) {
     }
   }
 
-  // Vertical: jetpack lift / dive hop / gravity
-  if (p.fx.jet > 0) {
+  // Vertical: bicycle-kick hang time / jetpack lift / dive hop / gravity
+  if (p.bikeT > 0) {
+    // Weightless: float up to the ball and hang there while aiming
+    p.bikeT -= dt;
+    p.vx *= Math.max(0, 1 - 10 * dt); p.vz *= Math.max(0, 1 - 10 * dt);
+    p.vy = ((p.bikeY ?? p.y) - p.y) * 9;
+  } else if (p.fx.jet > 0) {
     p.vy += (2.8 - p.y) * 10 * dt - p.vy * 4 * dt;
   } else {
     p.vy -= 30 * dt;

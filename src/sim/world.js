@@ -6,7 +6,7 @@ import { clamp, len2, rand, wrapAngle, r2 } from '../util/math.js';
 import { botName, randomCosmetics } from '../cosmetics.js';
 import { BotBrain } from './bots.js';
 
-export const ANIM_CODES = ['idle', 'kick', 'pass', 'flick', 'slide', 'recover', 'dive', 'getup', 'fall', 'slip', 'frozen', 'hit', 'spin', 'dodge', 'celebrate', 'emote', 'punch', 'throw', 'cheer', 'sad', 'jump', 'volley'];
+export const ANIM_CODES = ['idle', 'kick', 'pass', 'flick', 'slide', 'recover', 'dive', 'getup', 'fall', 'slip', 'frozen', 'hit', 'spin', 'dodge', 'celebrate', 'emote', 'punch', 'throw', 'cheer', 'sad', 'jump', 'volley', 'bike'];
 const ANIM_INDEX = Object.fromEntries(ANIM_CODES.map((a, i) => [a, i]));
 
 let nextBotId = 1000;
@@ -185,7 +185,7 @@ export class World {
     p.face = p.team === 0 ? Math.PI / 2 : -Math.PI / 2;
     if (this.mode === 'practice' && !p.isBot) p.face = Math.PI / 2;
     p.stun = 0; p.anim = 'idle'; p.actT = 0; p.charging = false; p.charge = 0;
-    p.fx.jet = 0;
+    p.fx.jet = 0; p.bikeT = 0;
   }
 
   resetKickoff(kickTeam) {
@@ -332,6 +332,7 @@ export class World {
     }
     b.pass = null;
     b.gkThrow = null;
+    b.bike = -1;
     b.owner = p.id;
     // A keeper in the box catches the ball in their hands (max KICK.keeperHold seconds)
     b.held = !!(p.keeper && this.inOwnBox(p, 0.6));
@@ -371,6 +372,7 @@ export class World {
 
   launch(p, vx, vy, vz, kind, power, from) {
     const b = this.ball;
+    b.bike = -1;
     const volley = b.owner !== p.id && kind === 'shot' && b.y > 1.05;
     b.gkThrow = null;
     if (b.owner === p.id) {
@@ -414,6 +416,11 @@ export class World {
     return b.y > 1.05 && rel > 0.3 && rel < KICK.volleyReachUp && len2(b.x - p.x, b.z - p.z) < KICK.volleyReachH;
   }
 
+  // Ball high enough above you for a bicycle kick (hang in the air, then scissor it over)
+  canBike(p) {
+    return this.canVolley(p) && this.ball.bike < 0 && this.ball.y - (p.y || 0) > KICK.bikeMinH;
+  }
+
   doAction(p, act) {
     if (!p || p.left) return;
     const a = act.a;
@@ -438,13 +445,30 @@ export class World {
     const b = this.ball;
 
     switch (a) {
+      case 'bike': {
+        // Start a bicycle kick: player and ball hang in the air while you aim; the kick fires on
+        // release or by itself after KICK.bikeHold
+        if (p.cd.kick > 0 || !this.canBike(p)) return;
+        p.charging = false; p.charge = 0;
+        p.bikeT = KICK.bikeHold;
+        b.bikeY = Math.max(b.y, KICK.bikeBallY); // ball and player float up together
+        p.bikeY = clamp(b.bikeY - 1.9, 0.5, 4);
+        setAnim(p, 'bike', KICK.bikeHold + 0.6);
+        b.bike = p.id; b.vx = 0; b.vy = 0; b.vz = 0; b.curve = 0; b.shot = null;
+        b.bikeT = KICK.bikeHold + (p.isBot ? 0 : p.remote ? 0.4 : 0.15);
+        this.emit({ e: 'bike', id: p.id });
+        return;
+      }
       case 'kick': {
         p.charging = false; p.charge = 0;
         if (p.cd.kick > 0) return;
         p.cd.kick = KICK.cooldown;
-        const volley = this.canVolley(p);
+        const volley = this.canVolley(p) || b.bike === p.id;
+        const fromBike = b.bike === p.id || p.anim === 'bike';
+        p.bikeT = 0;
         // High ball above your head = bicycle kick, otherwise a normal kick swing
-        setAnim(p, volley && b.y - p.y > 1.9 ? 'volley' : 'kick', volley ? 0.5 : 0.38);
+        setAnim(p, volley && (fromBike || b.y - p.y > 1.9) ? 'volley' : 'kick', volley ? 0.5 : 0.38);
+        if (fromBike) p.animT = 0.12; // already leaning back: go straight into the scissor
         if (volley) { act = { ...act, volley: 1, pw: Math.max(act.pw || 0, 0.85), sx: b.x, sy: b.y, sz: b.z }; }
         if (volley || this.ballReachable(p, KICK.hitRange + 0.2)) {
           spendStamina(p, STAMINA.kickBase + STAMINA.kickPower * clamp(act.pw || 0, 0, 1));
@@ -534,9 +558,7 @@ export class World {
         if (ml > 0.2) { p.slideX = mx / ml; p.slideZ = mz / ml; } else { p.slideX = Math.sin(p.face); p.slideZ = Math.cos(p.face); }
         if (this.hasBall(p)) {
           if (b.held) { p.cd.dribble = 0; return; }
-          // The skill move is expensive: you need the stamina for it
-          if (p.stamina < STAMINA.skill && p.fx.speed <= 0) { p.cd.dribble = 0.3; this.emit({ e: 'tired', id: p.id }); return; }
-          spendStamina(p, STAMINA.skill);
+          // Dribble skill moves are free (no stamina)
           setAnim(p, 'spin', 0.42);
           p.immune = KICK.dribbleImmune;
           b.contestT = 0;
@@ -733,7 +755,7 @@ export class World {
     if (this.mode !== 'practice' && (this.phase === 'play' || this.phase === 'warmup')) this.updateKeepers();
     for (const p of this.players) {
       if (p.remote) { this.tickRemote(p, dt); continue; }
-      movePlayer(p, dt, b.owner === p.id, frozen);
+      movePlayer(p, dt, b.owner === p.id, frozen, this.phase !== 'play');
     }
     separatePlayers(this.players);
     if (b.owner >= 0 && b.held) { const o = this.byId.get(b.owner); if (o && !o.remote) clampInOwnBox(o); }
@@ -762,6 +784,18 @@ export class World {
         b.spin += sp * dt / PHYS.ballR;
         // Dribbling the ball over the line through the mouth scores too
         updateGoalLine(b, px, py, pz);
+      }
+    } else if (b.bike >= 0) {
+      // Bicycle kick hang time: the ball floats where it was until the kick
+      const o = this.byId.get(b.bike);
+      b.vx = 0; b.vy = 0; b.vz = 0;
+      b.y += ((b.bikeY ?? b.y) - b.y) * Math.min(1, dt * 7);
+      if (!o || o.stun > 0 || o.left) { b.bike = -1; }
+      else if ((b.bikeT -= dt) <= 0) {
+        // Fires by itself when the hang time runs out (humans' own client fires it first; this is the fallback)
+        o.cd.kick = 0;
+        this.doAction(o, { a: 'kick', pw: 0.95, yaw: o.in.yaw ?? o.face, pitch: o.in.pitch ?? 0.24 });
+        b.bike = -1;
       }
     } else if (b.grapple >= 0) {
       const g = this.byId.get(b.grapple);
@@ -909,7 +943,7 @@ export class World {
       } else b.contestT = Math.max(0, b.contestT - dt * 2);
       return;
     }
-    if (b.grapple >= 0) return;
+    if (b.grapple >= 0 || b.bike >= 0) return;
 
     // Free ball: pickups, deflections, keeper catches
     let best = null, bestD = 1e9;
@@ -1198,7 +1232,7 @@ export class World {
       sc: this.score,
       ot: this.overtime ? 1 : this.lastChance ? 2 : 0,
       mp: this.map,
-      b: [r2(b.x), r2(b.y), r2(b.z), r2(b.vx), r2(b.vy), r2(b.vz), b.owner, b.fire ? 1 : 0, r2(b.spin % 100), b.grapple, b.held ? 1 : 0, r2(b.holdT || 0)],
+      b: [r2(b.x), r2(b.y), r2(b.z), r2(b.vx), r2(b.vy), r2(b.vz), b.owner, b.fire ? 1 : 0, r2(b.spin % 100), b.grapple, b.held ? 1 : 0, r2(b.holdT || 0), b.bike ?? -1],
       p: this.players.map((p) => [
         p.id, r2(p.x), r2(p.y), r2(p.z), r2(p.vx), r2(p.vz), r2(p.face),
         ANIM_INDEX[p.anim] ?? 0, r2(p.animT), r2(p.stamina), r2(p.charge),

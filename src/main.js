@@ -274,6 +274,7 @@ class App {
     const code = `pub-${res.k}`;
     if (res.role === 'host') {
       session.goOnline(net, 'pub', code);
+      if (document.hidden) this.startBgTicker();
       this.netStatus = 'online';
     } else {
       // A room with players already exists: switch into it
@@ -547,7 +548,8 @@ class App {
     if (document.hidden) {
       this.audio.suspend();
       const s = this.session;
-      if (s && s.isAuthority && s.net && s.net.conns.size) this.startBgTicker();
+      // An online room keeps running while the host's tab is in the background (matches never pause)
+      if (s && s.isAuthority && s.net) this.startBgTicker();
     } else {
       this.audio.resume();
       this.stopBgTicker();
@@ -560,7 +562,13 @@ class App {
     try {
       const src = 'let t=setInterval(()=>postMessage(0),50);onmessage=()=>{clearInterval(t)}';
       this.bgWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
-      this.bgWorker.onmessage = () => { if (this.session) this.session.update(0.05); };
+      this.bgLast = performance.now();
+      this.bgWorker.onmessage = () => {
+        const n = performance.now();
+        const dt = Math.min(1, (n - this.bgLast) / 1000);
+        this.bgLast = n;
+        if (this.session && this.session.isAuthority && this.session.net) this.session.update(dt);
+      };
     } catch (e) { this.bgWorker = null; }
   }
 
@@ -693,7 +701,10 @@ class App {
 
   // ============================================================= main loop
   frame(t) {
-    const dt = clamp((t - this.last) / 1000, 0, 0.1);
+    // Rendering uses a capped step; an online host's simulation catches up on real time so a
+    // slow or throttled tab never slows the match down for everyone else
+    this.rawDt = clamp((t - this.last) / 1000, 0, 1);
+    const dt = Math.min(this.rawDt, 0.1);
     this.last = t;
     this.fpsAcc += dt; this.fpsN++;
     if (this.fpsAcc > 0.5) { this.fps = Math.round(this.fpsN / this.fpsAcc); this.fpsAcc = 0; this.fpsN = 0; }
@@ -771,12 +782,27 @@ class App {
         if (inp.wasPressed('item1') && me.items[0]) me.equip = me.equip === 0 ? -1 : 0;
         if (inp.wasPressed('item2') && me.items[1]) me.equip = me.equip === 1 ? -1 : 1;
       }
+      // Bicycle kick: hang in the air aiming, then it fires by itself (or click again to fire early)
+      const fireBike = () => { s.action({ a: 'kick', pw: 0.95, ...shotAim, cv: 0 }); this.bikeAim = null; this.kickSuppressed = inp.isDown('kick'); };
+      if (this.bikeAim) {
+        this.bikeAim.t += dt;
+        if (me.anim !== 'bike' && me.anim !== 'volley' && this.bikeAim.t > 0.2) this.bikeAim = null; // knocked out of it
+        else if (this.bikeAim.t >= KICK.bikeHold) fireBike();
+      }
       if (inp.wasPressed('kick')) {
-        if (equip >= 0) {
+        const b = s.view.ball;
+        if (this.bikeAim) {
+          if (this.bikeAim.t > 0.12) fireBike();
+          else this.kickSuppressed = true;
+        } else if (equip >= 0) {
           s.action({ a: 'item', slot: equip, ...aim });
           me.equip = -1;
           this.kickSuppressed = true;
-        } else if (this.canVolley(me, s.view.ball)) {
+        } else if (this.canVolley(me, b) && b.y - (me.y || 0) > KICK.bikeMinH && me.cd.kick <= 0) {
+          s.action({ a: 'bike' });
+          this.bikeAim = { t: 0 };
+          this.kickSuppressed = true;
+        } else if (this.canVolley(me, b)) {
           // Ball in the air next to you: volley it instantly (no charging mid-air)
           s.action({ a: 'kick', pw: 0.9, ...shotAim, cv: settings.autoCurve ? right : 0 });
           this.kickSuppressed = true;
@@ -804,7 +830,7 @@ class App {
     }
     const statsHeld = active && inp.isDown('stats');
 
-    s.update(dt);
+    s.update(s.isAuthority && s.net ? this.rawDt : dt);
 
     // Render sync
     const v = s.view;
@@ -877,7 +903,12 @@ class App {
     if (frame || !b || s.view.phase === 'replay') { R.syncTrajectory(null); return; }
     let sim = null, kind = 'flight';
     const near = me && (b.owner === me.id || (b.owner < 0 && len2(b.x - me.x, b.z - me.z) < KICK.hitRange && b.y < 2.6 + (me.y || 0)));
-    if (me && me.charging && near) {
+    if (me && this.bikeAim && b.owner < 0) {
+      // Bicycle kick: show exactly where it will go while you hang in the air aiming
+      const k = kickVelocity({ ...me, face: shotAim.yaw }, { a: 'kick', pw: 0.95, ...shotAim, cv: 0, volley: 1, sx: b.x, sy: b.y, sz: b.z }, s.view.players, me.fx && me.fx.fire > 0);
+      sim = { ...createBall(), x: b.x, y: b.y, z: b.z, vx: k.vx, vy: k.vy, vz: k.vz, curve: k.curve };
+      kind = 'aim';
+    } else if (me && me.charging && near) {
       const act = { a: 'kick', pw: me.charge, ...shotAim, cv };
       const yaw = shotAim.yaw;
       const fire = me.fx && me.fx.fire > 0;
@@ -904,12 +935,12 @@ class App {
     R.syncTrajectory(pts, kind, land);
   }
 
-  // World point under the crosshair (screen x 50%, y 36%): shots fly through it.
+  // World point under the crosshair (the middle of the screen): shots fly through it.
   aimTarget(me) {
     if (!me) return {};
     const cam = this.renderer.cam;
     const v = this._aimV || (this._aimV = new THREE.Vector3());
-    v.set(0, 0.28, 0.5).unproject(cam).sub(cam.position).normalize();
+    v.set(0, 0, 0.5).unproject(cam).sub(cam.position).normalize();
     const o = cam.position;
     const minD = o.distanceTo(new THREE.Vector3(me.x, me.y || 0, me.z)) + 14;
     let d = 60;

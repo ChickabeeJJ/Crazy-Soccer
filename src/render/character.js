@@ -382,6 +382,19 @@ export class CharacterModel {
         expr = 2;
         break;
       }
+      case 'bike': {
+        // Bicycle kick hang time: back to goal, lying back in the air, legs cocked, arms out
+        rate = 18;
+        const lean = Math.min(1, at / 0.14);
+        const bob = Math.sin(at * 7) * 0.05;
+        t.pRY = Math.PI;
+        t.pX = -1.95 * lean + bob; t.pY = 0.95 + 0.4 * lean;
+        t.lhX = -1.5 * lean; t.lkX = 0.7; t.rhX = 0.55 * lean; t.rkX = 0.65;
+        t.lsX = -0.5; t.rsX = -0.5; t.lsZ = 1.4 * lean; t.rsZ = -1.4 * lean; t.leX = -0.3; t.reX = -0.3;
+        t.sX = 0.3 * lean; t.hX = 0.55 * lean;
+        expr = 2;
+        break;
+      }
       case 'volley': {
         // Bicycle kick: turn your back to the target, fall backwards and scissor the legs over the top
         rate = 26;

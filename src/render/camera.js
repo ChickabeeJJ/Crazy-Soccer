@@ -9,6 +9,7 @@ export class CameraRig {
     this.yaw = Math.PI / 2;
     this.pitch = 0.3;
     this.dist = 9;
+    this.shoulder = 1.7;
     this.target = new THREE.Vector3();
     this.smoothTarget = new THREE.Vector3();
     this.trauma = 0;
@@ -33,8 +34,18 @@ export class CameraRig {
     this.smoothTarget.set(x, y + 2.4, z);
   }
 
+  // In play the view is shifted up (lens shift) so the crosshair sits in the middle of the screen
+  // and your player stays below it
+  setLensShift(on) {
+    const c = this.cam;
+    const has = !!(c.view && c.view.enabled);
+    if (on && !has) c.setViewOffset(1000, 1000, 0, -75, 1000, 1000);
+    else if (!on && has) c.clearViewOffset();
+  }
+
   follow(dt, px, py, pz, opts = {}) {
     this.mode = 'play';
+    this.setLensShift(true);
     this.target.set(px, py + 2.4, pz);
     if (this.smoothTarget.distanceTo(this.target) > 12) this.smoothTarget.copy(this.target);
     this.smoothTarget.x = damp(this.smoothTarget.x, this.target.x, 16, dt);
@@ -43,7 +54,9 @@ export class CameraRig {
     const f = this.forward(this.tmp);
     const d = this.dist * (opts.zoom || 1);
     const c = this.cam.position;
-    c.set(this.smoothTarget.x - f.x * d, this.smoothTarget.y - f.y * d, this.smoothTarget.z - f.z * d);
+    // Over-the-shoulder: the camera sits a little to the right, so your player is left of the crosshair
+    const sx = -Math.cos(this.yaw) * this.shoulder, sz = Math.sin(this.yaw) * this.shoulder;
+    c.set(this.smoothTarget.x - f.x * d + sx, this.smoothTarget.y - f.y * d, this.smoothTarget.z - f.z * d + sz);
     if (c.y < 0.6) c.y = 0.6;
     // Don't let the camera end up inside a goal net: rise smoothly over the crossbar instead
     const ax = Math.abs(c.x), hw = FIELD.goalW / 2 + 1.2;
@@ -51,12 +64,14 @@ export class CameraRig {
     this.netLift = damp(this.netLift || 0, inGoal ? 1 : 0, 6, dt);
     if (this.netLift > 0.001) c.y = Math.max(c.y, lerp(c.y, FIELD.goalH + 1.6, this.netLift));
     this.lookAt.copy(this.smoothTarget).addScaledVector(f, 4);
+    this.lookAt.x += sx; this.lookAt.z += sz;
     this.cam.lookAt(this.lookAt);
     this.applyShake(dt);
   }
 
   replay(dt, ball, progress, side) {
     this.mode = 'replay';
+    this.setLensShift(false);
     const bx = ball.x, by = ball.y, bz = ball.z;
     let px, py, pz;
     if (this.replayStyle % 2 === 0) {
@@ -77,17 +92,19 @@ export class CameraRig {
     this.applyShake(dt);
   }
 
-  orbit(dt, cx, cy, cz, radius, height, speed, lookY = 1.6) {
+  orbit(dt, cx, cy, cz, radius, height, speed, lookY = 1.6, radiusZ = radius) {
     this.mode = 'orbit';
+    this.setLensShift(false);
     this.time += dt;
     const a = this.time * speed;
-    this.cam.position.set(cx + Math.sin(a) * radius, cy + height, cz + Math.cos(a) * radius);
+    this.cam.position.set(cx + Math.sin(a) * radius, cy + height, cz + Math.cos(a) * radiusZ);
     this.cam.lookAt(cx, cy + lookY, cz);
   }
 
   // shift: how far the hero sits off-centre (0 = middle of the screen, >0 = towards the right)
   showcase(dt, cx, cz, faceYaw, sway, shift = 2.1) {
     this.mode = 'menu';
+    this.setLensShift(false);
     this.time += dt;
     this.shift = this.shift === undefined ? shift : damp(this.shift, shift, 5, dt);
     const a = faceYaw + Math.sin(this.time * 0.25) * 0.35 + sway;

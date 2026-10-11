@@ -73,6 +73,9 @@ export const KICK = {
   diveCooldown: 1.6,
   dribbleCooldown: 1.5,
   jumpSpeed: 12.5,
+  bikeHold: 0.8, // bicycle kick: seconds you hang in the air aiming before it fires on its own
+  bikeBallY: 2.7, // the ball floats up to at least this height during the hang
+  bikeMinH: 1.5, // ball this far above your feet (or more) turns a volley into a bicycle kick
   jumpCooldown: 0.6,
   dribbleImmune: 0.6,
   requestCooldown: 2.5,
@@ -81,7 +84,7 @@ export const KICK = {
 };
 
 // Stamina costs per action (stamina is the main limit, like the original): tired players kick weaker
-export const STAMINA = { kickBase: 10, kickPower: 20, skill: 35, tackle: 18, jump: 10, lob: 10, flick: 10, pass: 4, tired: 30 };
+export const STAMINA = { kickBase: 10, kickPower: 20, tackle: 18, jump: 10, lob: 10, flick: 10, pass: 4, tired: 30 };
 
 export const MATCH = {
   teamSize: 4,

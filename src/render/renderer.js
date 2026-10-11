@@ -41,9 +41,11 @@ export class GameRenderer {
     this.ballShadow = new THREE.Mesh(new THREE.CircleGeometry(PHYS.ballR * 1.1, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
     this.ballShadow.rotation.x = -Math.PI / 2;
     this.scene.add(this.ballShadow);
-    this.marker = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.55, 3), new THREE.MeshBasicMaterial({ color: 0xff3b5c }));
-    this.marker.rotation.x = Math.PI;
+    // 3D arrows: one over your own player, one over whoever has the ball (team colour)
+    this.marker = makeArrow(0xff3b5c);
     this.scene.add(this.marker);
+    this.carrierMarker = makeArrow(0xff3b5c);
+    this.scene.add(this.carrierMarker);
     this.boxes = new Map();
     this.puddles = new Map();
     this.projs = new Map();
@@ -381,9 +383,17 @@ export class GameRenderer {
     const meP = view.players.find((q) => q && q.id === localId);
     this.marker.visible = !!meP && !frame && view.phase !== 'replay';
     if (meP) {
-      this.marker.material.color.set(TEAMS[meP.team].color);
+      this.marker.userData.setColor(TEAMS[meP.team].color);
       this.marker.position.set(meP.x, (meP.y || 0) + 3.55 + Math.sin(this.time * 4) * 0.12, meP.z);
       this.marker.rotation.y += dt * 2;
+    }
+    // Ball carrier arrow in the colour of the team in possession
+    const carrier = !frame && view.phase !== 'replay' && view.ball.owner >= 0 && view.ball.owner !== localId ? view.players.find((q) => q && q.id === view.ball.owner) : null;
+    this.carrierMarker.visible = !!carrier;
+    if (carrier) {
+      this.carrierMarker.userData.setColor(TEAMS[carrier.team].color);
+      this.carrierMarker.position.set(carrier.x, (carrier.y || 0) + 3.55 + Math.sin(this.time * 4 + 1) * 0.12, carrier.z);
+      this.carrierMarker.rotation.y += dt * 2;
     }
 
     // Item boxes
@@ -692,8 +702,9 @@ export class GameRenderer {
       if (this.menuChar) this.menuChar.root.visible = false;
       this.ball.root.position.set(0, PHYS.ballR, 0);
       this.ballShadow.position.set(0, 0.025, 0);
-      this.marker.visible = false; this.aimPivot.visible = false; this.chargeSprite.visible = false;
-      this.rig.orbit(dt, 0, 0, 0, 58, 20, 0.045, 0);
+      this.marker.visible = false; this.carrierMarker.visible = false; this.aimPivot.visible = false; this.chargeSprite.visible = false;
+      // Elliptical path that stays inside the arena (never clips through the hills outside)
+      this.rig.orbit(dt, 0, 0, 0, 40, 17, 0.045, 0, 22);
       this.rig.shift = undefined;
       this.stadium.update(dt, this.cam.position);
       this.vfx.update(dt);
@@ -708,6 +719,7 @@ export class GameRenderer {
     this.ball.mesh.rotation.y += dt * 0.6;
     this.ballShadow.position.set(this.ball.root.position.x, 0.025, this.ball.root.position.z);
     this.marker.visible = false;
+    this.carrierMarker.visible = false;
     this.aimPivot.visible = false;
     this.chargeSprite.visible = false;
     this.rig.showcase(dt, ch.position.x, ch.position.z, ch.rotation.y, 0, shift);
@@ -721,3 +733,16 @@ export class GameRenderer {
 }
 
 export { lerp, FIELD };
+
+// Downward-pointing 3D arrow (four-sided head + shaft), lit so it reads as solid
+function makeArrow(color) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.55 });
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.62, 4), mat);
+  head.rotation.x = Math.PI;
+  const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.46, 0.24), mat);
+  shaft.position.y = 0.52;
+  g.add(head, shaft);
+  g.userData.setColor = (c) => { mat.color.set(c); mat.emissive.set(c); };
+  return g;
+}

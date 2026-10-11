@@ -151,7 +151,6 @@ export class UI {
     $('powerShopBtn').textContent = p.powers.length >= ITEM_KINDS.length ? 'ALL ITEMS OWNED' : 'ROLL FOR ITEMS';
     $('tutPromo').classList.toggle('done', !!p.tutDone);
     $('tutBtn').textContent = p.tutDone ? 'REPLAY TUTORIAL' : 'HOW TO PLAY';
-    $('shopBadge').classList.toggle('hidden', !(p.powers.length < ITEM_KINDS.length && p.coins >= ROLL.cost));
   }
 
   renderTraining() {
