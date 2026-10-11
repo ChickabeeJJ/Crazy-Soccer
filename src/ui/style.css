@@ -610,3 +610,98 @@ body.is-touch .tb-text { font-size: calc(var(--u) * 0.9); }
 .tb-bar { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 .tb-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--acc), var(--acc2)); transition: width 0.2s; }
 #hud.replay .tut-box { display: none; }
+
+/* =====================================================================
+   LIGHT THEME
+   Applied when the device is in light mode (Settings > Theme: Auto) or Theme: Light.
+   All colours live in the tokens below so the design can be re-skinned in one place.
+   The in-match HUD keeps its high-contrast broadcast style in both themes.
+   ===================================================================== */
+:root[data-theme="light"] {
+  --l-ink: #1b1530;
+  --l-muted: #5d5680;
+  --l-line: rgba(27, 21, 48, 0.13);
+  --l-surface: rgba(255, 255, 255, 0.86);
+  --l-surface-solid: #ffffff;
+  --l-surface-2: #f4f0fb;
+  --l-tint: rgba(27, 21, 48, 0.06);
+  --l-accent-text: #0e9a62;
+  --l-shadow: 0 10px 26px rgba(40, 28, 90, 0.16);
+  --glass: var(--l-surface);
+  --glass2: var(--l-surface-solid);
+  --line: var(--l-line);
+  --muted: var(--l-muted);
+}
+:root[data-theme="light"] body { background: #eef2fb; }
+
+/* Menu chrome */
+:root[data-theme="light"] .menu { color: var(--l-ink); }
+:root[data-theme="light"] .mn-shade { background:
+  linear-gradient(90deg, rgba(246, 244, 255, 0.82) 0%, rgba(246, 244, 255, 0.4) 30%, rgba(246, 244, 255, 0) 48%, rgba(246, 244, 255, 0) 62%, rgba(246, 244, 255, 0.45) 82%, rgba(246, 244, 255, 0.75) 100%),
+  linear-gradient(180deg, rgba(246, 244, 255, 0.6) 0%, rgba(246, 244, 255, 0) 18%, rgba(246, 244, 255, 0) 82%, rgba(246, 244, 255, 0.6) 100%); }
+:root[data-theme="light"] .menu[data-page="shop"] .mn-shade, :root[data-theme="light"] .menu[data-page="inventory"] .mn-shade { background: linear-gradient(90deg, rgba(246, 244, 255, 0.9) 0%, rgba(246, 244, 255, 0.65) 55%, rgba(246, 244, 255, 0.05) 75%, rgba(246, 244, 255, 0.3) 100%); }
+:root[data-theme="light"] .menu[data-page="training"] .mn-shade { background: linear-gradient(180deg, rgba(246, 244, 255, 0.7), rgba(246, 244, 255, 0.35) 40%, rgba(246, 244, 255, 0.75)); }
+:root[data-theme="light"] .mn-glow { opacity: 0.12; }
+:root[data-theme="light"] .mn-nav { background: var(--l-surface); border-color: var(--l-line); box-shadow: var(--l-shadow); }
+:root[data-theme="light"] .mn-nav button { color: var(--l-muted); }
+:root[data-theme="light"] .mn-nav button:hover { color: var(--l-ink); background: var(--l-tint); }
+:root[data-theme="light"] .mn-nav button.on { color: var(--l-ink); background: var(--l-surface-solid); box-shadow: 0 2px 6px rgba(40, 28, 90, 0.12); }
+:root[data-theme="light"] .mn-wallet, :root[data-theme="light"] .mn-icon, :root[data-theme="light"] .mn-profile { background: var(--l-surface); border-color: var(--l-line); color: var(--l-ink); box-shadow: var(--l-shadow); }
+:root[data-theme="light"] .mn-icon svg { fill: var(--l-ink); }
+:root[data-theme="light"] .mn-icon:hover { background: var(--l-surface-solid); }
+:root[data-theme="light"] .pc-ring .track { stroke: var(--l-line); }
+:root[data-theme="light"] .mn-kicker { color: var(--l-accent-text); }
+:root[data-theme="light"] .mn-title { color: var(--l-ink); text-shadow: 0 3px 0 rgba(255, 255, 255, 0.7); }
+:root[data-theme="light"] .mn-chips span { background: var(--l-surface); color: var(--l-muted); }
+:root[data-theme="light"] .glass-btn { color: var(--l-ink); box-shadow: var(--l-shadow); }
+:root[data-theme="light"] .glass-btn .gi { background: var(--l-tint); }
+:root[data-theme="light"] .menu-note { color: var(--l-muted); }
+:root[data-theme="light"] .mn-card { box-shadow: var(--l-shadow); }
+:root[data-theme="light"] .mc-head em { color: #9a6a00; background: rgba(255, 207, 63, 0.3); }
+:root[data-theme="light"] .dd { background: var(--l-tint); border-color: var(--l-line); }
+:root[data-theme="light"] .promo { background: linear-gradient(135deg, rgba(47, 227, 155, 0.28), rgba(255, 255, 255, 0.9) 60%); }
+:root[data-theme="light"] .promo.done { background: var(--l-surface); }
+:root[data-theme="light"] .mn-tip { color: var(--l-ink); }
+:root[data-theme="light"] .seg-tabs { background: var(--l-surface); box-shadow: var(--l-shadow); }
+:root[data-theme="light"] .seg-tabs button { color: var(--l-muted); }
+:root[data-theme="light"] .seg-tabs button:hover { color: var(--l-ink); }
+:root[data-theme="light"] .seg-tabs button.on { background: var(--l-ink); color: #fff; }
+:root[data-theme="light"] .shop-info b, :root[data-theme="light"] .inv-extra b, :root[data-theme="light"] .inv-extra label, :root[data-theme="light"] .inv-extra .num { color: var(--l-ink); }
+:root[data-theme="light"] .inv-extra em, :root[data-theme="light"] .num-btn { background: var(--l-tint); color: var(--l-ink); }
+:root[data-theme="light"] .scard { background: linear-gradient(170deg, var(--l-surface-solid), var(--l-surface-2)); color: var(--l-ink); box-shadow: 0 4px 12px rgba(40, 28, 90, 0.1); }
+:root[data-theme="light"] .scard:hover { border-color: rgba(27, 21, 48, 0.3); box-shadow: 0 12px 26px rgba(40, 28, 90, 0.18); }
+:root[data-theme="light"] .sc-art { background: radial-gradient(circle at 50% 40%, rgba(124, 92, 255, 0.14), rgba(124, 92, 255, 0.03) 70%); }
+:root[data-theme="light"] .sc-try { background: var(--l-tint); color: var(--l-ink); }
+:root[data-theme="light"] .sc-buy.cant { background: var(--l-tint); color: #d6304f; }
+:root[data-theme="light"] .sc-owned { color: var(--l-accent-text); }
+:root[data-theme="light"] .shop-grid::-webkit-scrollbar-thumb { background: rgba(27, 21, 48, 0.2); }
+
+/* Panels & modals */
+:root[data-theme="light"] .modal { background: radial-gradient(ellipse at center, rgba(238, 234, 252, 0.55), rgba(205, 198, 235, 0.75)); }
+:root[data-theme="light"] .panel, :root[data-theme="light"] .room-panel, :root[data-theme="light"] .tut-box { background: linear-gradient(165deg, var(--l-surface-solid), var(--l-surface-2)); color: var(--l-ink); border-color: var(--l-line); box-shadow: 0 20px 50px rgba(40, 28, 90, 0.25); }
+:root[data-theme="light"] .x-btn { background: var(--l-tint); color: var(--l-ink); }
+:root[data-theme="light"] .small-msg, :root[data-theme="light"] .search-text, :root[data-theme="light"] .stats-team h3 { color: var(--l-ink); }
+:root[data-theme="light"] .join-row input { background: #fff; color: var(--l-ink); }
+:root[data-theme="light"] .spinner { border-color: var(--l-line); border-top-color: var(--acc); }
+:root[data-theme="light"] .set-sec { color: var(--l-accent-text); }
+:root[data-theme="light"] .set-row { border-bottom-color: var(--l-line); }
+:root[data-theme="light"] .toggle { background: rgba(27, 21, 48, 0.16); }
+:root[data-theme="light"] .toggle.on { background: var(--acc); }
+:root[data-theme="light"] .segbar i { background: rgba(27, 21, 48, 0.12); }
+:root[data-theme="light"] .segbar i.on { background: var(--acc); }
+:root[data-theme="light"] .bind { background: #fff; color: var(--l-ink); }
+:root[data-theme="light"] .bind.wait { background: var(--gold); }
+:root[data-theme="light"] .bind-reset { background: var(--l-tint); color: var(--l-ink); }
+:root[data-theme="light"] .stats-table td { border-top-color: var(--l-line); }
+:root[data-theme="light"] .res-stats div, :root[data-theme="light"] .room-players span { background: #fff; color: var(--l-ink); }
+:root[data-theme="light"] .btn-sec { background: #fff; color: var(--l-ink); box-shadow: 0 4px 0 rgba(27, 21, 48, 0.25), inset 0 0 0 1px var(--l-line); }
+:root[data-theme="light"] .btn-sec:hover { background: #f7f5ff; }
+:root[data-theme="light"] .tb-text { color: #3d3760; }
+:root[data-theme="light"] .theme-seg button { color: var(--l-muted); }
+:root[data-theme="light"] .theme-seg button.on { background: var(--l-ink); color: #fff; }
+
+/* Theme picker (settings) */
+.theme-seg { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(127, 120, 160, 0.15); }
+.theme-seg button { background: transparent; color: var(--muted); font-weight: 700; font-size: 13px; padding: 5px 10px; border-radius: 8px; }
+.theme-seg button.on { background: #fff; color: #160f2e; }
+:root[data-theme="light"] .panel-head { color: var(--l-ink); }

@@ -47,6 +47,7 @@ export const DEFAULT_SETTINGS = {
   perf: false,
   nameTags: true,
   aimAssist: true,
+  theme: 'auto', // 'auto' follows the device's light/dark mode
 };
 
 function freshProfile() {
