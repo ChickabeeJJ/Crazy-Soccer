@@ -45,6 +45,8 @@ class App {
     this.ui.setLoading(0.05, 'Connecting…');
     await SDK.init();
     SDK.loadingStart();
+    this.adblock = false;
+    SDK.hasAdblock().then((b) => { this.adblock = b; });
     Save.load();
     this.ui.setLoading(0.2, 'Loading fonts…');
     try {
@@ -330,6 +332,7 @@ class App {
     this.session = new Session({ mode: 'match', role: 'host', net, roomKind: 'priv', roomCode: code, profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
     this.session.startHost({}, true);
     SDK.updateRoom({ roomId: `priv-${code}`, isJoinable: true, inviteParams: { roomId: `priv-${code}` } });
+    SDK.showInviteButton({ roomId: `priv-${code}` });
     this.enterGame();
   }
 
@@ -352,6 +355,7 @@ class App {
     this.session = new Session({ mode: 'match', role: 'client', net, roomKind: 'priv', roomCode: code, profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
     this.session.startClient(res.welcome);
     SDK.updateRoom({ roomId: `priv-${code}`, isJoinable: true, inviteParams: { roomId: `priv-${code}` } });
+    SDK.showInviteButton({ roomId: `priv-${code}` });
     this.enterGame();
   }
 
@@ -396,6 +400,7 @@ class App {
   }
 
   beginPrivateMatch() {
+    SDK.hideInviteButton();
     if (this.session && this.session.isAuthority) this.session.beginMatch();
   }
 
@@ -683,8 +688,9 @@ class App {
       this.input.exitLock();
       this.ui.showResults({
         outcome, score: ev.score, mvp: mvpRow ? mvpRow.name : '', stats: row, coins, xp,
-        canDouble: SDK.available, online: !!s.net, isHost: s.isAuthority,
+        canDouble: SDK.available && !this.adblock, online: !!s.net, isHost: s.isAuthority,
       });
+      this.ui.showBanner(true);
       if (lv > 0) this.ui.globalToast(`LEVEL UP! You reached level ${Save.p.level} (+${lv * 50} coins)`, 4000);
       this.ui.refreshProfile();
       SDK.gameplayStop();

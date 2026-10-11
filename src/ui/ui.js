@@ -39,7 +39,24 @@ export class UI {
 
   // ---------------------------------------------------------------- screens
   screen(id, on) { $(id).classList.toggle('show', !!on); }
-  modal(id, on) { $(id).classList.toggle('show', !!on); }
+  modal(id, on) {
+    $(id).classList.toggle('show', !!on);
+    if (id === 'results' && !on) this.showBanner(false);
+  }
+
+  // CrazyGames banner under the results screen (between matches only, never during play)
+  showBanner(on) {
+    const el = $('resBanner');
+    if (!el) return;
+    const fits = window.innerHeight >= 600 && window.innerWidth >= 760;
+    if (on && SDK.available && fits) {
+      el.classList.add('show');
+      SDK.requestResponsiveBanner('resBanner').then((ok) => { if (!ok) el.classList.remove('show'); });
+    } else if (el.classList.contains('show')) {
+      el.classList.remove('show');
+      SDK.clearAllBanners();
+    }
+  }
   isOpen(id) { return $(id).classList.contains('show'); }
   anyModal() { return ['pause', 'results', 'settings', 'private', 'searching', 'confirm', 'trainRes', 'playSheet', 'rollReveal'].some((m) => this.isOpen(m)); }
 
@@ -459,13 +476,15 @@ export class UI {
     $('resXp').textContent = `+${r.xp}`;
     $('doubleBtn').classList.toggle('hidden', !r.canDouble);
     $('doubleBtn').disabled = false;
+    if (!this.doubleHtml) this.doubleHtml = $('doubleBtn').innerHTML;
+    $('doubleBtn').innerHTML = this.doubleHtml;
     $('againBtn').textContent = r.online ? (r.isHost ? 'START NOW' : 'READY') : 'PLAY AGAIN';
     $('againBtn').classList.toggle('hidden', r.online && !r.isHost);
     this.setResNext('');
     this.modal('results', true);
   }
   setResNext(text) { $('resNext').textContent = text; }
-  setDoubled() { $('doubleBtn').disabled = true; $('doubleBtn').textContent = 'COINS DOUBLED!'; }
+  setDoubled() { if (!this.doubleHtml) this.doubleHtml = $('doubleBtn').innerHTML; $('doubleBtn').disabled = true; $('doubleBtn').textContent = 'COINS DOUBLED!'; }
 
   // ----------------------------------------------------------- room panel
   showRoomPanel(info) {

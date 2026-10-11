@@ -60,6 +60,9 @@ if (mode === 'covers') {
   await cover('cover-landscape', 1920, 1080);
   await cover('cover-portrait', 800, 1200);
   await cover('cover-square', 800, 800);
+} else if (mode.startsWith('cover-')) {
+  const S = { 'cover-landscape': [1920, 1080], 'cover-portrait': [800, 1200], 'cover-square': [800, 800] }[mode];
+  await cover(mode, S[0], S[1]);
 } else if (mode === 'preview') {
   await video('video-landscape', 1920, 1080, 'prev', 15);
 } else if (mode === 'videos') {

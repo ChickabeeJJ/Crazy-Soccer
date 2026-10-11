@@ -138,6 +138,14 @@ export const SDK = {
   },
   leftRoom() {
     this.updateRoom({ isJoinable: false });
+    this.hideInviteButton();
+  },
+  // CrazyGames' own invite button (only for inviting friends into a multiplayer room)
+  showInviteButton(params) {
+    this._call(() => { if (typeof this._sdk.game.showInviteButton === 'function') this._sdk.game.showInviteButton(params); });
+  },
+  hideInviteButton() {
+    this._call(() => { if (typeof this._sdk.game.hideInviteButton === 'function') this._sdk.game.hideInviteButton(); });
   },
 
   // ---- Ads -----------------------------------------------------------------
@@ -165,6 +173,20 @@ export const SDK = {
         finish(false);
       }
     });
+  },
+
+  async hasAdblock() {
+    if (!this.available) return false;
+    try { return !!(await withTimeout(this._sdk.ad.hasAdblock(), 3000)); } catch (e) { return false; }
+  },
+
+  // ---- Banners (menus / results only, never during gameplay) ----------------
+  async requestResponsiveBanner(id) {
+    if (!this.available || !this._sdk.banner) return false;
+    try { await this._sdk.banner.requestResponsiveBanner(id); return true; } catch (e) { return false; }
+  },
+  clearAllBanners() {
+    this._call(() => { if (this._sdk.banner) this._sdk.banner.clearAllBanners(); });
   },
 
   // ---- Data (cloud save for logged-in users, local otherwise) ---------------

@@ -300,6 +300,8 @@ body.is-touch .tb-text { font-size: calc(var(--u) * 0.9); }
 .slot.full { background: rgba(10,8,18,0.82); border-color: rgba(255,255,255,0.9); }
 
 /* Crosshair */
+.res-banner { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); width: 728px; height: 90px; z-index: 60; display: none; }
+.res-banner.show { display: block; }
 .crosshair { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; transform: translate(-50%, -50%); pointer-events: none; display: none; }
 .crosshair.show { display: block; }
 .crosshair i { position: absolute; background: #fff; box-shadow: 0 0 0 1.5px rgba(20,16,30,0.75); border-radius: 2px; }

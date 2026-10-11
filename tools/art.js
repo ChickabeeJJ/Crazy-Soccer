@@ -24,6 +24,7 @@ stage.style.height = `${H}px`;
 
 await document.fonts.load('400 40px "Lilita One"').catch(() => {});
 await document.fonts.load('700 40px "Roboto Condensed"').catch(() => {});
+await document.fonts.load('italic 900 40px "Roboto Condensed"').catch(() => {});
 
 const canvas = document.getElementById('game');
 const R = new GameRenderer(canvas, false);
@@ -124,16 +125,76 @@ export function speedLines(p0, dir, count = 14) {
   }
 }
 
+// Game wordmark in the same angular style as the in-game menus
 export function logo(opts) {
   const el = document.createElement('div');
   el.className = 'cover-logo';
-  Object.assign(el.style, { left: `${opts.x}px`, top: `${opts.y}px` });
-  const size = opts.size;
-  el.innerHTML = `<div class="burst" style="width:${size * 3.2}px;height:${size * 3.2}px;left:${-size * 0.55}px;top:${-size * 0.9}px;opacity:${opts.burst ?? 0.9}"></div>
-    <div class="w w1" style="font-size:${size}px;-webkit-text-stroke:${size * 0.085}px #1b1530">CRAZY</div>
-    <div class="w w2" style="font-size:${size}px;-webkit-text-stroke:${size * 0.085}px #1b1530;margin-left:${size * 0.42}px;margin-top:${size * 0.02}px">SOCCER</div>`;
+  Object.assign(el.style, { left: `${opts.x}px`, top: `${opts.y}px`, fontSize: `${opts.size}px` });
+  el.innerHTML = '<div class="lg-crazy">CRAZY</div><div class="lg-soccer">SOCCER</div><div class="lg-bars"><i class="r"></i><i class="b"></i></div>';
   stage.appendChild(el);
   return el;
+}
+
+// Cinematic dusk grade: deep navy sky with a burning horizon, warm low backlight, cool fill
+export function grade(o = {}) {
+  scene.traverse((ob) => {
+    const u = ob.material && ob.material.uniforms;
+    if (u && u.top && u.mid && u.bottom) { u.top.value.set('#060a20'); u.mid.value.set('#2a2160'); u.bottom.value.set('#ff7f45'); }
+    if (ob.isSprite && ob.position.length() > 200) ob.visible = false;
+  });
+  scene.fog.color.set('#1b1640'); scene.fog.near = 70; scene.fog.far = 380;
+  R.hemi.color.set('#8090e8'); R.hemi.groundColor.set('#3a2230'); R.hemi.intensity = 0.95;
+  R.sun.color.set('#ffb36b'); R.sun.intensity = 3.1;
+  R.sun.position.set(70, 26, o.sunZ ?? -20); R.sun.target.position.set(0, 0, 0);
+  const fill = new THREE.DirectionalLight('#5c7cff', 1.25);
+  fill.position.set(-40, 30, 60);
+  scene.add(fill);
+  // Floodlight flares on the light towers
+  for (const [x, z] of [[-60, -38], [60, -38], [-60, 38], [60, 38], [0, -44]]) {
+    const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: '#ffe9c4', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    f.position.set(x, 30, z);
+    f.scale.set(7, 7, 1);
+    scene.add(f);
+  }
+}
+
+// Electric comet trail (Supercharge look) from p0 to the ball at p1
+export function electricTrail(p0, p1, density = 1) {
+  const tmp = new THREE.Color();
+  for (let i = 0; i < 420 * density; i++) {
+    const t = Math.pow(Math.random(), 0.6) * 0.95;
+    const x = p0.x + (p1.x - p0.x) * t, y = p0.y + (p1.y - p0.y) * t, z = p0.z + (p1.z - p0.z) * t;
+    const spread = 0.08 + t * 0.5;
+    if (Math.random() < 0.2) tmp.setHSL(0.14, 1, 0.66); else tmp.setHSL(0.5 + Math.random() * 0.07, 1, 0.55 + t * 0.2);
+    V.glow.emit(x + (Math.random() - 0.5) * spread, y + (Math.random() - 0.5) * spread, z + (Math.random() - 0.5) * spread, 0, 0, 0, 1, 0.3 + t * 1.3, 0.3 + t * 1.3, tmp, 0, 0, 0.22 + t * 0.4);
+  }
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0x7ff0ff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  halo.position.copy(p1);
+  halo.scale.set(4.6, 4.6, 1);
+  scene.add(halo);
+}
+
+// Bazooka hit: fireball, shock ring, smoke
+export function explosion(x, y, z, size = 1) {
+  const fb = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0xff8a2a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  fb.position.set(x, y + 1.2 * size, z);
+  fb.scale.set(9 * size, 9 * size, 1);
+  scene.add(fb);
+  const core = fb.clone();
+  core.material = fb.material.clone(); core.material.color.set(0xfff2c0);
+  core.scale.set(4 * size, 4 * size, 1);
+  scene.add(core);
+  const tmp = new THREE.Color();
+  for (let i = 0; i < 260 * size; i++) {
+    const a = Math.random() * Math.PI * 2, u = Math.random(), r = Math.pow(Math.random(), 0.5) * 2.6 * size;
+    tmp.setHSL(0.02 + Math.random() * 0.1, 1, 0.5 + Math.random() * 0.2);
+    V.glow.emit(x + Math.cos(a) * r, y + u * 3 * size, z + Math.sin(a) * r, 0, 0, 0, 1, 0.6 + Math.random() * 1.4, 0.6, tmp, 0, 0, 0.5);
+  }
+  for (let i = 0; i < 26 * size; i++) {
+    const a = Math.random() * Math.PI * 2, r = 1.5 + Math.random() * 3 * size;
+    V.solid.emit(x + Math.cos(a) * r, 3 * size + Math.random() * 3.5 * size, z + Math.sin(a) * r, 0, 0, 0, 1, 0.9 + Math.random() * 1.2, 0.9, new THREE.Color(0x5a4a6a), 0, 0, 0.28);
+  }
+  V.ring(x, 0.15, z, 0xffb347, 0.5, 5 * size, 10, 0.9);
 }
 
 function setCam(px, py, pz, lx, ly, lz, fov = 55) {
@@ -148,69 +209,65 @@ function settle(steps = 1, dt = 0.016) {
 }
 
 // ------------------------------------------------------------------ covers
-function heroKickScene(o = {}) {
-  // Hero mid-air blasting a fire shot at the blue goal (+x). Camera sits on the +z flank.
-  const face = Math.PI / 2 - 0.55;
-  const hero = pose(HERO, 0, 'kick', 0.37, { x: 25, y: 0.6, z: -4.5, face, id: 0 });
-  for (let i = 0; i < 22; i++) V.fireAura(25 + (Math.random() - 0.5) * 0.6, 0.1, -4.5 + (Math.random() - 0.5) * 0.6);
+// The hero hangs in the air mid bicycle kick; the ball rips towards the goal (+x, line at x = 42).
+function bicycleScene(o = {}) {
+  const hx = o.hx ?? 29, hz = o.hz ?? -1.5, hy = 1.5;
+  const hero = pose(HERO, 0, 'volley', o.animT ?? 0.21, { x: 0, y: 0, z: 0, face: Math.PI / 2, dur: 0.5, noRing: true });
+  // Tip the whole body over so the head drops and the legs scissor overhead (classic bicycle-kick silhouette)
+  const tilt = new THREE.Group();
+  scene.add(tilt);
+  tilt.add(hero.root);
+  tilt.position.set(hx, hy + 0.4, hz);
+  tilt.rotation.z = o.tilt ?? -0.75;
+  tilt.updateMatrixWorld(true);
   const foot = new THREE.Vector3();
   hero.footWorld(foot);
-  const ballP = o.ballP || new THREE.Vector3(32.2, 2.7, -3.4);
+  const ballP = o.ballP || new THREE.Vector3(hx + 6.5, 3.6, hz + 0.6);
   placeBall(ballP.x, ballP.y, ballP.z);
-  fireTrail(foot, ballP, 1.0);
-  V.kick(foot.x, foot.y, foot.z, 1, 0xff8a1f);
-  // keeper diving across the goal mouth
-  pose(C({ skin: 3, hair: 'cap', hairColor: 5, number: 1 }), 1, 'dive', 0.3, { x: 39.6, y: 1.8, z: -2.6, face: -1.0, dur: 0.62, keeper: true });
-  // frozen rival
-  pose(C({ skin: 4, hair: 'afro', hairColor: 6, number: 5 }), 1, 'idle', 0, { x: 34.5, z: -10.5, face: -Math.PI / 2 + 0.6, speed: 12, sprint: true, pre: { speed: 12, sprinting: true } });
-  iceBlock(34.5, -10.5);
-  // rival sliding in, a bit too late
-  pose(C({ skin: 1, hair: 'beanie', hairColor: 3, number: 4 }), 1, 'slide', 0.25, { x: 29.2, z: -8.6, face: -Math.PI / 2 - 0.5, dur: 0.55 });
-  for (let i = 0; i < 8; i++) V.dust(29.6 + i * 0.4, -8.4 - i * 0.2, 2);
-  // rival slipping on an oil trail in the background
-  const slip = pose(C({ skin: 0, hair: 'mohawk', hairColor: 4, number: 9 }), 1, 'slip', 0.12, { x: 26, z: -17, face: Math.PI / 2 + 0.3 });
-  slip.root.position.y = 0.4;
-  for (let i = 0; i < 7; i++) {
-    const m = new THREE.Mesh(R.discGeo, R.oilMat);
-    m.rotation.x = -Math.PI / 2;
-    m.position.set(22.5 + i * 1.0, 0.03, -17.3 + Math.sin(i) * 0.4);
-    m.scale.setScalar(1.3);
-    scene.add(m);
-  }
-  // teammate cheering
-  pose(C({ skin: 2, hair: 'buns', hairColor: 2, jersey: 'lightning', number: 8 }), 0, 'cheer', 0.25, { x: 16, z: -9, face: Math.PI / 2 + 0.9 });
-  itemBox(30.5, 3.4, -13.5, 1, 0.6);
-  itemBox(20.5, 2.8, -8.5, 4, -0.3);
-  return { hero, ballP };
+  electricTrail(foot, ballP, 1);
+  V.sparkles(foot.x, foot.y, foot.z, 0x9ff6ff, 40, 7);
+  // keeper at full stretch
+  pose(C({ skin: 3, hair: 'cap', hairColor: 5, number: 1 }), 1, 'dive', 0.32, { x: 40.8, y: 1.7, z: hz - 0.6, face: -1.3, dur: 0.62, keeper: true, noRing: true });
+  // defender too late, sliding underneath
+  pose(C({ skin: 1, hair: 'beanie', hairColor: 3, number: 4 }), 1, 'slide', 0.25, { x: hx + 6.2, z: hz - 5, face: -Math.PI / 2 + 0.5, dur: 0.55, noRing: true });
+  for (let i = 0; i < 10; i++) V.dust(hx + 6.6 + i * 0.35, hz - 5.2 - i * 0.15, 2, 0x8a9a78);
+  // bazooka blast throwing two players in the background
+  explosion(hx + 1, 0, hz - 15, 1.1);
+  const f1 = pose(C({ skin: 5, hair: 'mohawk', hairColor: 7, number: 3 }), 1, 'fall', 0.18, { x: hx - 2, y: 3.4, z: hz - 13, face: 0.6, noRing: true });
+  f1.root.rotation.z = 0.9;
+  const f2 = pose(C({ skin: 0, hair: 'afro', hairColor: 6, number: 9 }), 0, 'fall', 0.3, { x: hx + 4.5, y: 2.6, z: hz - 16, face: -2.2, noRing: true });
+  f2.root.rotation.x = -0.8;
+  // teammate sprinting in
+  pose(C({ skin: 2, hair: 'buns', hairColor: 2, jersey: 'lightning', number: 8 }), 0, 'idle', 0, { x: hx - 7, z: hz + 5, face: Math.PI / 2 - 0.2, speed: 14, sprint: true, pre: { speed: 14, sprinting: true }, noRing: true });
+  itemBox(hx + 9, 3.1, hz - 6, 3, 0.4);
+  return { hero, ballP, foot };
 }
 
 function coverLandscape() {
   R.setVariant('grass');
-  heroKickScene();
+  grade();
+  bicycleScene();
   settle(2);
-  setCam(24.8, 1.35, 6.4, 31.0, 2.7, -4.4, 52);
-  logo({ x: 70, y: 46, size: 128 });
+  setCam(31.2, 0.9, 8.4, 32.6, 3.0, -2.0, 52);
+  logo({ x: 84, y: 70, size: 150 });
 }
 
 function coverPortrait() {
   R.setVariant('grass');
-  heroKickScene({ ballP: new THREE.Vector3(31.6, 5.0, -4.6) });
-  // Jetpack defender flying in to block the shot
-  const jet = pose(C({ skin: 5, hair: 'mohawk', hairColor: 7, number: 3 }), 1, 'idle', 0, { x: 33.6, y: 5.6, z: -8.2, face: -Math.PI / 2 - 0.9, jet: true, noRing: true });
-  const back = new THREE.Vector3(33.6 + Math.sin(-Math.PI / 2 - 0.9) * -0.45, 6.4, -8.2 + Math.cos(-Math.PI / 2 - 0.9) * -0.45);
-  for (let i = 0; i < 40; i++) V.jetFlame(back.x + (Math.random() - 0.5) * 0.3, back.y - Math.random() * 1.2, back.z + (Math.random() - 0.5) * 0.3);
-  jet.root.rotation.z = 0.25;
+  grade({ sunZ: 10 });
+  bicycleScene({ ballP: new THREE.Vector3(33.6, 6.4, -1.4) });
   settle(2);
-  setCam(31.6, 0.8, 4.4, 29.1, 3.9, -4.6, 82);
-  logo({ x: 64, y: 54, size: 104 });
+  setCam(30.4, 0.7, 5.4, 31.6, 4.1, -2.0, 74);
+  logo({ x: 52, y: 60, size: 112 });
 }
 
 function coverSquare() {
   R.setVariant('grass');
-  heroKickScene();
+  grade();
+  bicycleScene();
   settle(2);
-  setCam(30.8, 0.9, 2.8, 29.6, 2.9, -4.0, 74);
-  logo({ x: 40, y: 34, size: 88 });
+  setCam(31.0, 0.8, 7.0, 32.4, 3.2, -2.0, 62);
+  logo({ x: 44, y: 40, size: 96 });
 }
 
 window.__ready = false;
@@ -218,7 +275,7 @@ if (SHOT === 'cover-landscape') coverLandscape();
 else if (SHOT === 'cover-portrait') coverPortrait();
 else if (SHOT === 'cover-square') coverSquare();
 else {
-  window.__video = new Video(R, { W, H, portrait: SHOT === 'video-portrait', helpers: { pose, iceBlock, itemBox, placeBall, fireTrail, logo, HERO, C } });
+  window.__video = new Video(R, { W, H, portrait: SHOT === 'video-portrait', helpers: { pose, iceBlock, itemBox, placeBall, fireTrail, electricTrail, explosion, grade, logo, HERO, C } });
 }
 R.render();
 window.__render = () => R.render();
