@@ -75,7 +75,6 @@ class App {
     await nextFrame();
 
     window.addEventListener('resize', () => this.renderer.resize());
-    try { window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => this.applyTheme()); } catch (e) { /* old browsers */ }
     document.addEventListener('visibilitychange', () => this.onVisibility());
     this.input.on('lockchange', (locked) => this.onLockChange(locked));
     document.addEventListener('pointerlockerror', () => { this.lockFailed = true; this.ui.clickToPlay(false); });
@@ -105,19 +104,8 @@ class App {
   }
 
   // ================================================================ settings
-  // Light / dark theme for menus and panels ('auto' follows the device setting)
-  applyTheme() {
-    const pref = Save.p ? Save.p.settings.theme || 'auto' : 'auto';
-    let dark = true;
-    try { dark = pref === 'dark' || (pref === 'auto' && !window.matchMedia('(prefers-color-scheme: light)').matches); } catch (e) { dark = pref !== 'light'; }
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', dark ? '#1b1530' : '#eef2fb');
-  }
-
   applySettings() {
     const s = Save.p.settings;
-    this.applyTheme();
     this.audio.setVolumes({ master: s.master, music: s.music, sfx: s.sfx });
     if (this.renderer) {
       this.renderer.setPerf(s.perf);

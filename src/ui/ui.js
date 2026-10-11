@@ -654,7 +654,6 @@ export class UI {
       ${toggle('autoCurve', 'Auto Curve', 'Strafe while shooting to bend the ball')}
       ${this.isTouch ? toggle('aimAssist', 'Aim Assist', 'Touch: shots near the goal snap inside the frame') : ''}
       <div class="set-sec">Interface</div>
-      <div class="set-row"><div class="lbl"><b>Theme</b><span>Auto follows your device's light / dark mode</span></div><div class="theme-seg">${['auto', 'light', 'dark'].map((t) => `<button class="${(s.theme || 'auto') === t ? 'on' : ''}" data-theme-pick="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div>
       ${toggle('showControls', 'Show Controls', 'Display the key and button prompts')}
       ${toggle('showHints', 'Show Hints', 'Display tips on how to play')}
       ${toggle('nameTags', 'Show Name Tags', 'Names above other players')}
@@ -669,7 +668,6 @@ export class UI {
       <div class="set-sec" style="text-align:center">Crazy Soccer v${app.version}</div>`;
     body.querySelectorAll('[data-tog]').forEach((b) => b.addEventListener('click', () => { const k = b.dataset.tog; s[k] = !s[k]; app.audio.click(); this.renderSettings(); app.applySettings(); }));
     body.querySelectorAll('[data-sl]').forEach((el) => el.addEventListener('input', () => { s[el.dataset.sl] = parseFloat(el.value); app.applySettings(); }));
-    body.querySelectorAll('[data-theme-pick]').forEach((el) => el.addEventListener('click', () => { s.theme = el.dataset.themePick; app.audio.click(); this.renderSettings(); app.applySettings(); }));
     body.querySelectorAll('[data-shake]').forEach((el) => el.addEventListener('click', () => { s.shake = +el.dataset.shake; app.audio.click(); this.renderSettings(); app.applySettings(); }));
     body.querySelectorAll('[data-reset]').forEach((el) => el.addEventListener('click', () => { delete Save.p.binds[el.dataset.reset]; app.onBindsChanged(); this.renderSettings(); }));
     $('resetBinds').addEventListener('click', () => { Save.p.binds = {}; app.onBindsChanged(); this.renderSettings(); });
