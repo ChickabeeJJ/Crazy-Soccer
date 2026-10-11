@@ -61,8 +61,10 @@ export const KICK = {
   passMax: 34,
   lobAngle: 0.88,
   lobRange: 28,
-  flickUp: 12.5,
-  flickFwd: 6.5,
+  flickUp: 12.8,
+  flickFwd: 1.6, // flick pops the ball up over your head (keeps your running speed) for volleys
+  volleyReachH: 2.7, // horizontal reach for a mid-air volley
+  volleyReachUp: 3.5, // how far above your feet you can volley the ball
   tackleSpeed: 18,
   tackleTime: 0.55,
   tackleCooldown: 0.9,
@@ -122,30 +124,36 @@ export const NET = {
   peerTimeout: 7000,
 };
 
-// Items (what the mystery cubes give). New items come from the Item Roll in the Shop;
-// cubes only drop items you own.
+// Items (what the mystery cubes give), matching the original game's 14 items.
+// New items come from the Item Roll in the Shop; cubes only drop items you own.
 export const ITEMS = {
-  fire: { name: 'Fire Shot', color: '#ff7a1a', rarity: 'common', desc: 'Your next shot is a blazing, unstoppable fireball.' },
-  speed: { name: 'Lightning Boots', color: '#7dff5a', rarity: 'common', desc: 'Super speed with endless stamina.' },
-  shield: { name: 'Bubble Shield', color: '#c27bff', rarity: 'common', desc: 'Immune to tackles, hits and items for a while.' },
-  punch: { name: 'Boxing Glove', color: '#ff4466', rarity: 'common', desc: 'Spring-loaded glove knocks over the rival in front of you.' },
-  ice: { name: 'Ice Blast', color: '#5fe3ff', rarity: 'rare', desc: 'Throw a frost orb that freezes the first rival it hits.' },
-  oil: { name: 'Oil Slick', color: '#9b6bff', rarity: 'rare', desc: 'Leave a slippery oil trail. Rivals who cross it wipe out.' },
-  barricade: { name: 'Barricade', color: '#ffb000', rarity: 'rare', desc: 'Drop a fence that blocks players and the ball.' },
-  grapple: { name: 'Grapple', color: '#4cf08a', rarity: 'epic', desc: 'Hook the ball from range and yank it to your feet.' },
-  barrel: { name: 'Barrel Roll', color: '#3f8bff', rarity: 'epic', desc: 'Bowl a barrel that flattens every rival in its path.' },
-  jet: { name: 'Jetpack', color: '#ffd23f', rarity: 'legendary', desc: 'Blast off and fly over everyone for a few seconds.' },
+  shield: { name: 'Forcefield', color: '#c27bff', rarity: 'common', desc: 'Blocks tackles, hits and items for a few seconds.' },
+  barricade: { name: 'Barricades', color: '#ffb000', rarity: 'common', desc: 'Place a barrier that blocks players and shots.' },
+  speed: { name: 'Energy Drink', color: '#7dff5a', rarity: 'common', desc: 'Refills your stamina and gives a burst of speed.' },
+  oil: { name: 'Oil Spill', color: '#9b6bff', rarity: 'common', desc: 'Spill oil behind you. Rivals who run through it slip over.' },
+  shotgun: { name: 'Shotgun', color: '#ff8a3d', rarity: 'uncommon', desc: 'Close-range blast that knocks down rivals in front of you.' },
+  grapple: { name: 'Grappling Hook', color: '#4cf08a', rarity: 'uncommon', desc: 'Hook the ball and zip yourself to it.' },
+  magnet: { name: 'Magnet', color: '#ff4d6d', rarity: 'uncommon', desc: 'Pulls a loose ball towards you for a few seconds.' },
+  mines: { name: 'Landmines', color: '#e8e04a', rarity: 'uncommon', desc: 'Drop a mine. The first rival to step on it gets launched.' },
+  punch: { name: 'Rocket Punch', color: '#ff4466', rarity: 'rare', desc: 'Fire a rocket fist that sends the first rival it hits flying.' },
+  fire: { name: 'Supercharge', color: '#38e1ff', rarity: 'rare', desc: 'Your next shot is supercharged: much faster and knocks over anyone in its path.' },
+  flintlock: { name: 'Flintlock', color: '#c9a36a', rarity: 'rare', desc: 'Long-range pistol shot that knocks down the first rival it hits.' },
+  ice: { name: 'Freeze Gun', color: '#5fe3ff', rarity: 'epic', desc: 'Shoot a freeze ray that freezes the first rival it hits.' },
+  bazooka: { name: 'Bazooka', color: '#7d8b4a', rarity: 'epic', desc: 'Fire a rocket that explodes and blasts back everyone nearby.' },
+  jet: { name: 'Jetpack', color: '#ffd23f', rarity: 'mythic', desc: 'Fly over everyone for a few seconds.' },
 };
 export const RARITY = {
-  common: { name: 'Common', color: '#a9bdd2', refund: 40 },
-  rare: { name: 'Rare', color: '#3fa9ff', refund: 80 },
-  epic: { name: 'Epic', color: '#b46bff', refund: 150 },
-  legendary: { name: 'Legendary', color: '#ffc93f', refund: 300 },
+  common: { name: 'Common', color: '#a9bdd2', refund: 30 },
+  uncommon: { name: 'Uncommon', color: '#4fd18b', refund: 60 },
+  rare: { name: 'Rare', color: '#3fa9ff', refund: 110 },
+  epic: { name: 'Epic', color: '#b46bff', refund: 180 },
+  mythic: { name: 'Mythic', color: '#ff5a5a', refund: 400 },
 };
-export const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary'];
-// Item Roll: chance per rarity (items inside a rarity are equally likely). A new item is
-// guaranteed after ROLL.pity duplicates in a row; duplicates refund coins.
-export const ROLL = { cost: 250, cost5: 1100, odds: { common: 0.52, rare: 0.31, epic: 0.14, legendary: 0.03 }, pity: 5 };
+export const RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'mythic'];
+// Item Roll: chance per rarity (items inside a rarity are equally likely), close to the
+// original's rates (Forcefield ~11.5%, Shotgun/Grapple ~7.5%, Rocket Punch ~5.3%, Freeze Gun/Bazooka 3.5%, Jetpack 1%).
+// A new item is guaranteed after ROLL.pity duplicates in a row; duplicates refund coins.
+export const ROLL = { cost: 250, cost5: 1100, odds: { common: 0.46, uncommon: 0.30, rare: 0.16, epic: 0.07, mythic: 0.01 }, pity: 5 };
 export const ITEM_KINDS = Object.keys(ITEMS);
 
 export const QUICK_CHAT = ['Pass!', 'Shoot!', 'Nice one!', 'Defend!', 'I\'m open!', 'Thanks!', 'GG', 'Wow!'];

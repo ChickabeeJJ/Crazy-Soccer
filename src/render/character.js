@@ -382,6 +382,18 @@ export class CharacterModel {
         expr = 2;
         break;
       }
+      case 'volley': {
+        // Bicycle / scissor kick: lean back and whip the right leg over
+        rate = 30;
+        const up = Math.sin(Math.min(1, k * 1.4) * Math.PI);
+        t.pX = -1.1 * up; t.pY = 0.95 + up * 0.25;
+        t.rhX = k < 0.35 ? lerp(0.2, 1.4, k / 0.35) : lerp(1.4, -2.6, Math.min(1, (k - 0.35) / 0.3));
+        t.rkX = 0.15; t.lhX = 1.2 * up; t.lkX = 1.4 * up;
+        t.lsX = -1.6 * up; t.rsX = -1.2 * up; t.lsZ = 0.7; t.rsZ = -0.7;
+        t.hX = -0.4 * up;
+        expr = 2;
+        break;
+      }
       case 'pass': {
         rate = 28;
         const sw = k < 0.35 ? lerp(0.6, -0.9, k / 0.35) : lerp(-0.9, 0, (k - 0.35) / 0.65);

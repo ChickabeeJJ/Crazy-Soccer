@@ -117,7 +117,9 @@ export const Save = {
         best: { ...base.best, ...(data.best || {}) },
         binds: data.binds || {},
       };
-      this.p.powers = [...new Set([...base.powers, ...(Array.isArray(data.powers) ? data.powers : [])])].filter((k) => ITEMS[k]);
+      // Older saves: Barrel Roll was replaced by the Bazooka
+      const old = (Array.isArray(data.powers) ? data.powers : []).map((k) => (k === 'barrel' ? 'bazooka' : k));
+      this.p.powers = [...new Set([...base.powers, ...old])].filter((k) => ITEMS[k]);
       this.p.powersOff = (Array.isArray(data.powersOff) ? data.powersOff : []).filter((k) => this.p.powers.includes(k));
       for (const cat of Object.keys(CATALOG)) {
         for (const it of CATALOG[cat]) if (it.price === 0 && !this.p.owned[cat].includes(it.id)) this.p.owned[cat].push(it.id);

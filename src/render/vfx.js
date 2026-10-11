@@ -212,17 +212,18 @@ export class VFX {
     this.glow.emit(x + rand(-0.1, 0.1), y + rand(-0.1, 0.1), z + rand(-0.1, 0.1), 0, 0, 0, 0.28, size, 0.05, tmpC, 0, 0, 0.8);
   }
 
-  fireTrail(x, y, z) {
+  fireTrail(x, y, z, style = 'electric') {
     for (let i = 0; i < this.n(4); i++) {
-      tmpC.setHSL(rand(0.02, 0.12), 1, rand(0.5, 0.65));
+      if (style === 'fire') tmpC.setHSL(rand(0.02, 0.12), 1, rand(0.5, 0.65));
+      else tmpC.setHSL(Math.random() < 0.25 ? rand(0.13, 0.16) : rand(0.5, 0.56), 1, rand(0.55, 0.72));
       this.glow.emit(x + rand(-0.3, 0.3), y + rand(-0.3, 0.3), z + rand(-0.3, 0.3), rand(-1, 1), rand(1, 3), rand(-1, 1), rand(0.25, 0.5), rand(0.9, 1.5), 0.1, tmpC, -2, 1);
     }
-    if (Math.random() < 0.3 * this.mul) this.solid.emit(x, y, z, rand(-1, 1), rand(1, 2), rand(-1, 1), 0.6, 0.35, 0.6, C(0x3a2a2a), -1, 1, 0.5);
+    if (style === 'fire' && Math.random() < 0.3 * this.mul) this.solid.emit(x, y, z, rand(-1, 1), rand(1, 2), rand(-1, 1), 0.6, 0.35, 0.6, C(0x3a2a2a), -1, 1, 0.5);
   }
 
   fireAura(x, y, z) {
     if (Math.random() > 0.7 * this.mul + 0.2) return;
-    tmpC.setHSL(rand(0.03, 0.13), 1, rand(0.5, 0.62));
+    tmpC.setHSL(Math.random() < 0.25 ? rand(0.13, 0.16) : rand(0.5, 0.56), 1, rand(0.55, 0.7));
     const a = rand(0, Math.PI * 2), r = rand(0.3, 0.7);
     this.glow.emit(x + Math.cos(a) * r, y + rand(0, 1.5), z + Math.sin(a) * r, 0, rand(2.5, 5), 0, rand(0.3, 0.55), rand(0.8, 1.3), 0.1, tmpC, -1, 1, 0.9);
   }

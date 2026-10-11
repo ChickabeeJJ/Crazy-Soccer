@@ -616,7 +616,9 @@ class App {
         }
         break;
       case 'item': A.item(ev.k); break;
-      case 'shatter': A.freeze(); break;
+      case 'shatter': if (ev.k === 'ice') A.freeze(); else if (ev.k === 'fist' || ev.k === 'bullet') A.thud(); break;
+      case 'boom': A.item('bazooka'); A.thud(); break;
+      case 'blast': A.thud(); break;
       case 'shieldblock': A.boing(); break;
       case 'toast': if (ev.id === s.localId) { this.ui.toast(ev.text, ev.pts); A.toast(); } break;
       case 'chat':
@@ -774,6 +776,10 @@ class App {
           s.action({ a: 'item', slot: equip, ...aim });
           me.equip = -1;
           this.kickSuppressed = true;
+        } else if (this.canVolley(me, s.view.ball)) {
+          // Ball in the air next to you: volley it instantly (no charging mid-air)
+          s.action({ a: 'kick', pw: 0.9, ...shotAim, cv: settings.autoCurve ? right : 0 });
+          this.kickSuppressed = true;
         } else {
           s.action({ a: 'charge', on: true });
         }
@@ -851,6 +857,12 @@ class App {
     this.updateBanners(s, v, th);
     this.updatePhaseAnnouncements(s, v);
     if (tr && tr.result && !tr.reported) { tr.reported = true; setTimeout(() => { if (this.session && this.session.training === tr) this.onTrainingDone(tr); }, 700); }
+  }
+
+  canVolley(me, b) {
+    if (!me || !b || b.owner >= 0 || b.grapple >= 0) return false;
+    const rel = b.y - (me.y || 0);
+    return b.y > 1.05 && rel > 0.3 && rel < KICK.volleyReachUp && len2(b.x - me.x, b.z - me.z) < KICK.volleyReachH;
   }
 
   // Ball lines: preview of your shot while charging, and the predicted path of any fast ball.

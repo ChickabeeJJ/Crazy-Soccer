@@ -9,7 +9,7 @@ import * as TX from './textures.js';
 import { TEAMS, ITEMS, PHYS, FIELD, QUICK_CHAT } from '../config.js';
 import { clamp, len2, lerp } from '../util/math.js';
 
-const ANIM_DUR = { kick: 0.38, pass: 0.3, flick: 0.35, slide: 0.55, recover: 0.22, dive: 0.62, getup: 0.42, punch: 0.45, throw: 0.32, spin: 0.42, dodge: 0.3, hit: 0.85, fall: 1.1, slip: 1.4 };
+const ANIM_DUR = { volley: 0.5, kick: 0.38, pass: 0.3, flick: 0.35, slide: 0.55, recover: 0.22, dive: 0.62, getup: 0.42, punch: 0.45, throw: 0.32, spin: 0.42, dodge: 0.3, hit: 0.85, fall: 1.1, slip: 1.4 };
 const BOX_COLORS = ['#3fa9ff', '#ff4fa3', '#4cf08a', '#a46bff', '#ffc93f'];
 
 export function qualityFor(perf) {
@@ -410,39 +410,14 @@ export class GameRenderer {
       const s = it.r * Math.min(1, (it.life ?? 5) / 0.6);
       m.scale.set(s, s * 0.8, s);
     });
-    this.syncMap(this.projs, view.projs, (it) => {
-      if (it.k === 'barrel') {
-        const g = new THREE.Group();
-        const body = new THREE.Mesh(this.barrelGeo, this.barrelMat);
-        body.rotation.z = Math.PI / 2;
-        body.castShadow = true;
-        g.add(body);
-        for (const x of [-0.45, 0, 0.45]) {
-          const rim = new THREE.Mesh(this.rimGeo, this.rimMat);
-          rim.rotation.z = Math.PI / 2;
-          rim.position.x = x;
-          g.add(rim);
-        }
-        g.userData.body = g;
-        return g;
-      }
-      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), new THREE.MeshBasicMaterial({ color: 0xaaf6ff }));
-      const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: 0x5fe3ff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-      g.scale.set(2.6, 2.6, 1);
-      m.add(g);
-      return m;
-    }, (m, it) => {
-      if (it.k === 'barrel') {
-        m.position.set(it.x, 0.8, it.z);
-        m.rotation.set(0, (it.ang ?? 0), 0, 'YXZ');
-        m.rotation.x = (it.spin ?? 0);
-        m.rotation.order = 'YXZ';
-        if (Math.random() < 0.5) this.vfx.dust(it.x, it.z, 1, 0xd8c8a0);
-        return;
-      }
-      m.position.set(it.x, it.y, it.z);
-      m.rotation.x += dt * 8; m.rotation.y += dt * 6;
-      this.vfx.trail(it.x, it.y, it.z, 0x8ff3ff, 0.9);
+    this.syncMap(this.projs, view.projs, (it) => this.makeProj(it.k), (m, it) => {
+      m.position.set(it.x, it.k === 'mine' ? 0.05 : it.y, it.z);
+      if (it.k === 'ice') { m.rotation.x += dt * 8; m.rotation.y += dt * 6; this.vfx.trail(it.x, it.y, it.z, 0x8ff3ff, 0.9); return; }
+      if (it.k === 'mine') { m.userData.light.material.color.set(Math.sin(this.time * 10 + it.id) > 0 ? 0xff2d2d : 0x551111); return; }
+      m.rotation.y = it.ang ?? 0;
+      if (it.k === 'rocket') { this.vfx.fireTrail(it.x - Math.sin(it.ang || 0) * 0.8, it.y, it.z - Math.cos(it.ang || 0) * 0.8, 'fire'); }
+      else if (it.k === 'fist') this.vfx.trail(it.x, it.y, it.z, 0xff9a3c, 0.8);
+      else this.vfx.trail(it.x, it.y, it.z, 0xffe9b0, 0.35);
     });
     // Barricades
     this.syncMap(this.walls, view.walls, () => {
@@ -519,6 +494,42 @@ export class GameRenderer {
     }
   }
 
+  // Item projectile meshes
+  makeProj(k) {
+    const T = (geo, color) => new THREE.Mesh(geo, new THREE.MeshToonMaterial({ color }));
+    const g = new THREE.Group();
+    if (k === 'ice') {
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), new THREE.MeshBasicMaterial({ color: 0xaaf6ff }));
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: 0x5fe3ff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      glow.scale.set(2.6, 2.6, 1);
+      m.add(glow);
+      return m;
+    }
+    if (k === 'fist') {
+      const glove = T(new THREE.SphereGeometry(0.5, 14, 10), 0xff2d55); glove.scale.set(1, 0.9, 1.2); glove.position.z = 0.3;
+      const cuff = T(new THREE.CylinderGeometry(0.3, 0.34, 0.5, 12), 0xffffff); cuff.rotation.x = Math.PI / 2; cuff.position.z = -0.25;
+      const fin = T(new THREE.ConeGeometry(0.26, 0.6, 10), 0x2b2f3d); fin.rotation.x = -Math.PI / 2; fin.position.z = -0.75;
+      g.add(glove, cuff, fin);
+    } else if (k === 'rocket') {
+      const body = T(new THREE.CylinderGeometry(0.22, 0.22, 1.3, 12), 0x6b7a3a); body.rotation.x = Math.PI / 2;
+      const tip = T(new THREE.ConeGeometry(0.22, 0.45, 12), 0xd23b3b); tip.rotation.x = Math.PI / 2; tip.position.z = 0.88;
+      g.add(body, tip);
+    } else if (k === 'bullet') {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff1c0 }));
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: 0xffc46b, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      glow.scale.set(1.1, 1.1, 1);
+      g.add(m, glow);
+    } else if (k === 'mine') {
+      const base = T(new THREE.CylinderGeometry(0.55, 0.65, 0.22, 16), 0x3b3f2e); base.position.y = 0.11;
+      const top = T(new THREE.CylinderGeometry(0.22, 0.22, 0.12, 12), 0x9aa07a); top.position.y = 0.27;
+      const light = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2d2d })); light.position.y = 0.36;
+      g.add(base, top, light);
+      g.userData.light = light;
+    }
+    g.traverse((o) => { if (o.isMesh) o.castShadow = this.quality.shadows; });
+    return g;
+  }
+
   // pts: [{x,y,z}] predicted ball path; kind 'aim' (bright, your shot) or 'flight' (faint)
   syncTrajectory(pts, kind, land) {
     const t = this.traj;
@@ -575,10 +586,10 @@ export class GameRenderer {
     switch (ev.e) {
       case 'kick': {
         const p = P(ev.id);
-        const col = ev.fire ? 0xff8a1f : p ? TEAMS[p.team].color : 0xffffff;
+        const col = ev.fire ? 0x38e1ff : p ? TEAMS[p.team].color : 0xffffff;
         v.kick(ball.x, ball.y, ball.z, ev.pw || 0.3, col);
         if (ev.id === session.localId && (ev.pw || 0) > 0.75) this.rig.shake(0.25 * (settings.shake / 5));
-        if (ev.fire) v.sparkles(ball.x, ball.y, ball.z, 0xff8a1f, 40, 9);
+        if (ev.fire) v.sparkles(ball.x, ball.y, ball.z, 0x38e1ff, 40, 9);
         break;
       }
       case 'goal': {
@@ -605,7 +616,25 @@ export class GameRenderer {
         v.sparkles(p.x, 1.4, p.z, col, 24, 6);
         break;
       }
-      case 'shatter': if (ev.k === 'barrel') { v.dust(ev.x, ev.z, 14, 0x9a7b5a); v.sparkles(ev.x, 1, ev.z, 0x3f8bff, 16, 6); } else v.iceShatter(ev.x, ev.y, ev.z); break;
+      case 'shatter':
+        if (ev.k === 'ice' || !ev.k) v.iceShatter(ev.x, ev.y, ev.z);
+        else if (ev.k === 'fist') { v.sparkles(ev.x, ev.y, ev.z, 0xff9a3c, 22, 7); v.ring(ev.x, ev.y, ev.z, 0xffffff, 0.3, 2.2, 0.3, 0.8, true); }
+        else if (ev.k === 'bullet') v.sparkles(ev.x, ev.y, ev.z, 0xffe9b0, 10, 5);
+        break;
+      case 'boom': {
+        v.ring(ev.x, 0.15, ev.z, 0xffb347, 0.5, ev.r * 1.2, 0.45, 0.9);
+        v.sparkles(ev.x, 1, ev.z, 0xff7a1a, 50, 12);
+        v.dust(ev.x, ev.z, 18, 0x6b5a4a);
+        const d = this.cam.position.distanceTo(new THREE.Vector3(ev.x, 1, ev.z));
+        if (d < 30) this.rig.shake((0.6 - d / 60) * (settings.shake / 5));
+        break;
+      }
+      case 'blast': {
+        const ax = Math.sin(ev.a), az = Math.cos(ev.a);
+        for (let i = 1; i <= 4; i++) v.sparkles(ev.x + ax * i * 1.6, 1.3, ev.z + az * i * 1.6, 0xffc46b, 8, 4);
+        v.ring(ev.x, 1.3, ev.z, 0xffffff, 0.2, 1.6, 0.2, 0.9, true);
+        break;
+      }
       case 'save': case 'block': { v.sparkles(ball.x, ball.y, ball.z, 0xffffff, 26, 7); break; }
       case 'post': v.ring(ball.x, ball.y, ball.z, 0xffffff, 0.3, 2.4, 0.3, 0.9, true); this.rig.shake(0.2 * (settings.shake / 5)); break;
       case 'shieldblock': { const p = P(ev.id); if (p) v.sparkles(p.x, 1.3, p.z, 0xc27bff, 24, 6); break; }

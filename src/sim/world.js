@@ -6,7 +6,7 @@ import { clamp, len2, rand, wrapAngle, r2 } from '../util/math.js';
 import { botName, randomCosmetics } from '../cosmetics.js';
 import { BotBrain } from './bots.js';
 
-export const ANIM_CODES = ['idle', 'kick', 'pass', 'flick', 'slide', 'recover', 'dive', 'getup', 'fall', 'slip', 'frozen', 'hit', 'spin', 'dodge', 'celebrate', 'emote', 'punch', 'throw', 'cheer', 'sad', 'jump'];
+export const ANIM_CODES = ['idle', 'kick', 'pass', 'flick', 'slide', 'recover', 'dive', 'getup', 'fall', 'slip', 'frozen', 'hit', 'spin', 'dodge', 'celebrate', 'emote', 'punch', 'throw', 'cheer', 'sad', 'jump', 'volley'];
 const ANIM_INDEX = Object.fromEntries(ANIM_CODES.map((a, i) => [a, i]));
 
 let nextBotId = 1000;
@@ -370,7 +370,7 @@ export class World {
 
   launch(p, vx, vy, vz, kind, power, from) {
     const b = this.ball;
-    const volley = b.owner !== p.id && kind === 'shot' && b.y > 1.3;
+    const volley = b.owner !== p.id && kind === 'shot' && b.y > 1.05;
     if (b.owner === p.id) {
       b.owner = -1;
       const o = this.ballOffset(p);
@@ -380,7 +380,8 @@ export class World {
       b.x = from.x; b.y = Math.max(PHYS.ballR, from.y); b.z = from.z;
     }
     b.vx = vx; b.vy = vy; b.vz = vz;
-    b.block = p.id; b.blockT = kind === 'flick' ? 0.12 : 0.32;
+    // After a flick the ball can't be trapped straight away (so you can volley it)
+    b.block = p.id; b.blockT = kind === 'flick' ? 0.6 : 0.32;
     b.grapple = -1;
     b.inNet = 0;
     b._netEv = false;
@@ -399,6 +400,14 @@ export class World {
     if (b.owner === p.id) return true;
     const d = len2(b.x - p.x, b.z - p.z);
     return d < reach && b.y < 2.6 + p.y;
+  }
+
+  // A free ball in the air close to you can be volleyed (jumping raises your reach)
+  canVolley(p) {
+    const b = this.ball;
+    if (b.owner >= 0 || b.grapple >= 0) return false;
+    const rel = b.y - (p.y || 0);
+    return b.y > 1.05 && rel > 0.3 && rel < KICK.volleyReachUp && len2(b.x - p.x, b.z - p.z) < KICK.volleyReachH;
   }
 
   doAction(p, act) {
@@ -429,8 +438,11 @@ export class World {
         p.charging = false; p.charge = 0;
         if (p.cd.kick > 0) return;
         p.cd.kick = KICK.cooldown;
-        setAnim(p, 'kick', 0.38);
-        if (this.ballReachable(p, KICK.hitRange + 0.2)) {
+        const volley = this.canVolley(p);
+        // High ball above your head = bicycle kick, otherwise a normal kick swing
+        setAnim(p, volley && b.y - p.y > 1.9 ? 'volley' : 'kick', volley ? 0.5 : 0.38);
+        if (volley) { act = { ...act, volley: 1, pw: Math.max(act.pw || 0, 0.85), sx: b.x, sy: b.y, sz: b.z }; }
+        if (volley || this.ballReachable(p, KICK.hitRange + 0.2)) {
           spendStamina(p, STAMINA.kickBase + STAMINA.kickPower * clamp(act.pw || 0, 0, 1));
           const fire = p.fx.fire > 0;
           if (fire) { b.fire = true; p.fx.fire = 0; }
@@ -580,58 +592,75 @@ export class World {
     const dir = this.aimDir(yaw);
     const b = this.ball;
     this.emit({ e: 'item', id: p.id, k: kind });
+    const shoot = (k, speed, life, extra = {}) => {
+      setAnim(p, 'throw', 0.32);
+      const vy = k === 'ice' ? clamp((0.28 - pitch) * 18 + 2, -4, 12) : clamp((0.28 - pitch) * 10, -3, 6);
+      this.projs.push({ id: this.uid++, k, x: p.x + dir.x * 1.1, y: p.y + 1.5, z: p.z + dir.z * 1.1, vx: dir.x * speed, vy, vz: dir.z * speed, life, owner: p.id, team: p.team, ...extra });
+    };
     switch (kind) {
-      case 'fire': p.fx.fire = 10; break;
-      case 'speed': p.fx.speed = 6; p.stamina = PLAYER.staminaMax; break;
-      case 'shield': p.fx.shield = 7; break;
+      case 'fire': p.fx.fire = 10; break; // Supercharge
+      case 'speed': p.fx.speed = 6; p.stamina = PLAYER.staminaMax; break; // Energy Drink
+      case 'shield': p.fx.shield = 7; break; // Forcefield
       case 'jet': p.fx.jet = 3.2; p.vy = 9; break;
-      case 'ice': {
+      case 'ice': shoot('ice', 38, 1.3); break; // Freeze Gun
+      case 'punch': shoot('fist', 42, 0.75); break; // Rocket Punch
+      case 'flintlock': shoot('bullet', 78, 0.9); break;
+      case 'bazooka': shoot('rocket', 34, 1.5); break;
+      case 'oil': p.fx.oil = 3.2; p.oilT = 0; break; // Oil Spill
+      case 'magnet': p.fx.magnet = 3.5; break;
+      case 'shotgun': {
         setAnim(p, 'throw', 0.32);
-        const vy = clamp((0.28 - pitch) * 18 + 2, -4, 12);
-        this.projs.push({ id: this.uid++, k: 'ice', x: p.x + dir.x, y: p.y + 1.6, z: p.z + dir.z, vx: dir.x * 36, vy, vz: dir.z * 36, life: 1.3, owner: p.id, team: p.team });
+        this.emit({ e: 'blast', id: p.id, x: r2(p.x + dir.x), z: r2(p.z + dir.z), a: r2(yaw) });
+        for (const q of this.players) {
+          if (q.team === p.team || q.left) continue;
+          const dx = q.x - p.x, dz = q.z - p.z, d = len2(dx, dz);
+          if (d < 8.5 && (dx * dir.x + dz * dir.z) / (d || 1) > 0.8 && Math.abs(q.y - p.y) < 2.5) this.hitPlayer(p, q, 'fall', 1.1, (dx / (d || 1)) * 14, (dz / (d || 1)) * 14, 'Blasted');
+        }
         break;
       }
-      case 'oil': p.fx.oil = 3.2; p.oilT = 0; break;
+      case 'mines': {
+        setAnim(p, 'throw', 0.32);
+        const mine = this.projs.filter((x) => x.k === 'mine' && x.owner === p.id);
+        if (mine.length >= 3) this.projs.splice(this.projs.indexOf(mine[0]), 1);
+        this.projs.push({ id: this.uid++, k: 'mine', x: p.x - dir.x * 1.2, y: 0.1, z: p.z - dir.z * 1.2, vx: 0, vy: 0, vz: 0, life: 25, arm: 0.6, owner: p.id, team: p.team });
+        break;
+      }
       case 'barricade': {
         setAnim(p, 'throw', 0.32);
         const d = 3.4;
-        const ang = yaw;
-        this.walls.push({ id: this.uid++, x: clamp(p.x + dir.x * d, -FIELD.wallX + 2, FIELD.wallX - 2), z: clamp(p.z + dir.z * d, -FIELD.wallZ + 2, FIELD.wallZ - 2), ang, hw: 2.4, hd: 0.35, h: 1.7, life: 12, team: p.team });
+        this.walls.push({ id: this.uid++, x: clamp(p.x + dir.x * d, -FIELD.wallX + 2, FIELD.wallX - 2), z: clamp(p.z + dir.z * d, -FIELD.wallZ + 2, FIELD.wallZ - 2), ang: yaw, hw: 2.4, hd: 0.35, h: 1.7, life: 12, team: p.team });
         if (this.walls.length > 8) this.walls.shift();
         break;
       }
-      case 'barrel': {
-        setAnim(p, 'throw', 0.32);
-        this.projs.push({ id: this.uid++, k: 'barrel', x: p.x + dir.x * 1.6, y: 0.8, z: p.z + dir.z * 1.6, vx: dir.x * 24, vy: 0, vz: dir.z * 24, life: 2.8, owner: p.id, team: p.team, hits: new Set() });
-        break;
-      }
-      case 'punch': {
-        setAnim(p, 'punch', 0.45);
-        let best = null, bd = 1e9;
-        for (const q of this.players) {
-          if (q.team === p.team || q.left) continue;
-          const dx = q.x - p.x, dz = q.z - p.z;
-          const d = len2(dx, dz);
-          if (d < 5 && (dx * dir.x + dz * dir.z) / (d || 1) > 0.5 && d < bd && Math.abs(q.y - p.y) < 2.5) { best = q; bd = d; }
-        }
-        if (best) this.hitPlayer(p, best, 'fall', 1.25, dir.x * 15, dir.z * 15, 'Knockout');
-        break;
-      }
       case 'grapple': {
+        // Grappling Hook: hook the ball and zip yourself to it
         setAnim(p, 'throw', 0.32);
-        const owner = b.owner >= 0 ? this.byId.get(b.owner) : null;
         const d = len2(b.x - p.x, b.z - p.z);
-        if (d < 34 && (!owner || (owner.team !== p.team && !owner.keeper)) && b.owner !== p.id) {
-          if (owner) { this.loseBall(owner, 0, 0, 0); if (owner.fx.shield <= 0) setAnim(owner, 'hit', 0.3); }
-          b.grapple = p.id; b.grappleT = 0.6; b.owner = -1; b.fire = false; b.inNet = 0;
+        if (d < 36 && b.owner !== p.id) {
+          p.zipT = Math.min(1.1, d / 34 + 0.15);
           this.emit({ e: 'grapple', id: p.id, x: r2(b.x), y: r2(b.y), z: r2(b.z) });
-        } else {
-          this.emit({ e: 'fizzle', id: p.id });
-        }
+        } else this.emit({ e: 'fizzle', id: p.id });
         break;
       }
       default:
     }
+  }
+
+  // Explosion (Bazooka rocket / Landmine): knocks back every rival in range and pushes the ball
+  explode(x, z, radius, power, owner, team, kind) {
+    const by = this.byId.get(owner);
+    this.emit({ e: 'boom', x: r2(x), z: r2(z), r: radius, k: kind });
+    for (const q of this.players) {
+      if (q.team === team || q.left) continue;
+      const dx = q.x - x, dz = q.z - z, d = len2(dx, dz);
+      if (d < radius && q.y < 3) {
+        const k = power * (1 - d / (radius * 1.4));
+        if (this.hitPlayer(by, q, 'fall', 1.3, (dx / (d || 1)) * k, (dz / (d || 1)) * k, 'Direct Hit')) q.vy = kind === 'mine' ? 11 : 6;
+      }
+    }
+    const b = this.ball;
+    const bd = len2(b.x - x, b.z - z);
+    if (b.owner < 0 && bd < radius + 1) { b.vx += ((b.x - x) / (bd || 1)) * 16; b.vz += ((b.z - z) / (bd || 1)) * 16; b.vy += 7; }
   }
 
   // ------------------------------------------------------------------- step
@@ -694,6 +723,7 @@ export class World {
     }
 
     const frozen = this.phase === 'kickoff';
+    for (const p of this.players) if (p.zipT > 0) { const dx = b.x - p.x, dz = b.z - p.z, d = len2(dx, dz) || 1; p.zipX = dx / d; p.zipZ = dz / d; if (d < 1.6) p.zipT = 0; }
     if (this.mode !== 'practice' && (this.phase === 'play' || this.phase === 'warmup')) this.updateKeepers();
     for (const p of this.players) {
       if (p.remote) { this.tickRemote(p, dt); continue; }
@@ -983,28 +1013,52 @@ export class World {
         }
       }
     }
-    // Projectiles
+    // Projectiles (Freeze Gun ray, Rocket Punch fist, Flintlock bullet, Bazooka rocket, Landmines)
     for (let i = this.projs.length - 1; i >= 0; i--) {
       const pr = this.projs[i];
-      if (pr.k === 'barrel') { if (this.stepBarrel(pr, dt)) this.projs.splice(i, 1); continue; }
       pr.life -= dt;
-      pr.vy -= 6 * dt;
+      if (pr.k === 'mine') {
+        if (pr.arm > 0) pr.arm -= dt;
+        let boom = pr.life <= 0;
+        if (pr.arm <= 0) for (const q of this.players) {
+          if (q.team === pr.team || q.left || q.y > 0.6) continue;
+          if (len2(q.x - pr.x, q.z - pr.z) < 1.3) { boom = true; break; }
+        }
+        if (boom) { if (pr.life > 0) this.explode(pr.x, pr.z, 2.6, 12, pr.owner, pr.team, 'mine'); this.projs.splice(i, 1); }
+        continue;
+      }
+      if (pr.k === 'ice' || pr.k === 'rocket') pr.vy -= 6 * dt;
       pr.x += pr.vx * dt; pr.y += pr.vy * dt; pr.z += pr.vz * dt;
       let dead = pr.life <= 0 || pr.y < 0.1 || Math.abs(pr.x) > FIELD.wallX || Math.abs(pr.z) > FIELD.wallZ;
+      let hit = null;
       if (!dead) {
+        const rad = pr.k === 'bullet' ? 1.0 : pr.k === 'rocket' ? 1.4 : 1.35;
         for (const q of this.players) {
           if (q.team === pr.team || q.left) continue;
-          if (len2(q.x - pr.x, q.z - pr.z) < 1.35 && pr.y > q.y - 0.3 && pr.y < q.y + 3) {
-            const by = this.byId.get(pr.owner);
-            this.hitPlayer(by, q, 'frozen', 2.4, 0, 0, 'Direct Hit');
-            dead = true;
-            break;
-          }
+          if (len2(q.x - pr.x, q.z - pr.z) < rad && pr.y > q.y - 0.3 && pr.y < q.y + 3) { hit = q; dead = true; break; }
         }
       }
       if (dead) {
-        this.emit({ e: 'shatter', x: r2(pr.x), y: r2(Math.max(0.3, pr.y)), z: r2(pr.z) });
+        const by = this.byId.get(pr.owner);
+        const sp = Math.hypot(pr.vx, pr.vz) || 1, ux = pr.vx / sp, uz = pr.vz / sp;
+        if (pr.k === 'rocket') this.explode(pr.x, pr.z, 5.5, 18, pr.owner, pr.team, 'rocket');
+        else if (hit && pr.k === 'ice') this.hitPlayer(by, hit, 'frozen', 2.4, 0, 0, 'Direct Hit');
+        else if (hit && pr.k === 'fist') { if (this.hitPlayer(by, hit, 'fall', 1.5, ux * 24, uz * 24, 'Knockout')) hit.vy = 7; }
+        else if (hit && pr.k === 'bullet') this.hitPlayer(by, hit, 'fall', 1.0, ux * 9, uz * 9, 'Direct Hit');
+        this.emit({ e: 'shatter', x: r2(pr.x), y: r2(Math.max(0.3, pr.y)), z: r2(pr.z), k: pr.k });
         this.projs.splice(i, 1);
+      }
+    }
+    // Magnet: pulls a loose ball towards its owner
+    if (b.owner < 0 && b.grapple < 0) {
+      for (const p of this.players) {
+        if (!(p.fx.magnet > 0) || p.left) continue;
+        const dx = p.x - b.x, dz = p.z - b.z, d = len2(dx, dz);
+        if (d > 24 || d < 0.5) continue;
+        b.vx += (dx / d) * 55 * dt; b.vz += (dz / d) * 55 * dt;
+        const v = len2(b.vx, b.vz);
+        if (v > 24) { b.vx *= 24 / v; b.vz *= 24 / v; }
+        break;
       }
     }
     if (b.fire && b.owner < 0) {
@@ -1044,32 +1098,6 @@ export class World {
         if (isBall && -vn > 6) this.emit({ e: 'wall', v: -vn });
       }
     }
-  }
-
-  stepBarrel(pr, dt) {
-    pr.life -= dt;
-    pr.x += pr.vx * dt; pr.z += pr.vz * dt;
-    pr.spin = (pr.spin || 0) + Math.hypot(pr.vx, pr.vz) * dt / 0.8;
-    const wx = FIELD.wallX - 0.8, wz = FIELD.wallZ - 0.8;
-    if (Math.abs(pr.x) > wx) { pr.x = Math.sign(pr.x) * wx; pr.vx = -pr.vx * 0.6; }
-    if (Math.abs(pr.z) > wz) { pr.z = Math.sign(pr.z) * wz; pr.vz = -pr.vz * 0.6; }
-    if (this.walls.length) { pr.y = 0; this.collideWallsCircle(pr, 0.8, true); pr.y = 0.8; }
-    for (const q of this.players) {
-      if (q.team === pr.team || q.left || q.stun > 0 || pr.hits.has(q.id) || q.y > 1.6) continue;
-      if (len2(q.x - pr.x, q.z - pr.z) < PLAYER.radius + 0.8) {
-        pr.hits.add(q.id);
-        const sp = Math.hypot(pr.vx, pr.vz) || 1;
-        this.hitPlayer(this.byId.get(pr.owner), q, 'fall', 1.3, (pr.vx / sp) * 12, (pr.vz / sp) * 12, 'Direct Hit');
-      }
-    }
-    const b = this.ball;
-    if (b.owner < 0 && b.y < 1.8 && len2(b.x - pr.x, b.z - pr.z) < 0.8 + PHYS.ballR) {
-      const nx = (b.x - pr.x), nz = (b.z - pr.z), l = len2(nx, nz) || 1;
-      b.vx = (nx / l) * 18 + pr.vx * 0.4; b.vz = (nz / l) * 18 + pr.vz * 0.4; b.vy = 5;
-      this.emit({ e: 'bounce', v: 12 });
-    }
-    if (pr.life <= 0) { this.emit({ e: 'shatter', x: r2(pr.x), y: 0.8, z: r2(pr.z), k: 'barrel' }); return true; }
-    return false;
   }
 
   // ------------------------------------------------------------------ goals
@@ -1221,7 +1249,8 @@ export function kickVelocity(p, act, players, fire) {
     return { vx: ux * v * Math.cos(th), vy: v * Math.sin(th), vz: uz * v * Math.cos(th), pw: 0.7, curve: 0 };
   }
   if (a === 'flick') {
-    return { vx: dx * KICK.flickFwd + p.vx * 0.55, vy: KICK.flickUp, vz: dz * KICK.flickFwd + p.vz * 0.55, pw: 0.4, curve: 0 };
+    // Pop the ball straight up over your head, keeping pace with you
+    return { vx: dx * KICK.flickFwd + (p.vx || 0) * 0.9, vy: KICK.flickUp, vz: dz * KICK.flickFwd + (p.vz || 0) * 0.9, pw: 0.4, curve: 0 };
   }
   // Shot (a tired player kicks noticeably weaker)
   const power = clamp(act.pw ?? 0, 0, 1);
@@ -1229,7 +1258,9 @@ export function kickVelocity(p, act, players, fire) {
   if (Number.isFinite(act.tx) && Number.isFinite(act.ty) && Number.isFinite(act.tz)) {
     // Crosshair aim: send the ball through the aimed point (gravity-compensated)
     if (fire) speed = Math.min(60, speed * 1.32 + 6);
-    const bx = p.x + Math.sin(p.face) * PLAYER.dribbleDist, bz = p.z + Math.cos(p.face) * PLAYER.dribbleDist, by = (p.y || 0) + PHYS.ballR;
+    if (act.volley) speed = Math.min(62, speed * 1.12); // volleys come off hot
+    const fromBall = Number.isFinite(act.sx);
+    const bx = fromBall ? act.sx : p.x + Math.sin(p.face) * PLAYER.dribbleDist, bz = fromBall ? act.sz : p.z + Math.cos(p.face) * PLAYER.dribbleDist, by = fromBall ? act.sy : (p.y || 0) + PHYS.ballR;
     const tx = act.tx - bx, tz = act.tz - bz, ty = clamp(act.ty, 0.3, 30) - by;
     const dh = Math.max(4, len2(tx, tz));
     const t = dh / speed;

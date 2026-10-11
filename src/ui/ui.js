@@ -532,7 +532,7 @@ export class UI {
       }).join('');
       const done = owned >= total;
       grid.innerHTML = `<div class="roll-hero">
-        <div class="roll-machine ${done ? 'done' : ''}"><div class="rm-glow"></div><div class="rm-capsule"><div class="rm-top"></div><div class="rm-bot"></div><b>?</b></div><div class="rm-count">${owned}/${total} ITEMS</div></div>
+        <div class="roll-machine ${done ? 'done' : ''}"><div class="rm-glow"></div><svg class="rm-crate" viewBox="0 0 120 120"><defs><linearGradient id="rmT" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4b3d8f"/><stop offset="1" stop-color="#2a2160"/></linearGradient><linearGradient id="rmL" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2d2468"/><stop offset="1" stop-color="#1a1442"/></linearGradient><linearGradient id="rmR" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2f7c"/><stop offset="1" stop-color="#221a52"/></linearGradient></defs><path d="M60 14l42 22-42 22-42-22z" fill="url(#rmT)" stroke="#9d8cff" stroke-width="2"/><path d="M18 36l42 22v48L18 84z" fill="url(#rmL)" stroke="#9d8cff" stroke-width="2"/><path d="M102 36L60 58v48l42-22z" fill="url(#rmR)" stroke="#9d8cff" stroke-width="2"/><path d="M39 47l42-22M60 58v48" stroke="#ffcf3f" stroke-width="3" opacity="0.85"/><text x="60" y="40" text-anchor="middle" font-family="Roboto Condensed, Arial" font-weight="700" font-size="22" fill="#ffcf3f">?</text></svg><div class="rm-count">${owned}/${total} ITEMS</div></div>
         <div class="roll-side">
           <div class="roll-btns">
             <button class="roll-btn" data-roll="1" ${done ? 'disabled' : ''}><b>ROLL ×1</b><span class="rb-cost"><span class="coin"></span>${ROLL.cost}</span></button>

@@ -4,6 +4,8 @@ import { clamp, len2, rand } from '../util/math.js';
 import { predictCross } from './ball.js';
 import { canAct } from './player.js';
 
+const oppXFor = (p) => (p.team === 0 ? FIELD.halfL : -FIELD.halfL);
+
 export class BotBrain {
   constructor(p, world) {
     this.p = p;
@@ -106,7 +108,12 @@ export class BotBrain {
           const ex = b.x + b.vx * t * 0.8, ez = b.z + b.vz * t * 0.8;
           t = clamp(len2(ex - p.x, ez - p.z) / 12, 0, 1.6);
         }
-        // Jump to catch high balls dropping nearby
+        // Volley a bouncing/flicked ball towards goal, or jump for a high one
+        if (decide && w.canVolley(p) && p.cd.kick <= 0 && Math.random() < 0.55) {
+          const gz = (Math.random() - 0.5) * FIELD.goalW * 0.6;
+          w.doAction(p, { a: 'kick', pw: 0.9, yaw: Math.atan2(oppXFor(p) - p.x, gz - p.z), pitch: 0.24 });
+          return;
+        }
         if (decide && b.y > 2.1 && b.y < 4 && myD < 2.6 && p.y < 0.05 && p.cd.dribble <= 0 && Math.random() < 0.5) w.doAction(p, { a: 'dribble' });
         tx = clamp(b.x + b.vx * t * 0.8, -FIELD.wallX + 1, FIELD.wallX - 1);
         tz = clamp(b.z + b.vz * t * 0.8, -FIELD.wallZ + 1, FIELD.wallZ - 1);
@@ -115,7 +122,7 @@ export class BotBrain {
           w.doAction(p, { a: 'tackle', mx: (b.x - p.x) / myD, mz: (b.z - p.z) / myD });
           return;
         }
-        if (decide && myD > 14 && myD < 30 && Math.random() < 0.1) this.tryItem('grapple', Math.atan2(b.x - p.x, b.z - p.z));
+        if (decide && myD > 14 && myD < 30 && Math.random() < 0.1) this.tryItem('grapple', Math.atan2(b.x - p.x, b.z - p.z)) || this.tryItem('magnet');
       }
     } else if (teamHas) {
       // Support run: get ahead of the ball, spread wide
@@ -339,8 +346,11 @@ export class BotBrain {
   useItemsDefending(owner, d) {
     const p = this.p;
     const yaw = Math.atan2(owner.x - p.x, owner.z - p.z);
-    if (d < 4.5 && this.tryItem('punch', yaw)) return;
-    if (d < 20 && d > 4 && Math.random() < 0.35 && this.tryItem('barrel', yaw)) return;
+    if (d < 7 && this.tryItem('shotgun', yaw)) return;
+    if (d < 16 && Math.random() < 0.4 && this.tryItem('punch', yaw)) return;
+    if (d < 22 && d > 4 && Math.random() < 0.35 && this.tryItem('bazooka', yaw)) return;
+    if (d < 30 && d > 6 && Math.random() < 0.3 && this.tryItem('flintlock', yaw)) return;
+    if (d < 9 && Math.random() < 0.15 && this.tryItem('mines', yaw)) return;
     const ownX = p.team === 0 ? -FIELD.halfL : FIELD.halfL;
     if (Math.abs(owner.x - ownX) < 26 && d > 4 && d < 12 && Math.random() < 0.3 && this.tryItem('barricade', yaw)) return;
     if (d < 22 && d > 4 && Math.random() < 0.3 && this.tryItem('ice', yaw, 0.32)) return;

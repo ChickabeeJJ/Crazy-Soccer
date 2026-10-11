@@ -157,7 +157,11 @@ export class Audio {
       case 'speed': [500, 750, 1000, 1500].forEach((f, i) => this.tone('triangle', f, f, 0.07, 0.15, this.sfxBus, i * 0.05)); break;
       case 'shield': this.tone('sine', 400, 900, 0.5, 0.25); break;
       case 'barricade': this.tone('square', 220, 160, 0.12, 0.25); this.noise(0.15, 0.3, 'lowpass', 800, 300); break;
-      case 'barrel': this.noise(0.9, 0.35, 'lowpass', 300, 120, 0.8); this.tone('sine', 80, 60, 0.6, 0.3); break;
+      case 'bazooka': this.noise(0.5, 0.4, 'lowpass', 900, 200, 0.9); this.tone('sawtooth', 160, 60, 0.4, 0.2); break;
+      case 'shotgun': this.noise(0.35, 0.6, 'lowpass', 2500, 300, 1); this.tone('square', 120, 50, 0.2, 0.25); break;
+      case 'flintlock': this.noise(0.2, 0.5, 'highpass', 1500, 600, 1); this.tone('square', 300, 80, 0.12, 0.2); break;
+      case 'magnet': this.tone('sine', 120, 240, 0.6, 0.25); this.tone('sine', 360, 720, 0.6, 0.08); break;
+      case 'mines': this.tone('square', 900, 900, 0.05, 0.12); this.tone('square', 900, 900, 0.05, 0.12, this.sfxBus, 0.12); break;
       default: this.tone('sine', 600, 900, 0.2, 0.2);
     }
   }

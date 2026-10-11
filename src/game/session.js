@@ -422,6 +422,7 @@ export class Session {
     const frozen = v.phase === 'kickoff';
     // Own player prediction
     const hasBall = this.cball.owner === this.localId || this.predOwnT > 0;
+    if (p.zipT > 0) { const dx = this.cball.x - p.x, dz = this.cball.z - p.z, d = len2(dx, dz) || 1; p.zipX = dx / d; p.zipZ = dz / d; if (d < 1.6) p.zipT = 0; }
     if (v.phase !== 'replay') movePlayer(p, dt, hasBall, frozen || v.phase === 'end');
     this.collideLocal(p);
 
@@ -478,7 +479,7 @@ export class Session {
       let o = this.viewMap.get(id);
       const ros = this.roster.get(id);
       if (!o) {
-        o = { id, fx: { fire: 0, speed: 0, shield: 0, jet: 0, oil: 0 }, items: [null, null], stats: {}, in: { yaw: 0 } };
+        o = { id, fx: { fire: 0, speed: 0, shield: 0, jet: 0, oil: 0, magnet: 0 }, items: [null, null], stats: {}, in: { yaw: 0 } };
         this.viewMap.set(id, o);
       }
       o.name = ros ? ros.name : 'Player';
@@ -590,6 +591,8 @@ export class Session {
     const cb = this.cball;
     const mine = cb.owner === this.localId || this.predOwnT > 0;
     const near = len2(cb.x - p.x, cb.z - p.z) < KICK.hitRange && cb.y < 2.6 + p.y && (cb.owner < 0 || mine);
+    const rel = cb.y - (p.y || 0);
+    const volleyable = cb.owner < 0 && cb.y > 1.05 && rel > 0.3 && rel < KICK.volleyReachUp && len2(cb.x - p.x, cb.z - p.z) < KICK.volleyReachH;
     const launch = (kind, fire) => {
       const k = kickVelocity(p, act, v.players, fire);
       if (mine) { cb.x = p.x + Math.sin(p.face) * PLAYER.dribbleDist; cb.z = p.z + Math.cos(p.face) * PLAYER.dribbleDist; cb.y = cb.held ? p.y + 1.35 : PHYS.ballR + p.y; cb.held = false; }
@@ -603,8 +606,9 @@ export class Session {
         p.charging = false; p.charge = 0;
         if (p.cd.kick > 0) return;
         p.cd.kick = KICK.cooldown;
-        setAnim(p, 'kick', 0.38);
-        if (mine || near) { launch('shot', p.fx.fire > 0); spendStamina(p, STAMINA.kickBase + STAMINA.kickPower * clamp(act.pw || 0, 0, 1)); }
+        if (volleyable && !mine) { act = { ...act, volley: 1, pw: Math.max(act.pw || 0, 0.85), sx: cb.x, sy: cb.y, sz: cb.z }; }
+        setAnim(p, volleyable && rel > 1.9 ? 'volley' : 'kick', volleyable ? 0.5 : 0.38);
+        if (mine || near || volleyable) { launch('shot', p.fx.fire > 0); spendStamina(p, STAMINA.kickBase + STAMINA.kickPower * clamp(act.pw || 0, 0, 1)); }
         break;
       case 'pass': if (p.cd.pass > 0 || !(mine || near)) return; p.cd.pass = KICK.cooldown; setAnim(p, 'pass', 0.3); launch('pass'); spendStamina(p, STAMINA.pass); break;
       case 'lob': if (p.cd.lob > 0 || !(mine || near)) return; p.cd.lob = KICK.cooldown; setAnim(p, 'kick', 0.38); launch('lob'); spendStamina(p, STAMINA.lob); break;
@@ -650,8 +654,9 @@ export class Session {
       case 'item': {
         const kind = p.items[act.slot === 1 ? 1 : 0];
         if (!kind) return;
-        if (kind === 'ice' || kind === 'grapple') setAnim(p, 'throw', 0.32);
-        if (kind === 'punch') setAnim(p, 'punch', 0.45);
+        if (['ice', 'grapple', 'punch', 'flintlock', 'bazooka', 'shotgun', 'mines', 'barricade'].includes(kind)) setAnim(p, 'throw', 0.32);
+        if (kind === 'grapple') { const d = len2(cb.x - p.x, cb.z - p.z); if (d < 36) { p.zipT = Math.min(1.1, d / 34 + 0.15); } }
+        if (kind === 'magnet') p.fx.magnet = 3.5;
         if (kind === 'jet') { p.fx.jet = 3.2; p.vy = 9; }
         if (kind === 'speed') { p.fx.speed = 6; p.stamina = PLAYER.staminaMax; }
         if (kind === 'shield') p.fx.shield = 7;

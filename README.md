@@ -50,8 +50,8 @@ The game never binds Escape (a CrazyGames restricted key) and matches never paus
 - **Stamina** is the main limit: sprinting, skill moves, kicks, tackles and jumps cost stamina, and a tired player kicks weaker.
 - **Ball lines**: while you charge a shot, a dotted line shows exactly where the ball will go (same physics as the game: gravity, bounces, curve, posts, nets). Fast balls in flight show their predicted path too.
 - **Goals only count through the goal mouth.** The frame, side nets, roof and back net are solid.
-- **Jump** to catch high balls and volley them; **crosshair aiming** sends the ball through the point under the crosshair.
-- **Items** come out of the glowing “?” cubes, and cubes only drop items you own. New items come from the **Item Roll** in the Shop (250 coins, or 5 for 1,100): Common 52%, Rare 31%, Epic 14%, Legendary 3% (Jetpack). Duplicates refund coins and a new item is guaranteed after 5 duplicates in a row. The Inventory shows every item and lets you switch owned ones on or off.
+- **Flick → volley**: Flick (Q) pops the ball up over your head. Press Kick while the ball is in the air next to you (stand or jump with Space to reach higher) for an instant volley, or a bicycle kick when the ball is above your head. Volleys come off faster than normal shots. **Crosshair aiming** sends the ball through the point under the crosshair.
+- **Items** (the original game's 14): Forcefield, Barricades, Energy Drink, Oil Spill (Common) · Shotgun, Grappling Hook, Magnet, Landmines (Uncommon) · Rocket Punch, Supercharge, Flintlock (Rare) · Freeze Gun, Bazooka (Epic) · Jetpack (Mythic). They come out of the glowing “?” cubes, which only drop items you own. New items come from the **Item Roll** in the Shop (250 coins, or 5 for 1,100): Common 46%, Uncommon 30%, Rare 16%, Epic 7%, Mythic 1%. Duplicates refund coins and a new item is guaranteed after 5 duplicates in a row.
 - **Training**: interactive tutorial, free practice, Shooting Challenge and Goalkeeper Challenge.
 - Rules: 6:00 matches, golden-goal overtime, last-chance extension, mercy rule (4-goal lead), goal replays.
 
