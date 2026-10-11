@@ -52,6 +52,20 @@ export class GameRenderer {
     this.puddleTex = TX.puddleTexture();
     this.oilMat = new THREE.MeshBasicMaterial({ map: this.puddleTex, color: 0x332244, transparent: true, depthWrite: false });
     this.walls = new Map();
+    // Ball trajectory dots (aim preview + predicted flight)
+    this.trajN = 56;
+    this.traj = new THREE.InstancedMesh(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false }), this.trajN);
+    this.traj.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.traj.frustumCulled = false;
+    this.traj.renderOrder = 7;
+    this.traj.count = 0;
+    this.scene.add(this.traj);
+    this.trajLand = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.75, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+    this.trajLand.rotation.x = -Math.PI / 2;
+    this.trajLand.renderOrder = 7;
+    this.trajLand.visible = false;
+    this.scene.add(this.trajLand);
+    this.trajM = new THREE.Matrix4();
     this.targets = new Map();
     this.targetGeo = new THREE.RingGeometry(1.05, 1.35, 40);
     this.targetDisc = new THREE.CircleGeometry(1.05, 40);
@@ -505,6 +519,26 @@ export class GameRenderer {
     }
   }
 
+  // pts: [{x,y,z}] predicted ball path; kind 'aim' (bright, your shot) or 'flight' (faint)
+  syncTrajectory(pts, kind, land) {
+    const t = this.traj;
+    if (!pts || pts.length < 2) { t.count = 0; this.trajLand.visible = false; return; }
+    const n = Math.min(this.trajN, pts.length);
+    const m = this.trajM;
+    for (let i = 0; i < n; i++) {
+      const p = pts[i];
+      const s = kind === 'aim' ? 1 - (i / n) * 0.45 : 0.75 - (i / n) * 0.4;
+      m.makeScale(s, s, s).setPosition(p.x, p.y, p.z);
+      t.setMatrixAt(i, m);
+    }
+    t.count = n;
+    t.instanceMatrix.needsUpdate = true;
+    t.material.color.set(kind === 'aim' ? 0xffffff : 0xffe14a);
+    t.material.opacity = kind === 'aim' ? 0.9 : 0.55;
+    this.trajLand.visible = !!land;
+    if (land) { this.trajLand.position.set(land.x, 0.05, land.z); this.trajLand.material.opacity = kind === 'aim' ? 0.85 : 0.45; this.trajLand.scale.setScalar(1 + Math.sin(this.time * 6) * 0.08); }
+  }
+
   // Local player's aim arrow + charge meter
   syncAim(p, yaw, show, charge) {
     this.aimPivot.visible = show;
@@ -618,6 +652,7 @@ export class GameRenderer {
     this.grapples.length = 0;
     this.aimPivot.visible = false;
     this.chargeSprite.visible = false;
+    this.syncTrajectory(null);
   }
 
   // Lobby scene: hero character + ball, slowly orbiting camera

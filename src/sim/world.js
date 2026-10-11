@@ -1,6 +1,6 @@
 // Authoritative game world. Runs on the host (or offline) and produces snapshots + events.
-import { FIELD, PHYS, PLAYER, KICK, MATCH, ITEM_KINDS } from '../config.js';
-import { createPlayer, movePlayer, separatePlayers, canAct, setAnim, stunPlayer } from './player.js';
+import { FIELD, PHYS, PLAYER, KICK, MATCH, ITEM_KINDS, STAMINA } from '../config.js';
+import { createPlayer, movePlayer, separatePlayers, canAct, setAnim, stunPlayer, spendStamina, staminaPowerMul } from './player.js';
 import { createBall, stepBall, predictCross, updateGoalLine } from './ball.js';
 import { clamp, len2, rand, wrapAngle, r2 } from '../util/math.js';
 import { botName, randomCosmetics } from '../cosmetics.js';
@@ -114,6 +114,23 @@ export class World {
     return this.addPlayer({ id, name, team, remote, cos, powers });
   }
 
+  // Lobby team switch: swap places with a bot on the other team (only if that team has one)
+  switchTeam(id) {
+    const p = this.byId.get(id);
+    if (!p || p.isBot) return false;
+    const to = 1 - p.team;
+    const bot = this.players.filter((q) => q.team === to && q.isBot).sort((a, b) => b.slot - a.slot)[0];
+    if (!bot) return false;
+    if (this.ball.owner === p.id || this.ball.owner === bot.id) this.ball.owner = -1;
+    const a = { x: p.x, z: p.z, face: p.face, slot: p.slot, keeper: p.keeper };
+    p.team = to; p.x = bot.x; p.z = bot.z; p.face = bot.face; p.slot = bot.slot; p.keeper = bot.keeper;
+    bot.team = 1 - to; bot.x = a.x; bot.z = a.z; bot.face = a.face; bot.slot = a.slot; bot.keeper = a.keeper;
+    p.wasInBox = this.inOwnBox(p); bot.wasInBox = this.inOwnBox(bot);
+    this.rosterVer = (this.rosterVer || 0) + 1;
+    this.emit({ e: 'teamswitch', id: p.id, team: to });
+    return true;
+  }
+
   fillBots() {
     if (this.mode === 'practice') return;
     for (const team of [0, 1]) {
@@ -213,7 +230,7 @@ export class World {
         this.rosterVer = (this.rosterVer || 0) + 1;
       }
       if (!keeper) {
-        const next = mem.find((p) => inBox.get(p.id) && !p.wasInBox && p.stun <= 0);
+        const next = mem.find((p) => inBox.get(p.id) && !p.wasInBox);
         if (next) {
           next.keeper = true;
           this.emit({ e: 'keeper', team, id: next.id });
@@ -315,6 +332,9 @@ export class World {
     }
     b.pass = null;
     b.owner = p.id;
+    // A keeper in the box catches the ball in their hands (max KICK.keeperHold seconds)
+    b.held = !!(p.keeper && this.inOwnBox(p, 0.6));
+    b.holdT = b.held ? KICK.keeperHold : 0;
     b.shot = null;
     b.fire = false;
     b.curve = 0;
@@ -328,6 +348,7 @@ export class World {
     const b = this.ball;
     if (b.owner !== p.id) return;
     b.owner = -1;
+    b.held = false;
     const o = this.ballOffset(p);
     b.x = o.x; b.z = o.z; b.y = Math.max(PHYS.ballR, p.y + PHYS.ballR);
     b.vx = p.vx * 0.6 + vx; b.vz = p.vz * 0.6 + vz; b.vy = vy;
@@ -353,7 +374,8 @@ export class World {
     if (b.owner === p.id) {
       b.owner = -1;
       const o = this.ballOffset(p);
-      b.x = o.x; b.z = o.z; b.y = Math.max(PHYS.ballR, p.y + PHYS.ballR);
+      b.x = o.x; b.z = o.z; b.y = b.held ? p.y + 1.35 : Math.max(PHYS.ballR, p.y + PHYS.ballR);
+      b.held = false;
     } else if (from) {
       b.x = from.x; b.y = Math.max(PHYS.ballR, from.y); b.z = from.z;
     }
@@ -409,6 +431,7 @@ export class World {
         p.cd.kick = KICK.cooldown;
         setAnim(p, 'kick', 0.38);
         if (this.ballReachable(p, KICK.hitRange + 0.2)) {
+          spendStamina(p, STAMINA.kickBase + STAMINA.kickPower * clamp(act.pw || 0, 0, 1));
           const fire = p.fx.fire > 0;
           if (fire) { b.fire = true; p.fx.fire = 0; }
           const k = kickVelocity(p, act, this.players, fire);
@@ -430,6 +453,7 @@ export class World {
       case 'pass': {
         if (p.cd.pass > 0 || !this.ballReachable(p, KICK.hitRange)) return;
         p.cd.pass = KICK.cooldown;
+        spendStamina(p, STAMINA.pass);
         setAnim(p, 'pass', 0.3);
         const k = kickVelocity(p, act, this.players, false);
         this.launch(p, k.vx, k.vy, k.vz, 'pass', k.pw);
@@ -438,6 +462,7 @@ export class World {
       case 'lob': {
         if (p.cd.lob > 0 || !this.ballReachable(p, KICK.hitRange)) return;
         p.cd.lob = KICK.cooldown;
+        spendStamina(p, STAMINA.lob);
         setAnim(p, 'kick', 0.38);
         const k = kickVelocity(p, act, this.players, false);
         this.launch(p, k.vx, k.vy, k.vz, 'lob', k.pw);
@@ -446,6 +471,7 @@ export class World {
       case 'flick': {
         if (p.cd.flick > 0 || !this.ballReachable(p, PLAYER.pickupReach + 0.4)) return;
         p.cd.flick = 0.8;
+        spendStamina(p, STAMINA.flick);
         setAnim(p, 'flick', 0.35);
         const k = kickVelocity(p, act, this.players, false);
         this.launch(p, k.vx, k.vy, k.vz, 'flick', k.pw);
@@ -472,6 +498,7 @@ export class World {
         }
         if (p.cd.tackle > 0) return;
         p.cd.tackle = KICK.tackleCooldown;
+        spendStamina(p, STAMINA.tackle);
         let ux, uz;
         if (ml > 0.2) { ux = mx / ml; uz = mz / ml; } else { ux = Math.sin(p.face); uz = Math.cos(p.face); }
         p.slideX = ux; p.slideZ = uz;
@@ -488,6 +515,10 @@ export class World {
         const ml = len2(mx, mz);
         if (ml > 0.2) { p.slideX = mx / ml; p.slideZ = mz / ml; } else { p.slideX = Math.sin(p.face); p.slideZ = Math.cos(p.face); }
         if (this.hasBall(p)) {
+          if (b.held) { p.cd.dribble = 0; return; }
+          // The skill move is expensive: you need the stamina for it
+          if (p.stamina < STAMINA.skill && p.fx.speed <= 0) { p.cd.dribble = 0.3; this.emit({ e: 'tired', id: p.id }); return; }
+          spendStamina(p, STAMINA.skill);
           setAnim(p, 'spin', 0.42);
           p.immune = KICK.dribbleImmune;
           b.contestT = 0;
@@ -496,6 +527,7 @@ export class World {
           // Without the ball the same key jumps (catch high balls, volley them mid-air)
           p.cd.dribble = KICK.jumpCooldown;
           if (p.y > 0.05 || p.fx.jet > 0) return;
+          spendStamina(p, STAMINA.jump);
           p.vy = KICK.jumpSpeed;
           setAnim(p, 'jump', 0.75);
           this.emit({ e: 'jump', id: p.id });
@@ -532,8 +564,8 @@ export class World {
 
   hitPlayer(by, q, kind, dur, kbx, kbz, toast, pts = 10) {
     if (q.fx.shield > 0) { this.emit({ e: 'shieldblock', id: q.id }); return false; }
-    // A goalkeeper holding the ball can't be knocked off it
-    if (q.keeper && this.ball.owner === q.id) { this.emit({ e: 'shieldblock', id: q.id }); return false; }
+    // Goalkeepers can't be stunned, knocked down, frozen or robbed at all
+    if (q.keeper) { this.emit({ e: 'shieldblock', id: q.id }); return false; }
     if (q.immune > 0 && kind !== 'frozen') return false;
     if (this.ball.owner === q.id) this.loseBall(q, kbx * 0.6, kbz * 0.6, 3);
     stunPlayer(q, kind, dur);
@@ -675,11 +707,20 @@ export class World {
       const o = this.byId.get(b.owner);
       if (!o || o.stun > 0) { b.owner = -1; }
       else {
-        const off = this.ballOffset(o);
+        if (b.held && !(o.keeper && this.inOwnBox(o, 0.6))) b.held = false; // left the box: ball drops to the feet
         const sp = len2(o.vx, o.vz);
         const px = b.x, py = b.y, pz = b.z;
-        b.x = off.x; b.z = off.z;
-        b.y = PHYS.ballR + o.y + (sp > 1 ? Math.abs(Math.sin(this.time * 9)) * 0.12 : 0);
+        if (b.held) {
+          const d = 0.72;
+          b.x = o.x + Math.sin(o.face) * d; b.z = o.z + Math.cos(o.face) * d;
+          b.y = o.y + 1.35;
+          b.holdT -= dt;
+          if (b.holdT <= 0 && this.phase === 'play') this.keeperRelease(o);
+        } else {
+          const off = this.ballOffset(o);
+          b.x = off.x; b.z = off.z;
+          b.y = PHYS.ballR + o.y + (sp > 1 ? Math.abs(Math.sin(this.time * 9)) * 0.12 : 0);
+        }
         b.vx = o.vx; b.vz = o.vz; b.vy = 0;
         b.spin += sp * dt / PHYS.ballR;
         // Dribbling the ball over the line through the mouth scores too
@@ -720,6 +761,18 @@ export class World {
       if (b.owner >= 0) { const o = this.byId.get(b.owner); b.owner = -1; if (o) this.touch(o); }
       this.scoreGoal(b.inNet > 0 ? 0 : 1);
     }
+  }
+
+  // Keeper held the ball too long: it's thrown out to the best-placed teammate (or upfield)
+  keeperRelease(p) {
+    if (this.ball.owner !== p.id) return;
+    const fwd = p.team === 0 ? Math.PI / 2 : -Math.PI / 2;
+    const mate = pickTeammate(p, fwd, this.players, true, -0.2);
+    const yaw = mate ? Math.atan2(mate.x - p.x, mate.z - p.z) : fwd;
+    p.face = yaw;
+    setAnim(p, 'throw', 0.32);
+    const k = kickVelocity(p, { a: 'pass', yaw, pitch: 0.28 }, this.players, false);
+    this.launch(p, k.vx, k.vy, k.vz, 'pass', k.pw);
   }
 
   tickRemote(p, dt) {
@@ -1093,7 +1146,7 @@ export class World {
       sc: this.score,
       ot: this.overtime ? 1 : this.lastChance ? 2 : 0,
       mp: this.map,
-      b: [r2(b.x), r2(b.y), r2(b.z), r2(b.vx), r2(b.vy), r2(b.vz), b.owner, b.fire ? 1 : 0, r2(b.spin % 100), b.grapple],
+      b: [r2(b.x), r2(b.y), r2(b.z), r2(b.vx), r2(b.vy), r2(b.vz), b.owner, b.fire ? 1 : 0, r2(b.spin % 100), b.grapple, b.held ? 1 : 0, r2(b.holdT || 0)],
       p: this.players.map((p) => [
         p.id, r2(p.x), r2(p.y), r2(p.z), r2(p.vx), r2(p.vz), r2(p.face),
         ANIM_INDEX[p.anim] ?? 0, r2(p.animT), r2(p.stamina), r2(p.charge),
@@ -1170,9 +1223,9 @@ export function kickVelocity(p, act, players, fire) {
   if (a === 'flick') {
     return { vx: dx * KICK.flickFwd + p.vx * 0.55, vy: KICK.flickUp, vz: dz * KICK.flickFwd + p.vz * 0.55, pw: 0.4, curve: 0 };
   }
-  // Shot
+  // Shot (a tired player kicks noticeably weaker)
   const power = clamp(act.pw ?? 0, 0, 1);
-  let speed = KICK.minSpeed + (KICK.maxSpeed - KICK.minSpeed) * Math.pow(power, 0.85);
+  let speed = (KICK.minSpeed + (KICK.maxSpeed - KICK.minSpeed) * Math.pow(power, 0.85)) * staminaPowerMul(p);
   if (Number.isFinite(act.tx) && Number.isFinite(act.ty) && Number.isFinite(act.tz)) {
     // Crosshair aim: send the ball through the aimed point (gravity-compensated)
     if (fire) speed = Math.min(60, speed * 1.32 + 6);

@@ -23,12 +23,12 @@ export const FIELD = {
 export const MAPS = ['grass', 'desert'];
 
 export const PHYS = {
-  gravity: 28,
+  gravity: 32,
   ballR: 0.55,
-  bounce: 0.56,
-  wallBounce: 0.72,
-  rollFriction: 0.55, // fraction of ground speed lost per second while rolling
-  airDrag: 0.06,
+  bounce: 0.62,
+  wallBounce: 0.74,
+  rollFriction: 0.42, // fraction of ground speed lost per second while rolling
+  airDrag: 0.045,
   magnus: 1.0,
   netDamp: 0.25,
 };
@@ -53,8 +53,8 @@ export const PLAYER = {
 };
 
 export const KICK = {
-  minSpeed: 19,
-  maxSpeed: 47,
+  minSpeed: 20,
+  maxSpeed: 50,
   chargeTime: 1.05,
   cooldown: 0.42,
   passMin: 15,
@@ -75,7 +75,11 @@ export const KICK = {
   dribbleImmune: 0.6,
   requestCooldown: 2.5,
   hitRange: 2.3,
+  keeperHold: 6, // seconds a keeper may hold a caught ball before it is thrown out
 };
+
+// Stamina costs per action (stamina is the main limit, like the original): tired players kick weaker
+export const STAMINA = { kickBase: 10, kickPower: 20, skill: 35, tackle: 18, jump: 10, lob: 10, flick: 10, pass: 4, tired: 30 };
 
 export const MATCH = {
   teamSize: 4,
@@ -118,19 +122,30 @@ export const NET = {
   peerTimeout: 7000,
 };
 
-// Powers (what the mystery cubes give). Unlock them in the Shop; cubes only drop powers you own.
+// Items (what the mystery cubes give). New items come from the Item Roll in the Shop;
+// cubes only drop items you own.
 export const ITEMS = {
-  fire: { name: 'Fire Shot', color: '#ff7a1a', price: 0, desc: 'Your next shot is a blazing, unstoppable fireball.' },
-  speed: { name: 'Lightning Boots', color: '#7dff5a', price: 0, desc: 'Super speed with endless stamina.' },
-  shield: { name: 'Bubble Shield', color: '#c27bff', price: 0, desc: 'Immune to tackles, hits and items for a while.' },
-  punch: { name: 'Boxing Glove', color: '#ff4466', price: 0, desc: 'Spring-loaded glove knocks over the rival in front of you.' },
-  ice: { name: 'Ice Blast', color: '#5fe3ff', price: 250, desc: 'Throw a frost orb that freezes the first rival it hits.' },
-  oil: { name: 'Oil Slick', color: '#9b6bff', price: 300, desc: 'Leave a slippery oil trail behind you. Rivals who cross it wipe out.' },
-  barricade: { name: 'Barricade', color: '#ffb000', price: 350, desc: 'Drop a construction fence that blocks players and the ball.' },
-  grapple: { name: 'Grapple', color: '#4cf08a', price: 450, desc: 'Hook the ball from range and yank it to your feet.' },
-  barrel: { name: 'Barrel Roll', color: '#3f8bff', price: 500, desc: 'Bowl a barrel that flattens every rival in its path.' },
-  jet: { name: 'Jetpack', color: '#ffd23f', price: 600, desc: 'Blast off and fly over everyone for a few seconds.' },
+  fire: { name: 'Fire Shot', color: '#ff7a1a', rarity: 'common', desc: 'Your next shot is a blazing, unstoppable fireball.' },
+  speed: { name: 'Lightning Boots', color: '#7dff5a', rarity: 'common', desc: 'Super speed with endless stamina.' },
+  shield: { name: 'Bubble Shield', color: '#c27bff', rarity: 'common', desc: 'Immune to tackles, hits and items for a while.' },
+  punch: { name: 'Boxing Glove', color: '#ff4466', rarity: 'common', desc: 'Spring-loaded glove knocks over the rival in front of you.' },
+  ice: { name: 'Ice Blast', color: '#5fe3ff', rarity: 'rare', desc: 'Throw a frost orb that freezes the first rival it hits.' },
+  oil: { name: 'Oil Slick', color: '#9b6bff', rarity: 'rare', desc: 'Leave a slippery oil trail. Rivals who cross it wipe out.' },
+  barricade: { name: 'Barricade', color: '#ffb000', rarity: 'rare', desc: 'Drop a fence that blocks players and the ball.' },
+  grapple: { name: 'Grapple', color: '#4cf08a', rarity: 'epic', desc: 'Hook the ball from range and yank it to your feet.' },
+  barrel: { name: 'Barrel Roll', color: '#3f8bff', rarity: 'epic', desc: 'Bowl a barrel that flattens every rival in its path.' },
+  jet: { name: 'Jetpack', color: '#ffd23f', rarity: 'legendary', desc: 'Blast off and fly over everyone for a few seconds.' },
 };
+export const RARITY = {
+  common: { name: 'Common', color: '#a9bdd2', refund: 40 },
+  rare: { name: 'Rare', color: '#3fa9ff', refund: 80 },
+  epic: { name: 'Epic', color: '#b46bff', refund: 150 },
+  legendary: { name: 'Legendary', color: '#ffc93f', refund: 300 },
+};
+export const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary'];
+// Item Roll: chance per rarity (items inside a rarity are equally likely). A new item is
+// guaranteed after ROLL.pity duplicates in a row; duplicates refund coins.
+export const ROLL = { cost: 250, cost5: 1100, odds: { common: 0.52, rare: 0.31, epic: 0.14, legendary: 0.03 }, pity: 5 };
 export const ITEM_KINDS = Object.keys(ITEMS);
 
 export const QUICK_CHAT = ['Pass!', 'Shoot!', 'Nice one!', 'Defend!', 'I\'m open!', 'Thanks!', 'GG', 'Wow!'];

@@ -1,5 +1,5 @@
 import { SDK } from './sdk.js';
-import { SAVE_KEY, ITEMS, ITEM_KINDS } from './config.js';
+import { SAVE_KEY, ITEMS, ITEM_KINDS, RARITY, ROLL } from './config.js';
 import { CATALOG, guestName } from './cosmetics.js';
 import { todayKey } from './util/math.js';
 
@@ -74,10 +74,22 @@ function freshProfile() {
     stats: { matches: 0, wins: 0, goals: 0, assists: 0, saves: 0 },
     daily: { last: '', streak: 0 },
     tut: 0,
-    powers: ITEM_KINDS.filter((k) => ITEMS[k].price === 0),
+    powers: ITEM_KINDS.filter((k) => ITEMS[k].rarity === 'common'),
+    pity: 0,
+    rolls: 0,
     powersOff: [],
     best: { shoot: 0, keeper: 0 },
   };
+}
+
+function pickByRarity(pool) {
+  // Weight each item by its rarity's chance split across that rarity's items
+  const byR = {};
+  for (const k of ITEM_KINDS) (byR[ITEMS[k].rarity] = byR[ITEMS[k].rarity] || []).push(k);
+  const w = pool.map((k) => ROLL.odds[ITEMS[k].rarity] / byR[ITEMS[k].rarity].length);
+  let r = Math.random() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) return pool[i]; }
+  return pool[pool.length - 1];
 }
 
 export const Save = {
@@ -172,14 +184,29 @@ export const Save = {
 
   // ---- Powers (mystery cube contents) ----
   ownsPower(k) { return this.p.powers.includes(k); },
-  buyPower(k) {
-    const it = ITEMS[k];
-    if (!it || this.ownsPower(k) || this.p.coins < it.price) return false;
-    this.p.coins -= it.price;
-    this.p.powers.push(k);
+  // Item Roll (gacha). Returns [{ k, rarity, isNew, refund }] or null if not enough coins.
+  roll(n = 1) {
+    const cost = n === 5 ? ROLL.cost5 : ROLL.cost * n;
+    if (this.p.coins < cost) return null;
+    this.p.coins -= cost;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const locked = ITEM_KINDS.filter((k) => !this.ownsPower(k));
+      let k;
+      if (locked.length && (this.p.pity || 0) >= ROLL.pity) {
+        k = pickByRarity(locked); // pity: guaranteed new item
+      } else k = pickByRarity(ITEM_KINDS);
+      const isNew = !this.ownsPower(k);
+      const rarity = ITEMS[k].rarity;
+      let refund = 0;
+      if (isNew) { this.p.powers.push(k); this.p.pity = 0; } else { refund = RARITY[rarity].refund; this.p.coins += refund; this.p.pity = (this.p.pity || 0) + 1; }
+      out.push({ k, rarity, isNew, refund });
+    }
+    this.p.rolls = (this.p.rolls || 0) + n;
     this.save(true);
-    return true;
+    return out;
   },
+  rollsToPity() { return Math.max(1, ROLL.pity + 1 - (this.p.pity || 0)); },
   powerOn(k) { return this.ownsPower(k) && !this.p.powersOff.includes(k); },
   togglePower(k) {
     if (!this.ownsPower(k)) return false;

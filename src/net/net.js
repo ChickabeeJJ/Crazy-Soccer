@@ -61,9 +61,25 @@ function openPeer(id) {
   });
 }
 
+// A signalling connection opened while the player is still in the menu, so joining a match
+// doesn't have to wait for it. The next Net that needs a client peer takes it over.
+let warm = null;
+export function prewarmNet() {
+  if (warm) return;
+  warm = openPeer(null).catch(() => null);
+  warm.then((p) => { if (!p) warm = null; else p.on('close', () => { warm = null; }); });
+}
+async function takeWarmPeer() {
+  if (!warm) return null;
+  const p = await warm;
+  warm = null;
+  return p && !p.destroyed && !p.disconnected ? p : null;
+}
+
 export class Net {
   constructor() {
-    this.peer = null;
+    this.peer = null; // host peer (owns the room id)
+    this.cpeer = null; // client peer (anonymous id, used to join rooms)
     this.isHost = false;
     this.roomId = null;
     this.conns = new Map(); // host: peerId -> conn
@@ -135,9 +151,12 @@ export class Net {
 
   // -------------------------------------------------------------- client
   async ensureClientPeer() {
-    if (this.peer && !this.peer.destroyed && !this.isHost) return this.peer;
-    this.peer = await openPeer(null);
-    this.peer.on('error', (err) => {
+    if (this.cpeer && !this.cpeer.destroyed && !this.cpeer.disconnected) return this.cpeer;
+    if (!this._cpeerP) {
+      this._cpeerP = (async () => (await takeWarmPeer()) || openPeer(null))();
+    }
+    try { this.cpeer = await this._cpeerP; } finally { this._cpeerP = null; }
+    this.cpeer.on('error', (err) => {
       if (err && err.type === 'peer-unavailable') {
         const m = /peer\s+(\S+)/i.exec(err.message || '');
         const target = m ? m[1].toLowerCase() : null;
@@ -146,7 +165,7 @@ export class Net {
         }
       }
     });
-    return this.peer;
+    return this.cpeer;
   }
 
   // Try joining one room. Resolves {ok:true, conn, welcome} or {ok:false, why}.
@@ -165,7 +184,7 @@ export class Net {
       const timer = setTimeout(() => finish({ ok: false, why: 'timeout' }), NET.joinTimeout);
       this._joinWaiters.set(peerRoomId, { fail: (why) => finish({ ok: false, why }) });
       try {
-        conn = this.peer.connect(peerRoomId, { serialization: 'json', reliable: true });
+        conn = this.cpeer.connect(peerRoomId, { serialization: 'json', reliable: true });
       } catch (e) {
         finish({ ok: false, why: 'error' });
         return;
@@ -216,18 +235,22 @@ export class Net {
   // (instant); an id that is already taken belongs to a live host, so we try to join it.
   async quickPlay(hello, onStatus) {
     const N = NET.publicRooms;
+    // Open the client connection in parallel with the first room claim (no serial waiting)
+    const clientReady = this.ensureClientPeer().then(() => true, () => false);
     for (let k = 1; k <= N; k++) {
       if (onStatus) onStatus(k === 1 ? 'Finding a match…' : `Checking room ${k}…`);
       const rid = roomPeerId('pub', k);
       try {
-        this.destroyPeer();
+        if (this.peer) { try { this.peer.destroy(); } catch (e) { /* ignore */ } this.peer = null; }
         await this.host(rid);
+        // We own a public room: the spare client connection goes back to the warm pool
+        clientReady.then(() => { if (this.cpeer && !warm) { const c = this.cpeer; this.cpeer = null; warm = Promise.resolve(c); } });
         return { role: 'host', k };
       } catch (e) {
         this.isHost = false;
         if (!e || e.type !== 'unavailable-id') throw e || new Error('network'); // signalling unreachable
       }
-      await this.ensureClientPeer();
+      if (!(await clientReady)) await this.ensureClientPeer();
       let res = await this.tryJoin(rid, hello);
       // A live room that was slow to answer (busy host / slow network) gets one more try
       if (!res.ok && res.why === 'timeout') {
@@ -244,14 +267,15 @@ export class Net {
   }
 
   async hostPrivate(code) {
-    this.destroyPeer();
+    if (this.peer) { try { this.peer.destroy(); } catch (e) { /* ignore */ } this.peer = null; }
     await this.host(roomPeerId('priv', code));
     return true;
   }
 
   destroyPeer() {
-    if (this.peer) { try { this.peer.destroy(); } catch (e) { /* ignore */ } }
+    for (const p of [this.peer, this.cpeer]) if (p) { try { p.destroy(); } catch (e) { /* ignore */ } }
     this.peer = null;
+    this.cpeer = null;
   }
 
   close() {

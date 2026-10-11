@@ -6,8 +6,10 @@ import { Input } from './input.js';
 import { Audio } from './audio.js';
 import { UI } from './ui/ui.js';
 import { Session, inOwnBox } from './game/session.js';
+import { kickVelocity } from './sim/world.js';
+import { createBall, stepBall } from './sim/ball.js';
 import { Training, TRAINING_INFO } from './game/training.js';
-import { Net, randomCode, roomPeerId } from './net/net.js';
+import { Net, randomCode, roomPeerId, prewarmNet } from './net/net.js';
 import { GAME_VERSION, TEAMS, QUICK_CHAT, ITEMS, MATCH, PLAYER, KICK, FIELD } from './config.js';
 import { CATALOG } from './cosmetics.js';
 import { clamp, len2 } from './util/math.js';
@@ -140,8 +142,8 @@ class App {
     this.audio.stopCrowd();
     if (this.audio.ctx) this.audio.startMusic();
     SDK.gameplayStop();
-    const note = $('menuNote');
-    note.textContent = Save.p.stats.matches === 0 ? 'New here? Pick a team to jump into a 4v4 match. Bots fill empty spots!' : '';
+    // Open the signalling connection now so Quick Match connects instantly
+    try { prewarmNet(); } catch (e) { /* offline */ }
   }
 
   claimDaily() {
@@ -151,18 +153,15 @@ class App {
     this.ui.refreshProfile();
   }
 
-  buyPower(k) {
-    const it = ITEMS[k];
-    if (!it || Save.ownsPower(k)) return;
-    if (Save.p.coins < it.price) { this.audio.beep(false); this.ui.globalToast(`You need ${it.price - Save.p.coins} more coins. Play matches to earn more!`); return; }
-    Save.buyPower(k);
+  rollItems(n) {
+    const res = Save.roll(n);
+    if (!res) {
+      this.audio.beep(false);
+      this.ui.globalToast('Not enough coins. Win matches and claim daily rewards to earn more!');
+      return;
+    }
     this.audio.coins();
-    this.ui.globalToast(`Unlocked ${it.name}! It can now drop from mystery cubes.`);
-    this.ui.refreshProfile();
-  }
-
-  async login() {
-    await SDK.showAuthPrompt();
+    this.ui.showRoll(res);
     this.ui.refreshProfile();
   }
 
@@ -231,46 +230,70 @@ class App {
     this.ui.refreshProfile();
   }
 
-  startOffline(reason) {
+  startOffline(reason, team) {
+    if (team === 0 || team === 1) { Save.p.team = team; Save.save(); }
     this.endSession();
     this.session = new Session({ mode: 'match', role: 'offline', profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
     this.session.startHost({});
+    this.netStatus = 'bots';
     this.enterGame();
     if (reason) this.ui.globalToast(reason, 4000);
   }
 
-  async quickPlay(team) {
-    if (this.state === 'searching') return;
-    if (team === 0 || team === 1) { Save.p.team = team; Save.save(); }
+  // Quick Match with no waiting: you're in a live 4v4 straight away (bots fill every spot)
+  // while we look for real players. If a room with players exists we jump into it; otherwise
+  // this match itself becomes a public room and real players replace the bots as they join.
+  quickPlay(team) {
+    if (team === 0 || team === 1) Save.p.team = team;
+    else if (team === -1) Save.p.team = Math.random() < 0.5 ? 0 : 1;
+    Save.save();
     this.endSession();
-    this.state = 'searching';
-    this.searchToken = Symbol('search');
-    const token = this.searchToken;
-    $('searchText').textContent = 'Finding a match…';
-    this.ui.modal('searching', true);
+    const session = new Session({ mode: 'match', role: 'offline', roomKind: 'pub', profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
+    session.startHost({});
+    this.session = session;
+    this.netStatus = 'search';
+    this.enterGame();
+    this.findOnline(session);
+  }
+
+  async findOnline(session) {
+    const token = Symbol('search');
+    this.searchToken = token;
     const net = new Net();
     this.net = net;
     let res;
     try {
-      res = await withTimeout(net.quickPlay(this.hello(), (t) => { if (this.searchToken === token) $('searchText').textContent = t; }), 45000);
+      res = await withTimeout(net.quickPlay(this.hello()), 45000);
     } catch (e) {
+      if (this.searchToken === token) { this.net = null; this.netStatus = 'bots'; }
       try { net.close(); } catch (e2) { /* ignore */ }
-      if (this.searchToken !== token) return;
-      this.ui.modal('searching', false);
-      this.startOffline('Online play unavailable right now — playing against bots.');
       return;
     }
-    if (this.searchToken !== token) { net.close(); return; }
-    this.ui.modal('searching', false);
+    if (this.searchToken !== token || this.session !== session || session.destroyed) { net.close(); return; }
+    this.searchToken = null;
+    const code = `pub-${res.k}`;
     if (res.role === 'host') {
-      this.session = new Session({ mode: 'match', role: 'host', net, roomKind: 'pub', roomCode: `pub-${res.k}`, profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
-      this.session.startHost({});
+      session.goOnline(net, 'pub', code);
+      this.netStatus = 'online';
     } else {
-      this.session = new Session({ mode: 'match', role: 'client', net, roomKind: 'pub', roomCode: `pub-${res.k}`, profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
+      // A room with players already exists: switch into it
+      this.net = null; // keep the connection alive while swapping sessions
+      session.destroy();
+      this.session = new Session({ mode: 'match', role: 'client', net, roomKind: 'pub', roomCode: code, profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
       this.session.startClient(res.welcome);
+      this.net = net;
+      this.netStatus = 'online';
+      this.enterGame();
+      this.ui.toast('Joined a live match!');
     }
-    SDK.updateRoom({ roomId: `pub-${res.k}`, isJoinable: true, inviteParams: { roomId: `pub-${res.k}` } });
-    this.enterGame();
+    SDK.updateRoom({ roomId: code, isJoinable: true, inviteParams: { roomId: code } });
+  }
+
+  switchTeam() {
+    const s = this.session;
+    if (!s || s.mode !== 'match') return;
+    s.switchTeam();
+    this.resume();
   }
 
   cancelSearch() {
@@ -403,6 +426,7 @@ class App {
   }
 
   endSession() {
+    this.searchToken = null;
     if (this.session) { this.session.destroy(); this.session = null; }
     if (this.net) { try { this.net.close(); } catch (e) { /* ignore */ } this.net = null; }
     this.stopBgTicker();
@@ -440,7 +464,7 @@ class App {
       s.newMatch();
       this.enterGame();
       this.midgameAd();
-    } else this.quickPlay();
+    } else this.quickPlay(Save.p.team);
   }
 
   midgameAd() {
@@ -475,7 +499,8 @@ class App {
     if (this.state !== 'game') return;
     this.input.exitLock();
     const s = this.session;
-    $('inviteBtn2').classList.toggle('hidden', !(s && s.roomCode));
+    $('inviteBtn2').classList.toggle('hidden', !(s && s.roomCode && s.net));
+    $('switchTeamBtn').classList.toggle('hidden', !(s && s.mode === 'match'));
     this.ui.modal('pause', true);
     SDK.gameplayStop();
   }
@@ -795,6 +820,7 @@ class App {
       rig.follow(dt, me.x, me.y || 0, me.z);
     }
     this.renderer.syncAim(me, rig.yaw, !!(me && me.charging && !frame), me ? me.charge : 0);
+    this.updateTrajectory(s, me, frame, shotAim, settings.autoCurve ? right : 0);
 
     // HUD
     const hasBall = s.hasBall();
@@ -820,10 +846,46 @@ class App {
     let role = '';
     if (me && s.mode !== 'practice') role = me.keeper ? '🧤 GOALKEEPER' : ROLE_NAMES[(me.slot ?? 0) % 4];
     else if (me && me.keeper) role = '🧤 GOALKEEPER';
+    if (me && me.keeper && ball && ball.owner === me.id && ball.held) role += ` · THROW IN ${Math.max(0, Math.ceil(ball.holdT || 0))}`;
     this.ui.setRole(role, !!(me && me.keeper));
     this.updateBanners(s, v, th);
     this.updatePhaseAnnouncements(s, v);
     if (tr && tr.result && !tr.reported) { tr.reported = true; setTimeout(() => { if (this.session && this.session.training === tr) this.onTrainingDone(tr); }, 700); }
+  }
+
+  // Ball lines: preview of your shot while charging, and the predicted path of any fast ball.
+  // Both run the real ball physics (gravity, bounces, curve, posts, nets, walls).
+  updateTrajectory(s, me, frame, shotAim, cv) {
+    const R = this.renderer;
+    const b = s.view.ball;
+    if (frame || !b || s.view.phase === 'replay') { R.syncTrajectory(null); return; }
+    let sim = null, kind = 'flight';
+    const near = me && (b.owner === me.id || (b.owner < 0 && len2(b.x - me.x, b.z - me.z) < KICK.hitRange && b.y < 2.6 + (me.y || 0)));
+    if (me && me.charging && near) {
+      const act = { a: 'kick', pw: me.charge, ...shotAim, cv };
+      const yaw = shotAim.yaw;
+      const fire = me.fx && me.fx.fire > 0;
+      const k = kickVelocity({ ...me, face: yaw }, act, s.view.players, fire);
+      const held = b.owner === me.id && b.held;
+      sim = { ...createBall(), x: me.x + Math.sin(yaw) * PLAYER.dribbleDist, y: held ? (me.y || 0) + 1.35 : (me.y || 0) + 0.55, z: me.z + Math.cos(yaw) * PLAYER.dribbleDist, vx: k.vx, vy: k.vy, vz: k.vz, curve: k.curve };
+      kind = 'aim';
+    } else if (b.owner < 0 && Math.hypot(b.vx, b.vy, b.vz) > 13 && b.grapple < 0) {
+      sim = { ...createBall(), x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, curve: b.curve || 0, inNet: b.inNet || 0 };
+    }
+    if (!sim) { R.syncTrajectory(null); return; }
+    const pts = [];
+    let land = null;
+    const ev = [];
+    const steps = kind === 'aim' ? 150 : 90;
+    for (let i = 1; i <= steps; i++) {
+      const wasAir = sim.y > 0.6;
+      stepBall(sim, 1 / 60, ev);
+      if (i % 3 === 0) pts.push({ x: sim.x, y: sim.y, z: sim.z });
+      if (!land && wasAir && sim.y <= 0.56 && i > 3) land = { x: sim.x, z: sim.z };
+      if (sim.inNet) { pts.push({ x: sim.x, y: sim.y, z: sim.z }); break; }
+      if (Math.hypot(sim.vx, sim.vz) < 3 && sim.y < 0.6) break;
+    }
+    R.syncTrajectory(pts, kind, land);
   }
 
   // World point under the crosshair (screen x 50%, y 36%): shots fly through it.
@@ -858,20 +920,19 @@ class App {
 
   updateBanners(s, v, th) {
     const list = [];
-    if (s.mode === 'practice') { if (th && th.banner) list.push(th.banner); }
-    else if (v.phase === 'warmup') list.push({ title: 'Warm-up', text: s.isAuthority ? 'Press START MATCH when your friends are ready' : 'Waiting for the host to start' });
-    else {
-      const humans = s.humanCount();
-      if (!s.net) list.push({ title: 'Offline match', text: 'Bots are playing with you' });
-      else if (humans < 8) list.push({ title: 'Waiting for players', text: 'Bots fill empty spots until others join' });
-      if (this.session.intermission > 0 && v.phase === 'end') list.push({ title: 'Next match', text: `starts in ${Math.ceil(this.session.intermission)}s`, kind: 'good' });
-      const me = s.me;
-      if (me && s.hasBall() && v.phase === 'play') {
-        const close = v.players.some((q) => q && q.team !== me.team && Math.hypot(q.x - me.x, q.z - me.z) < 6);
-        if (close) list.unshift({ title: 'Dribble to dodge', text: "You can't get tackled while dribbling", kind: 'good' });
-      }
+    if (s.mode !== 'practice') {
+      if (v.phase === 'warmup' && !s.isAuthority) list.push({ title: 'Waiting for the host' });
+      if (this.session.intermission > 0 && v.phase === 'end') list.push({ title: 'Next match', text: `${Math.ceil(this.session.intermission)}s`, kind: 'good' });
     }
     this.ui.setBanners(list);
+    // Online status chip (top-left)
+    let chip = '';
+    if (s.mode === 'match') {
+      if (s.net && (s.role === 'client' || (s.net && s.net.isHost))) chip = `<i class="dot on"></i>${s.humanCount()}/8 online`;
+      else if (this.netStatus === 'search') chip = '<i class="dot search"></i>Finding players';
+      else chip = '<i class="dot"></i>Bots';
+    }
+    this.ui.setVal('netChip', 'html', chip);
     if (s.roomKind === 'priv' && v.phase === 'warmup') {
       const players = s.isAuthority ? s.world.humans().map((p) => ({ name: p.name, team: p.team })) : [...s.roster.values()].filter((r) => !r.bot).map((r) => ({ name: r.name, team: r.team }));
       this.ui.showRoomPanel({ code: s.roomCode, players, isHost: s.isAuthority });
@@ -901,6 +962,7 @@ class App {
 const app = new App();
 window.__app = app;
 window.__NetClass = Net;
+window.__Save = Save;
 app.boot().catch((e) => {
   console.error(e);
   const t = document.getElementById('loadText');

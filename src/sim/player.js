@@ -1,5 +1,5 @@
 // Player state + movement integration. Shared by the authoritative world and client-side prediction.
-import { PLAYER, FIELD, KICK } from '../config.js';
+import { PLAYER, FIELD, KICK, STAMINA } from '../config.js';
 import { clamp, moveAngle, len2 } from '../util/math.js';
 
 export function createPlayer({ id, name, team, slot = 0, isBot = false, remote = false, cos }) {
@@ -19,6 +19,19 @@ export function createPlayer({ id, name, team, slot = 0, isBot = false, remote =
     stats: { goals: 0, assists: 0, shots: 0, saves: 0, steals: 0, hits: 0, points: 0 },
     left: false,
   };
+}
+
+// Stamina spending shared by the host and client prediction
+export function spendStamina(p, n) {
+  if (p.fx.speed > 0 || p.fx.jet > 0) return;
+  p.stamina = Math.max(0, p.stamina - n);
+  p.regenT = PLAYER.regenDelay;
+}
+// 1 when rested, down to ~0.7 when exhausted
+export function staminaPowerMul(p) {
+  if (p.fx && (p.fx.speed > 0 || p.fx.jet > 0)) return 1;
+  const s = p.stamina ?? PLAYER.staminaMax;
+  return s >= STAMINA.tired ? 1 : 0.7 + 0.3 * (s / STAMINA.tired);
 }
 
 export const BUSY_ANIMS = new Set(['slide', 'dive', 'getup', 'fall', 'slip', 'frozen', 'hit']);

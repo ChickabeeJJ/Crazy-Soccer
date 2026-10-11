@@ -42,28 +42,7 @@
       <!-- PLAY -->
       <section id="pg-play" class="mn-page show">
         <div class="mn-col mn-left">
-          <div class="mn-kicker"><i class="live-dot"></i>QUICK MATCH · 4v4 · ONLINE</div>
-          <h1 class="mn-title">PICK YOUR SIDE</h1>
-          <div class="team-cards">
-            <button id="joinRedBtn" class="team-card red">
-              <span class="tc-shine"></span>
-              <span class="tc-crest"><svg viewBox="0 0 64 72"><path d="M32 3 58 12v22c0 17-11 29-26 35C17 63 6 51 6 34V12z" class="cr-b"/><path d="M32 9 52 16v18c0 13-8 23-20 28-12-5-20-15-20-28V16z" class="cr-f"/><circle cx="32" cy="35" r="11" fill="#fff" stroke="#1b1530" stroke-width="3"/><path d="M32 27l5 4-2 6h-6l-2-6z" fill="#1b1530"/></svg></span>
-              <span class="tc-text"><b>RED</b><small>Join the Red team</small></span>
-              <span class="tc-cta">PLAY<svg viewBox="0 0 10 12"><path d="M1 1l8 5-8 5z"/></svg></span>
-            </button>
-            <button id="joinBlueBtn" class="team-card blue">
-              <span class="tc-shine"></span>
-              <span class="tc-crest"><svg viewBox="0 0 64 72"><path d="M32 3 58 12v22c0 17-11 29-26 35C17 63 6 51 6 34V12z" class="cr-b"/><path d="M32 9 52 16v18c0 13-8 23-20 28-12-5-20-15-20-28V16z" class="cr-f"/><circle cx="32" cy="35" r="11" fill="#fff" stroke="#1b1530" stroke-width="3"/><path d="M32 27l5 4-2 6h-6l-2-6z" fill="#1b1530"/></svg></span>
-              <span class="tc-text"><b>BLUE</b><small>Join the Blue team</small></span>
-              <span class="tc-cta">PLAY<svg viewBox="0 0 10 12"><path d="M1 1l8 5-8 5z"/></svg></span>
-            </button>
-          </div>
-          <div class="mn-chips"><span>6:00 MATCHES</span><span>POWER-UPS ON</span><span>BOTS FILL EMPTY SPOTS</span></div>
-          <div class="mn-actions">
-            <button id="privateBtn" class="glass-btn"><i class="gi">🔒</i><span><b>PRIVATE MATCH</b><small>Invite friends with a code</small></span></button>
-            <button id="botsBtn" class="glass-btn"><i class="gi">🤖</i><span><b>VS BOTS</b><small>Offline 4v4 match</small></span></button>
-          </div>
-          <div id="menuNote" class="menu-note"></div>
+          <button id="playBtn" class="play-hero"><span class="ph-shine"></span><span class="ph-ball"></span><span class="ph-label">PLAY</span><span class="ph-sub">4v4 ONLINE</span></button>
         </div>
         <div class="mn-col mn-rightcol">
           <div class="mn-card daily">
@@ -72,35 +51,31 @@
             <button id="dailyBtn" class="btn btn-gold mc-btn">CLAIM</button>
           </div>
           <div class="mn-card promo" id="tutPromo">
-            <div class="mc-head"><span>NEW HERE?</span></div>
-            <p>Learn every move in a quick interactive tutorial.</p>
             <button id="tutBtn" class="btn btn-play mc-btn">HOW TO PLAY</button>
           </div>
           <div class="mn-card powers">
-            <div class="mc-head"><span>YOUR POWERS</span><em id="powerCount">4/10</em></div>
+            <div class="mc-head"><span>YOUR ITEMS</span><em id="powerCount">4/10</em></div>
             <div id="powerStrip" class="power-strip"></div>
-            <button id="powerShopBtn" class="btn btn-sec mc-btn">UNLOCK MORE</button>
+            <button id="powerShopBtn" class="btn btn-sec mc-btn">ROLL FOR ITEMS</button>
           </div>
         </div>
       </section>
 
       <!-- TRAINING -->
       <section id="pg-training" class="mn-page">
-        <div class="mn-kicker">OFFLINE · NO TIMER PRESSURE</div>
         <h1 class="mn-title">TRAINING GROUND</h1>
         <div class="mode-grid">
-          <button class="mode-card c1" data-train="tutorial"><span class="mc-art">🎓</span><b>TUTORIAL</b><small>Learn moving, shooting, aiming, passing, tackling, powers and keeping step by step.</small><em id="tutTag" class="mc-tag">+100 COINS FIRST TIME</em></button>
-          <button class="mode-card c2" data-train="free"><span class="mc-art">⚽</span><b>FREE PRACTICE</b><small>Shoot against a keeper. Mystery cubes spawn fast so you can test your powers.</small><em class="mc-tag">NO LIMITS</em></button>
-          <button class="mode-card c3" data-train="shoot"><span class="mc-art">🎯</span><b>SHOOTING CHALLENGE</b><small>Hit as many targets as you can in 60 seconds. Use the crosshair to aim high or low.</small><em id="bestShoot" class="mc-tag">BEST 0</em></button>
-          <button class="mode-card c4" data-train="keeper"><span class="mc-art">🧤</span><b>GOALKEEPER CHALLENGE</b><small>You're in goal. Dive (tackle key) and catch to stop 12 shots.</small><em id="bestKeeper" class="mc-tag">BEST 0</em></button>
+          <button class="mode-card c1" data-train="tutorial"><span class="mc-art">🎓</span><b>TUTORIAL</b><em id="tutTag" class="mc-tag">+100 COINS FIRST TIME</em></button>
+          <button class="mode-card c2" data-train="free"><span class="mc-art">⚽</span><b>FREE PRACTICE</b><em class="mc-tag">NO LIMITS</em></button>
+          <button class="mode-card c3" data-train="shoot"><span class="mc-art">🎯</span><b>SHOOTING CHALLENGE</b><em id="bestShoot" class="mc-tag">BEST 0</em></button>
+          <button class="mode-card c4" data-train="keeper"><span class="mc-art">🧤</span><b>GOALKEEPER CHALLENGE</b><em id="bestKeeper" class="mc-tag">BEST 0</em></button>
         </div>
       </section>
 
       <!-- SHOP -->
       <section id="pg-shop" class="mn-page">
         <div class="shop-wrap">
-          <div class="shop-head"><div><div class="mn-kicker">SPEND YOUR COINS</div><h1 class="mn-title sm">SHOP</h1></div><div id="shopTabs" class="seg-tabs"></div></div>
-          <div id="shopInfo" class="shop-info"></div>
+          <div class="shop-head"><h1 class="mn-title sm">SHOP</h1><div id="shopTabs" class="seg-tabs"></div></div>
           <div id="shopGrid" class="shop-grid"></div>
         </div>
       </section>
@@ -108,13 +83,13 @@
       <!-- INVENTORY -->
       <section id="pg-inventory" class="mn-page">
         <div class="shop-wrap">
-          <div class="shop-head"><div><div class="mn-kicker">YOUR STUFF</div><h1 class="mn-title sm">INVENTORY</h1></div><div id="invTabs" class="seg-tabs"></div></div>
+          <div class="shop-head"><h1 class="mn-title sm">INVENTORY</h1><div id="invTabs" class="seg-tabs"></div></div>
           <div id="invExtra" class="inv-extra"></div>
           <div id="invGrid" class="shop-grid"></div>
         </div>
       </section>
 
-      <footer class="mn-bottom"><div class="mn-tip"><b>TIP</b><span id="mnTip"></span></div><span id="mnVer" class="mn-ver"></span></footer>
+      <footer class="mn-bottom"><span></span><span id="mnVer" class="mn-ver"></span></footer>
     </div>
 
     <!-- ============================== HUD ============================== -->
@@ -135,6 +110,7 @@
         <button id="menuHudBtn" class="round-btn" title="Menu">☰</button>
         <button id="chatHudBtn" class="round-btn" title="Quick chat">💬</button>
         <button id="emoteHudBtn" class="round-btn" title="Emotes">😀</button>
+        <div id="netChip" class="net-chip"></div>
         <div id="chatFeed" class="chat-feed"></div>
       </div>
       <div id="hudTR" class="hud-tr">
@@ -159,7 +135,7 @@
       <div id="hint" class="hint"></div>
 
       <div id="netStats" class="net-stats"></div>
-      <div id="clickToPlay" class="click-to-play"><div><b>Click to play</b><span>Mouse aims your camera &amp; shots</span><span id="unlockHint" class="ctp-sub"></span></div></div>
+      <div id="clickToPlay" class="click-to-play"><div><b>Click to play</b><span id="unlockHint" class="ctp-sub"></span></div></div>
       <div id="tutBox" class="tut-box"><div class="tb-top"><span id="tutStep" class="tb-step">STEP 1/10</span><span class="tb-skip" id="tutSkipHint"></span></div><div id="tutTitle" class="tb-title"></div><div id="tutText" class="tb-text"></div><div class="tb-bar"><i id="tutBar"></i></div></div>
       <div id="roomPanel" class="room-panel"></div>
     </div>
@@ -179,6 +155,7 @@
         <div class="panel-head"><span>Menu</span></div>
         <div class="panel-body col">
           <button id="resumeBtn" class="btn btn-play">BACK TO GAME</button>
+          <button id="switchTeamBtn" class="btn btn-sec">SWITCH TEAM</button>
           <button id="pauseSettingsBtn" class="btn btn-sec">SETTINGS</button>
           <button id="pauseControlsBtn" class="btn btn-sec">CONTROLS</button>
           <button id="inviteBtn2" class="btn btn-sec hidden">INVITE FRIENDS</button>
@@ -204,6 +181,30 @@
           <button id="againBtn" class="btn btn-play">PLAY AGAIN</button>
           <button id="resLobbyBtn" class="btn btn-sec">LOBBY</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Play sheet: pick a team, then a mode -->
+    <div id="playSheet" class="modal">
+      <div class="panel play-sheet">
+        <div class="panel-head"><span>Play</span><button class="x-btn" data-close="playSheet">✕</button></div>
+        <div class="panel-body">
+          <div class="ps-teams">
+            <button class="ps-team red" data-team="0"><span class="tc-crest"><svg viewBox="0 0 64 72"><path d="M32 3 58 12v22c0 17-11 29-26 35C17 63 6 51 6 34V12z" class="cr-b"/><path d="M32 9 52 16v18c0 13-8 23-20 28-12-5-20-15-20-28V16z" class="cr-f"/><circle cx="32" cy="35" r="11" fill="#fff" stroke="#1b1530" stroke-width="3"/><path d="M32 27l5 4-2 6h-6l-2-6z" fill="#1b1530"/></svg></span><b>RED</b></button>
+            <button class="ps-team any" data-team="-1"><span class="ps-any">?</span><b>ANY</b></button>
+            <button class="ps-team blue" data-team="1"><span class="tc-crest"><svg viewBox="0 0 64 72"><path d="M32 3 58 12v22c0 17-11 29-26 35C17 63 6 51 6 34V12z" class="cr-b"/><path d="M32 9 52 16v18c0 13-8 23-20 28-12-5-20-15-20-28V16z" class="cr-f"/><circle cx="32" cy="35" r="11" fill="#fff" stroke="#1b1530" stroke-width="3"/><path d="M32 27l5 4-2 6h-6l-2-6z" fill="#1b1530"/></svg></span><b>BLUE</b></button>
+          </div>
+          <button id="quickBtn" class="btn btn-play ps-go">QUICK MATCH</button>
+          <div class="ps-row"><button id="privateBtn" class="btn btn-sec">PRIVATE ROOM</button><button id="botsBtn" class="btn btn-sec">VS BOTS</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Item roll reveal -->
+    <div id="rollReveal" class="modal roll-reveal">
+      <div class="rr-wrap">
+        <div id="rrCards" class="rr-cards"></div>
+        <div class="row"><button id="rrAgainBtn" class="btn btn-gold">ROLL AGAIN</button><button id="rrDoneBtn" class="btn btn-sec">DONE</button></div>
       </div>
     </div>
 

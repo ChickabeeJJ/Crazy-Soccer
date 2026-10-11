@@ -44,17 +44,16 @@ The game never binds Escape (a CrazyGames restricted key) and matches never paus
 ## Gameplay
 
 - **4v4** on two arenas (Cliffside grass, Canyon desert) plus an indoor training hall. Bots fill every empty spot; humans replace bots when they join.
-- **Main menu** with PLAY / TRAINING / SHOP / INVENTORY pages. On PLAY you pick JOIN RED or JOIN BLUE. Your team choice is kept when the room plays again.
-- **Random positions**: after every goal (and at kick-off) everyone gets a random position on their team: striker, wing, defender or goalkeeper.
-- **Goalkeepers** wear white and are the only players who can dive. They can't be tackled and the ball can't be stolen from them (no pokes, tackles, hits or grapples).
-- **Dynamic keepers**: a keeper who walks out of the penalty box loses the gloves. The next teammate to walk into the box becomes the keeper.
-- **Goals only count through the goal mouth.** The frame, side nets, roof and back net are solid, so the ball (or a dribbler) can't get in from the sides or behind.
-- **Jump** to catch high balls and shoot mid-air (volley bonus).
-- **Crosshair aiming**: the ball flies through the point under the crosshair, so aiming up gives a rising shot.
-- **Powers** from the glowing “?” mystery cubes: Fire Shot, Lightning Boots, Bubble Shield and Boxing Glove are free. Ice Blast, Oil Slick, Barricade, Grapple, Barrel Roll and Jetpack are unlocked in the **Shop** with coins. Cubes only drop powers you own, and the **Inventory** lets you switch owned powers on or off.
-- **Training**: an optional interactive **Tutorial** (+100 coins the first time), **Free Practice** (with a "TRY" button for any power in the shop), a 60-second **Shooting Challenge** (hit targets in the goal) and a **Goalkeeper Challenge** (save 12 shots). Personal bests are saved.
+- **PLAY** opens one sheet: pick RED, BLUE or ANY, then Quick Match, Private Room or VS Bots. Quick Match starts instantly (bots fill in while real players are found in the background) and **Switch Team** is in the in-match menu.
+- **Random positions** at every kickoff (striker, wing, defender or goalkeeper).
+- **Goalkeepers** (white kit) are whoever walks into their own penalty box when the team has no keeper. Step out and you lose the gloves; the next teammate to walk in takes them, so a team can be left with no keeper. Keepers can't be tackled, stunned, frozen, knocked down or robbed. A keeper who catches the ball holds it in their hands for up to 6 s (kick to punt, pass to throw), then it is thrown out automatically.
+- **Stamina** is the main limit: sprinting, skill moves, kicks, tackles and jumps cost stamina, and a tired player kicks weaker.
+- **Ball lines**: while you charge a shot, a dotted line shows exactly where the ball will go (same physics as the game: gravity, bounces, curve, posts, nets). Fast balls in flight show their predicted path too.
+- **Goals only count through the goal mouth.** The frame, side nets, roof and back net are solid.
+- **Jump** to catch high balls and volley them; **crosshair aiming** sends the ball through the point under the crosshair.
+- **Items** come out of the glowing “?” cubes, and cubes only drop items you own. New items come from the **Item Roll** in the Shop (250 coins, or 5 for 1,100): Common 52%, Rare 31%, Epic 14%, Legendary 3% (Jetpack). Duplicates refund coins and a new item is guaranteed after 5 duplicates in a row. The Inventory shows every item and lets you switch owned ones on or off.
+- **Training**: interactive tutorial, free practice, Shooting Challenge and Goalkeeper Challenge.
 - Rules: 6:00 matches, golden-goal overtime, last-chance extension, mercy rule (4-goal lead), goal replays.
-- Progression: coins and XP, levels, daily reward, and a locker with jerseys, balls, goal effects, emotes and hairstyles. All of it is unlocked with in-game coins, with no real-money purchases.
 
 ## Multiplayer
 

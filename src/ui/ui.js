@@ -1,7 +1,7 @@
 // DOM UI: main menu (play / training / shop / inventory), HUD, settings, wheels, results, touch controls.
 import { Save, BIND_LABELS, DEFAULT_BINDS } from '../save.js';
 import { CATALOG, TAB_LABELS, SKIN_TONES, HAIR_COLORS } from '../cosmetics.js';
-import { TEAMS, QUICK_CHAT, ITEMS, ITEM_KINDS, PLAYER } from '../config.js';
+import { TEAMS, QUICK_CHAT, ITEMS, ITEM_KINDS, PLAYER, RARITY, RARITY_ORDER, ROLL } from '../config.js';
 import { fmtTime, clamp } from '../util/math.js';
 import { itemSvg, previewJersey, previewBall, previewGoalFx, previewEmote, previewHair } from './icons.js';
 import { SDK } from '../sdk.js';
@@ -26,7 +26,7 @@ export class UI {
     this.app = app;
     this.cache = {};
     this.page = 'play';
-    this.shopTab = 'powers';
+    this.shopTab = 'roll';
     this.invTab = 'powers';
     this.tipI = Math.floor(Math.random() * TIPS.length);
     this.wheelType = null;
@@ -40,19 +40,24 @@ export class UI {
   screen(id, on) { $(id).classList.toggle('show', !!on); }
   modal(id, on) { $(id).classList.toggle('show', !!on); }
   isOpen(id) { return $(id).classList.contains('show'); }
-  anyModal() { return ['pause', 'results', 'settings', 'private', 'searching', 'confirm', 'trainRes'].some((m) => this.isOpen(m)); }
+  anyModal() { return ['pause', 'results', 'settings', 'private', 'searching', 'confirm', 'trainRes', 'playSheet', 'rollReveal'].some((m) => this.isOpen(m)); }
 
   setLoading() { /* no visible loading screen */ }
 
   bindButtons() {
     const app = this.app;
     const click = (id, fn) => $(id).addEventListener('click', (e) => { e.stopPropagation(); app.audio.click(); fn(e); });
-    click('joinRedBtn', () => app.quickPlay(0));
-    click('joinBlueBtn', () => app.quickPlay(1));
-    $('joinRedBtn').addEventListener('mouseenter', () => { app.menuTeam = 0; });
-    $('joinBlueBtn').addEventListener('mouseenter', () => { app.menuTeam = 1; });
-    click('botsBtn', () => app.startOffline());
-    click('privateBtn', () => { $('privateMsg').textContent = ''; this.modal('private', true); });
+    click('playBtn', () => this.openPlaySheet());
+    document.querySelectorAll('.ps-team').forEach((b) => {
+      b.addEventListener('click', (e) => { e.stopPropagation(); app.audio.click(); this.pickTeam(+b.dataset.team); });
+      b.addEventListener('mouseenter', () => { if (+b.dataset.team >= 0) app.menuTeam = +b.dataset.team; });
+    });
+    click('quickBtn', () => { this.modal('playSheet', false); app.quickPlay(this.sheetTeam); });
+    click('botsBtn', () => { this.modal('playSheet', false); app.startOffline(null, this.sheetTeam); });
+    click('privateBtn', () => { this.modal('playSheet', false); $('privateMsg').textContent = ''; this.modal('private', true); });
+    click('switchTeamBtn', () => app.switchTeam());
+    click('rrDoneBtn', () => this.modal('rollReveal', false));
+    click('rrAgainBtn', () => app.rollItems(this.lastRollN || 1));
     click('createRoomBtn', () => app.createPrivate());
     click('joinCodeBtn', () => app.joinPrivate($('codeInput').value.trim().toUpperCase()));
     $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') app.joinPrivate($('codeInput').value.trim().toUpperCase()); });
@@ -62,7 +67,7 @@ export class UI {
     click('dailyBtn', () => app.claimDaily());
     click('loginBtn', () => app.login());
     click('tutBtn', () => app.startTraining('tutorial'));
-    click('powerShopBtn', () => { this.shopTab = 'powers'; this.setPage('shop'); });
+    click('powerShopBtn', () => { this.shopTab = 'roll'; this.setPage('shop'); });
     click('resumeBtn', () => app.resume());
     click('leaveBtn', () => app.leaveToLobby(true));
     click('inviteBtn2', () => app.copyInvite());
@@ -93,8 +98,6 @@ export class UI {
     }
     document.querySelectorAll('button').forEach((b) => b.addEventListener('mouseenter', () => app.audio.hover()));
     window.addEventListener('resize', () => this.moveNavBar());
-    setInterval(() => this.nextTip(), 7000);
-    this.nextTip();
   }
 
   // ------------------------------------------------------------ menu pages
@@ -119,13 +122,16 @@ export class UI {
     bar.style.transform = `translateX(${on.offsetLeft + 8}px)`;
   }
 
-  nextTip() {
-    const el = $('mnTip');
-    if (!el) return;
-    this.tipI = (this.tipI + 1) % TIPS.length;
-    el.classList.remove('in'); void el.offsetWidth;
-    el.textContent = TIPS[this.tipI];
-    el.classList.add('in');
+  // Play sheet: choose a side (or ANY), then a mode
+  openPlaySheet() {
+    this.pickTeam(Save.p.team === 1 ? 1 : Save.p.team === 0 ? 0 : -1);
+    this.modal('playSheet', true);
+  }
+
+  pickTeam(t) {
+    this.sheetTeam = t;
+    document.querySelectorAll('.ps-team').forEach((b) => b.classList.toggle('on', +b.dataset.team === t));
+    if (t >= 0) this.app.menuTeam = t;
   }
 
   renderPlayPage() {
@@ -147,22 +153,20 @@ export class UI {
     const btn = $('dailyBtn');
     btn.disabled = !avail;
     btn.textContent = avail ? `CLAIM +${40 + nextDay * 20}` : 'COME BACK TOMORROW';
-    // Powers strip
-    $('powerStrip').innerHTML = ITEM_KINDS.map((k) => `<span class="ps ${Save.ownsPower(k) ? '' : 'locked'}" title="${esc(ITEMS[k].name)}">${itemSvg(k)}</span>`).join('');
+    // Items strip
+    $('powerStrip').innerHTML = ITEM_KINDS.map((k) => `<span class="ps ${Save.ownsPower(k) ? '' : 'locked'}" style="--rc:${RARITY[ITEMS[k].rarity].color}" title="${esc(ITEMS[k].name)}">${itemSvg(k)}</span>`).join('');
     $('powerCount').textContent = `${p.powers.length}/${ITEM_KINDS.length}`;
-    const allOwned = p.powers.length >= ITEM_KINDS.length;
-    $('powerShopBtn').textContent = allOwned ? 'ALL UNLOCKED!' : 'UNLOCK MORE';
+    $('powerShopBtn').textContent = p.powers.length >= ITEM_KINDS.length ? 'ALL ITEMS OWNED' : 'ROLL FOR ITEMS';
     $('tutPromo').classList.toggle('done', !!p.tutDone);
     $('tutBtn').textContent = p.tutDone ? 'REPLAY TUTORIAL' : 'HOW TO PLAY';
-    const cheapest = ITEM_KINDS.filter((k) => !Save.ownsPower(k)).map((k) => ITEMS[k].price).sort((a, b) => a - b)[0];
-    $('shopBadge').classList.toggle('hidden', !(cheapest !== undefined && p.coins >= cheapest));
+    $('shopBadge').classList.toggle('hidden', !(p.powers.length < ITEM_KINDS.length && p.coins >= ROLL.cost));
   }
 
   renderTraining() {
     const p = Save.p;
     $('bestShoot').textContent = `BEST ${p.best.shoot || 0}`;
     $('bestKeeper').textContent = `BEST ${p.best.keeper || 0} SAVES`;
-    $('tutTag').textContent = p.tutDone ? 'COMPLETED ✓' : '+100 COINS FIRST TIME';
+    $('tutTag').textContent = p.tutDone ? 'DONE ✓' : '+100 COINS';
   }
 
   showTrainingResult(r) {
@@ -237,7 +241,7 @@ export class UI {
     $('statsKey').querySelector('kbd').textContent = L('stats');
     $('lobbyKey').querySelector('kbd').textContent = L('lobby');
     $('unlockKey').querySelector('kbd').textContent = L('unlock');
-    $('unlockHint').textContent = `Press ${L('unlock')} any time to unlock your mouse`;
+    $('unlockHint').textContent = `${L('unlock')} · unlock mouse`;
   }
 
   flashControl(id) {
@@ -516,27 +520,52 @@ export class UI {
   renderShop() {
     const p = Save.p;
     const tab = this.shopTab;
-    this.tabs($('shopTabs'), [['powers', 'Powers'], ['jersey', 'Jerseys'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes'], ['hair', 'Hairstyles']], tab, (t) => { this.shopTab = t; this.renderShop(); });
+    this.tabs($('shopTabs'), [['roll', 'Item Roll'], ['jersey', 'Jerseys'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes'], ['hair', 'Hairstyles']], tab, (t) => { this.shopTab = t; this.renderShop(); });
     const grid = $('shopGrid');
     grid.innerHTML = '';
-    if (tab === 'powers') {
-      $('shopInfo').innerHTML = 'Powers come out of the glowing <b>?</b> mystery cubes in matches. Cubes only give powers you own, so unlock more to get crazier plays!';
-      for (const k of ITEM_KINDS) {
-        const it = ITEMS[k];
-        const owned = Save.ownsPower(k);
-        const card = document.createElement('div');
-        card.className = `scard power ${owned ? 'owned' : ''}`;
-        card.style.setProperty('--acc', it.color);
-        card.innerHTML = `<div class="sc-art">${itemSvg(k)}</div><div class="sc-name">${esc(it.name)}</div><div class="sc-desc">${esc(it.desc)}</div>
-          <div class="sc-foot">${owned ? '<span class="sc-owned">✓ OWNED</span>' : `<button class="sc-buy ${p.coins >= it.price ? '' : 'cant'}" data-buy="${k}"><span class="coin"></span>${it.price}</button>`}<button class="sc-try" data-try="${k}">TRY</button></div>`;
-        grid.appendChild(card);
-      }
-      grid.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.buyPower(b.dataset.buy); }));
-      grid.querySelectorAll('[data-try]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.audio.click(); this.app.startTraining('free', { power: b.dataset.try }); }));
+    grid.classList.toggle('roll-mode', tab === 'roll');
+    if (tab === 'roll') {
+      const owned = p.powers.length, total = ITEM_KINDS.length;
+      const odds = RARITY_ORDER.map((r) => {
+        const items = ITEM_KINDS.filter((k) => ITEMS[k].rarity === r);
+        return `<div class="odd" style="--rc:${RARITY[r].color}"><span class="odd-r">${RARITY[r].name}</span><span class="odd-p">${Math.round(ROLL.odds[r] * 1000) / 10}%</span><span class="odd-items">${items.map((k) => `<i class="${Save.ownsPower(k) ? '' : 'locked'}" title="${esc(ITEMS[k].name)}">${itemSvg(k)}</i>`).join('')}</span></div>`;
+      }).join('');
+      const done = owned >= total;
+      grid.innerHTML = `<div class="roll-hero">
+        <div class="roll-machine ${done ? 'done' : ''}"><div class="rm-glow"></div><div class="rm-capsule"><div class="rm-top"></div><div class="rm-bot"></div><b>?</b></div><div class="rm-count">${owned}/${total} ITEMS</div></div>
+        <div class="roll-side">
+          <div class="roll-btns">
+            <button class="roll-btn" data-roll="1" ${done ? 'disabled' : ''}><b>ROLL ×1</b><span class="rb-cost"><span class="coin"></span>${ROLL.cost}</span></button>
+            <button class="roll-btn big" data-roll="5" ${done ? 'disabled' : ''}><b>ROLL ×5</b><span class="rb-cost"><span class="coin"></span>${ROLL.cost5}</span></button>
+          </div>
+          <div class="roll-pity">${done ? 'Collection complete!' : `New item guaranteed within <b>${Save.rollsToPity()}</b> roll${Save.rollsToPity() === 1 ? '' : 's'}`}</div>
+          <div class="odds">${odds}</div>
+        </div>
+      </div>`;
+      grid.querySelectorAll('[data-roll]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.rollItems(+b.dataset.roll); }));
       return;
     }
-    $('shopInfo').innerHTML = tab === 'emote' ? 'Emotes go on your emote wheel (press <b>B</b> in a match).' : 'Unlocked items are equipped right away. Change your look any time in the Inventory.';
     for (const it of CATALOG[tab]) grid.appendChild(this.cosmeticCard(tab, it, true));
+  }
+
+  // Item roll reveal: cards flip one after another
+  showRoll(results) {
+    this.lastRollN = results.length;
+    const cards = $('rrCards');
+    cards.className = `rr-cards n${results.length}`;
+    cards.innerHTML = results.map((r, i) => `<div class="rr-card ${r.rarity}" style="--rc:${RARITY[r.rarity].color};--d:${0.25 + i * 0.45}s">
+        <div class="rr-inner"><div class="rr-back"><b>?</b></div>
+        <div class="rr-front"><div class="rr-rar">${RARITY[r.rarity].name.toUpperCase()}</div><div class="rr-ico">${itemSvg(r.k)}</div><div class="rr-name">${esc(ITEMS[r.k].name)}</div>
+        ${r.isNew ? '<div class="rr-new">NEW!</div>' : `<div class="rr-dup">DUPLICATE · <span class="coin"></span>+${r.refund}</div>`}</div></div></div>`).join('');
+    const again = $('rrAgainBtn');
+    const cost = results.length === 5 ? ROLL.cost5 : ROLL.cost;
+    again.innerHTML = `ROLL AGAIN <span class="coin"></span>${cost}`;
+    again.disabled = Save.p.coins < cost || Save.p.powers.length >= ITEM_KINDS.length;
+    this.modal('rollReveal', true);
+    results.forEach((r, i) => setTimeout(() => {
+      if (!this.isOpen('rollReveal')) return;
+      if (r.rarity === 'legendary' || r.rarity === 'epic') this.app.audio.goalHorn(); else this.app.audio.pickup();
+    }, (0.25 + i * 0.45) * 1000 + 300));
   }
 
   cosmeticCard(cat, it, shop) {
@@ -566,35 +595,35 @@ export class UI {
   renderInventory() {
     const p = Save.p;
     const tab = this.invTab;
-    this.tabs($('invTabs'), [['powers', 'Powers'], ['jersey', 'Jerseys'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes'], ['hair', 'Style']], tab, (t) => { this.invTab = t; this.renderInventory(); });
+    this.tabs($('invTabs'), [['powers', 'Items'], ['jersey', 'Jerseys'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes'], ['hair', 'Style']], tab, (t) => { this.invTab = t; this.renderInventory(); });
     const grid = $('invGrid');
     const extra = $('invExtra');
     grid.innerHTML = '';
+    grid.classList.toggle('inv-items', tab === 'powers');
     if (tab === 'powers') {
-      extra.innerHTML = `<span>Your mystery-cube pool: <b>${Save.activePowers().length}</b> of <b>${p.powers.length}</b> owned powers switched on. Switch one off to stop getting it.</span>`;
-      for (const k of p.powers) {
-        const it = ITEMS[k];
-        const on = Save.powerOn(k);
-        const card = document.createElement('div');
-        card.className = `scard power owned ${on ? 'eq' : 'off'}`;
-        card.style.setProperty('--acc', it.color);
-        card.innerHTML = `<div class="sc-art">${itemSvg(k)}</div><div class="sc-name">${esc(it.name)}</div><div class="sc-desc">${esc(it.desc)}</div><div class="sc-foot"><button class="toggle ${on ? 'on' : ''}" data-pw="${k}"></button><span class="sc-state">${on ? 'IN CUBES' : 'OFF'}</span></div>`;
-        grid.appendChild(card);
-      }
+      if (!this.invSel || !ITEMS[this.invSel]) this.invSel = p.powers[0];
+      const k = this.invSel, it = ITEMS[k], own = Save.ownsPower(k), on = Save.powerOn(k);
+      extra.innerHTML = `<span class="inv-count"><b>${p.powers.length}</b>/${ITEM_KINDS.length} owned · <b>${Save.activePowers().length}</b> in cubes</span>`;
+      const tiles = ITEM_KINDS.map((key) => {
+        const o = Save.ownsPower(key);
+        return `<button class="itile ${o ? '' : 'locked'} ${key === k ? 'sel' : ''} ${o && !Save.powerOn(key) ? 'off' : ''}" style="--rc:${RARITY[ITEMS[key].rarity].color}" data-it="${key}"><span class="it-ico">${itemSvg(key)}</span><span class="it-name">${o ? esc(ITEMS[key].name) : '???'}</span></button>`;
+      }).join('');
+      grid.innerHTML = `<div class="inv-layout"><div class="itiles">${tiles}</div>
+        <div class="idetail" style="--rc:${RARITY[it.rarity].color}">
+          <div class="id-rar">${RARITY[it.rarity].name.toUpperCase()}</div>
+          <div class="id-ico ${own ? '' : 'locked'}">${itemSvg(k)}</div>
+          <div class="id-name">${own ? esc(it.name) : 'Locked'}</div>
+          <div class="id-desc">${own ? esc(it.desc) : 'Get it from the Item Roll in the Shop.'}</div>
+          ${own ? `<div class="id-toggle"><span>In mystery cubes</span><button class="toggle ${on ? 'on' : ''}" data-pw="${k}"></button></div>` : '<button class="btn btn-gold id-go" data-goroll="1">ITEM ROLL</button>'}
+        </div></div>`;
+      grid.querySelectorAll('[data-it]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.audio.click(); this.invSel = b.dataset.it; this.renderInventory(); }));
       grid.querySelectorAll('[data-pw]').forEach((b) => b.addEventListener('click', (e) => {
         e.stopPropagation();
         this.app.audio.click();
-        if (!Save.togglePower(b.dataset.pw)) this.globalToast('Keep at least one power switched on!');
+        if (!Save.togglePower(b.dataset.pw)) this.globalToast('Keep at least one item switched on!');
         this.renderInventory();
       }));
-      const locked = ITEM_KINDS.filter((k) => !Save.ownsPower(k)).length;
-      if (locked) {
-        const more = document.createElement('div');
-        more.className = 'scard more';
-        more.innerHTML = `<div class="sc-art">🔒</div><div class="sc-name">${locked} more in the Shop</div><div class="sc-foot"><span class="sc-owned">VISIT SHOP ›</span></div>`;
-        more.addEventListener('click', () => { this.app.audio.click(); this.shopTab = 'powers'; this.setPage('shop'); });
-        grid.appendChild(more);
-      }
+      grid.querySelectorAll('[data-goroll]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.audio.click(); this.shopTab = 'roll'; this.setPage('shop'); }));
       return;
     }
     if (tab === 'hair') {
@@ -606,7 +635,7 @@ export class UI {
       $('numDown').onclick = () => { p.eq.number = p.eq.number <= 1 ? 99 : p.eq.number - 1; this.renderInventory(); this.app.onCosmeticsChanged(); };
       $('numUp').onclick = () => { p.eq.number = p.eq.number >= 99 ? 1 : p.eq.number + 1; this.renderInventory(); this.app.onCosmeticsChanged(); };
     } else if (tab === 'emote') {
-      extra.innerHTML = `<span>Emote wheel (max 8): ${p.eq.emotes.filter(Boolean).map((e) => `<em>${esc((CATALOG.emote.find((x) => x.id === e) || {}).name || e)}</em>`).join('') || 'empty'}</span>`;
+      extra.innerHTML = `<span class="inv-count">Wheel ${p.eq.emotes.filter(Boolean).length}/8</span>`;
     } else extra.innerHTML = '';
     for (const it of CATALOG[tab]) if (Save.owns(tab, it.id)) grid.appendChild(this.cosmeticCard(tab, it, false));
   }

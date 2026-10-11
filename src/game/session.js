@@ -2,9 +2,9 @@
 // The host/offline session runs the authoritative World. Clients predict their own
 // player + the ball locally and interpolate everyone else from snapshots.
 import { World, animName, kickVelocity } from '../sim/world.js';
-import { createPlayer, movePlayer, setAnim, canAct, stunPlayer } from '../sim/player.js';
+import { createPlayer, movePlayer, setAnim, canAct, stunPlayer, spendStamina } from '../sim/player.js';
 import { createBall, stepBall } from '../sim/ball.js';
-import { FIELD, PLAYER, KICK, PHYS, NET, MATCH, GAME_VERSION, MAPS } from '../config.js';
+import { FIELD, PLAYER, KICK, PHYS, NET, MATCH, GAME_VERSION, MAPS, STAMINA } from '../config.js';
 import { clamp, lerp, len2, wrapAngle, r2 } from '../util/math.js';
 
 const now = () => performance.now() / 1000;
@@ -119,6 +119,21 @@ export class Session {
     this.flushWorldEvents();
   }
 
+  // A running bot match becomes a public online room (instant play: no waiting in a lobby)
+  goOnline(net, roomKind, roomCode) {
+    this.net = net;
+    this.role = 'host';
+    this.roomKind = roomKind;
+    this.roomCode = roomCode;
+    this.rosterSent = -1;
+    this.bindHostNet();
+  }
+
+  switchTeam() {
+    if (this.isAuthority) { this.world.switchTeam(this.localId); this.flushWorldEvents(); return; }
+    if (this.net) this.net.sendHost({ t: 'team' });
+  }
+
   bindHostNet() {
     const net = this.net;
     net.on('hello', (peerId, msg) => {
@@ -156,6 +171,7 @@ export class Session {
       case 'st': this.world.applyRemoteState(p, msg); break;
       case 'a': if (msg.act && typeof msg.act === 'object') this.world.doAction(p, msg.act); break;
       case 'p': this.net.send(peerId, { t: 'P', ts: msg.ts }); break;
+      case 'team': this.world.switchTeam(id); break;
       default:
     }
   }
@@ -326,6 +342,7 @@ export class Session {
     while (this.snaps.length > 40) this.snaps.shift();
     this.lastSnap = s;
     this.lastSnapT = t;
+    if (this.snapNext) { this.snapNext = false; this.snapLocalFromSnap(s); }
     const v = this.view;
     v.phase = s.ph; v.phaseT = s.pt; v.clock = s.c; v.score = s.sc; v.ot = s.ot;
     v.boxes = s.bx.map((x) => ({ id: x[0], x: x[1], z: x[2], c: x[3] }));
@@ -366,6 +383,9 @@ export class Session {
       this.ownKickT = 0; this.predOwnT = 0;
     } else if (ev.e === 'own' && ev.id !== this.localId) {
       this.predOwnT = 0;
+    } else if (ev.e === 'teamswitch' && ev.id === this.localId && p) {
+      p.team = ev.team;
+      this.snapNext = true; // the host moved us: take the next snapshot position
     }
     this.handleEvent(ev);
   }
@@ -535,13 +555,15 @@ export class Session {
     }
     cb.fire = !!sb[7];
     cb.grapple = sb[9];
+    cb.held = !!sb[10] && cb.owner === srvOwner;
+    cb.holdT = sb[11] || 0;
     if (cb.owner >= 0) {
       const o = cb.owner === this.localId ? me : this.viewMap.get(cb.owner);
       if (o) {
-        const d = PLAYER.dribbleDist;
+        const d = cb.held ? 0.72 : PLAYER.dribbleDist;
         const sp = len2(o.vx || 0, o.vz || 0);
         cb.x = o.x + Math.sin(o.face) * d; cb.z = o.z + Math.cos(o.face) * d;
-        cb.y = PHYS.ballR + (o.y || 0) + (sp > 1 ? Math.abs(Math.sin(now() * 9)) * 0.12 : 0);
+        cb.y = cb.held ? (o.y || 0) + 1.35 : PHYS.ballR + (o.y || 0) + (sp > 1 ? Math.abs(Math.sin(now() * 9)) * 0.12 : 0);
         cb.vx = o.vx || 0; cb.vz = o.vz || 0; cb.vy = 0;
         cb.spin += sp * dt / PHYS.ballR;
       }
@@ -570,7 +592,7 @@ export class Session {
     const near = len2(cb.x - p.x, cb.z - p.z) < KICK.hitRange && cb.y < 2.6 + p.y && (cb.owner < 0 || mine);
     const launch = (kind, fire) => {
       const k = kickVelocity(p, act, v.players, fire);
-      if (mine) { cb.x = p.x + Math.sin(p.face) * PLAYER.dribbleDist; cb.z = p.z + Math.cos(p.face) * PLAYER.dribbleDist; cb.y = PHYS.ballR + p.y; }
+      if (mine) { cb.x = p.x + Math.sin(p.face) * PLAYER.dribbleDist; cb.z = p.z + Math.cos(p.face) * PLAYER.dribbleDist; cb.y = cb.held ? p.y + 1.35 : PHYS.ballR + p.y; cb.held = false; }
       cb.owner = -1;
       cb.vx = k.vx; cb.vy = k.vy; cb.vz = k.vz; cb.curve = k.curve; cb.inNet = 0;
       this.ownKickT = 0.4; this.predOwnT = 0;
@@ -582,11 +604,11 @@ export class Session {
         if (p.cd.kick > 0) return;
         p.cd.kick = KICK.cooldown;
         setAnim(p, 'kick', 0.38);
-        if (mine || near) launch('shot', p.fx.fire > 0);
+        if (mine || near) { launch('shot', p.fx.fire > 0); spendStamina(p, STAMINA.kickBase + STAMINA.kickPower * clamp(act.pw || 0, 0, 1)); }
         break;
-      case 'pass': if (p.cd.pass > 0 || !(mine || near)) return; p.cd.pass = KICK.cooldown; setAnim(p, 'pass', 0.3); launch('pass'); break;
-      case 'lob': if (p.cd.lob > 0 || !(mine || near)) return; p.cd.lob = KICK.cooldown; setAnim(p, 'kick', 0.38); launch('lob'); break;
-      case 'flick': if (p.cd.flick > 0 || !(mine || near)) return; p.cd.flick = 0.8; setAnim(p, 'flick', 0.35); launch('flick'); break;
+      case 'pass': if (p.cd.pass > 0 || !(mine || near)) return; p.cd.pass = KICK.cooldown; setAnim(p, 'pass', 0.3); launch('pass'); spendStamina(p, STAMINA.pass); break;
+      case 'lob': if (p.cd.lob > 0 || !(mine || near)) return; p.cd.lob = KICK.cooldown; setAnim(p, 'kick', 0.38); launch('lob'); spendStamina(p, STAMINA.lob); break;
+      case 'flick': if (p.cd.flick > 0 || !(mine || near)) return; p.cd.flick = 0.8; setAnim(p, 'flick', 0.35); launch('flick'); spendStamina(p, STAMINA.flick); break;
       case 'tackle': {
         if (mine) return;
         const ml = len2(act.mx || 0, act.mz || 0);
@@ -602,6 +624,7 @@ export class Session {
         }
         if (p.cd.tackle > 0) return;
         p.cd.tackle = KICK.tackleCooldown;
+        spendStamina(p, STAMINA.tackle);
         if (ml > 0.2) { p.slideX = act.mx / ml; p.slideZ = act.mz / ml; } else { p.slideX = Math.sin(p.face); p.slideZ = Math.cos(p.face); }
         p.face = Math.atan2(p.slideX, p.slideZ);
         setAnim(p, 'slide', KICK.tackleTime);
@@ -612,9 +635,13 @@ export class Session {
         p.cd.dribble = KICK.dribbleCooldown;
         const ml = len2(act.mx || 0, act.mz || 0);
         if (ml > 0.2) { p.slideX = act.mx / ml; p.slideZ = act.mz / ml; } else { p.slideX = Math.sin(p.face); p.slideZ = Math.cos(p.face); }
-        if (mine) { setAnim(p, 'spin', 0.42); p.immune = KICK.dribbleImmune; } else {
+        if (mine) {
+          if (cb.held || (p.stamina < STAMINA.skill && p.fx.speed <= 0)) { p.cd.dribble = 0.3; return; }
+          spendStamina(p, STAMINA.skill); setAnim(p, 'spin', 0.42); p.immune = KICK.dribbleImmune;
+        } else {
           p.cd.dribble = KICK.jumpCooldown;
           if (p.y > 0.05 || p.fx.jet > 0) return;
+          spendStamina(p, STAMINA.jump);
           p.vy = KICK.jumpSpeed; setAnim(p, 'jump', 0.75);
         }
         break;

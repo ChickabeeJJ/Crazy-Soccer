@@ -6,7 +6,7 @@ export function createBall() {
     x: 0, y: PHYS.ballR, z: 0, vx: 0, vy: 0, vz: 0,
     curve: 0, owner: -1, lastTouch: -1, lastTeam: -1, prevTouch: -1, prevTeam: -1, prevT: 0,
     fire: false, inNet: 0, block: -1, blockT: 0, contestT: 0, grapple: -1, grappleT: 0,
-    shot: null, pass: null, spin: 0, kicker: -1,
+    shot: null, pass: null, spin: 0, kicker: -1, held: false, holdT: 0,
   };
 }
 
