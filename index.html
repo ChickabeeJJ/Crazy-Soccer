@@ -17,7 +17,7 @@
       <div class="mn-shade"></div>
       <div class="mn-glow g1"></div><div class="mn-glow g2"></div>
       <header class="mn-top">
-        <div class="mn-brand"><div class="logo sm"><span class="l1">CRAZY</span><span class="l2">SOCCER</span></div></div>
+        <div class="mn-brand"><div class="brand"><span class="b1">CRAZY</span><span class="b2">SOCCER</span></div></div>
         <nav id="mnNav" class="mn-nav">
           <button data-page="play" class="on"><span>PLAY</span></button>
           <button data-page="training"><span>TRAINING</span></button>
@@ -100,17 +100,16 @@
           <span class="sq red"></span><span id="scoreRed" class="sc">0</span><span class="dash">–</span><span id="scoreBlue" class="sc">0</span><span class="sq blue"></span>
           <span id="youTag" class="you">YOU</span>
         </div>
-        <div id="timer" class="timer"><span class="clock">⏱</span><span id="timerText">6:00</span></div>
+        <div id="timer" class="timer"><span class="clock"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M12 9v4l3 2M9 2h6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg></span><span id="timerText">6:00</span></div>
         <div id="drillHud" class="drill-hud"><b id="drillScore">0</b><span id="drillLabel">POINTS</span></div>
         <div id="roleTag" class="role-tag"></div>
         <div id="goalPop" class="goal-pop"><span class="gp-tag">GOAL!</span><div class="gp-card"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span><span id="gpSq" class="sq red"></span><span id="gpName">Player</span></div><div id="gpAssist" class="gp-assist"></div></div>
       </div>
       <div id="recOverlay" class="rec-overlay"><div class="lb top"></div><div class="lb bottom"></div><div class="rec-frame"><span class="rc tl"></span><span class="rc tr"></span><span class="rc bl"></span><span class="rc br"></span><div class="rec-dot"><i></i>REC</div></div></div>
       <div class="hud-tl">
-        <button id="menuHudBtn" class="round-btn" title="Menu">☰</button>
-        <button id="chatHudBtn" class="round-btn" title="Quick chat">💬</button>
-        <button id="emoteHudBtn" class="round-btn" title="Emotes">😀</button>
-        <div id="netChip" class="net-chip"></div>
+        <button id="menuHudBtn" class="round-btn" title="Menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>
+        <button id="chatHudBtn" class="round-btn" title="Quick chat"><svg viewBox="0 0 24 24"><path d="M4 5h16v10H10l-5 4v-4H4z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg></button>
+        <button id="emoteHudBtn" class="round-btn" title="Emotes"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M8.5 14c1.8 2.2 5.2 2.2 7 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="9" cy="10" r="1.3" fill="currentColor"/><circle cx="15" cy="10" r="1.3" fill="currentColor"/></svg></button>
         <div id="chatFeed" class="chat-feed"></div>
       </div>
       <div id="hudTR" class="hud-tr">
@@ -187,15 +186,13 @@
     <!-- Play sheet: pick a team, then a mode -->
     <div id="playSheet" class="modal">
       <div class="panel play-sheet">
-        <div class="panel-head"><span>Play</span><button class="x-btn" data-close="playSheet">✕</button></div>
+        <div class="panel-head"><span>Choose your team</span><button class="x-btn" data-close="playSheet"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></button></div>
         <div class="panel-body">
           <div class="ps-teams">
-            <button class="ps-team red" data-team="0"><span class="tc-crest"><svg viewBox="0 0 64 72"><path d="M32 3 58 12v22c0 17-11 29-26 35C17 63 6 51 6 34V12z" class="cr-b"/><path d="M32 9 52 16v18c0 13-8 23-20 28-12-5-20-15-20-28V16z" class="cr-f"/><circle cx="32" cy="35" r="11" fill="#fff" stroke="#1b1530" stroke-width="3"/><path d="M32 27l5 4-2 6h-6l-2-6z" fill="#1b1530"/></svg></span><b>RED</b></button>
-            <button class="ps-team any" data-team="-1"><span class="ps-any">?</span><b>ANY</b></button>
-            <button class="ps-team blue" data-team="1"><span class="tc-crest"><svg viewBox="0 0 64 72"><path d="M32 3 58 12v22c0 17-11 29-26 35C17 63 6 51 6 34V12z" class="cr-b"/><path d="M32 9 52 16v18c0 13-8 23-20 28-12-5-20-15-20-28V16z" class="cr-f"/><circle cx="32" cy="35" r="11" fill="#fff" stroke="#1b1530" stroke-width="3"/><path d="M32 27l5 4-2 6h-6l-2-6z" fill="#1b1530"/></svg></span><b>BLUE</b></button>
+            <button class="ps-team red" data-team="0"><span class="pt-emb"><svg viewBox="0 0 64 72"><path d="M32 4 56 12v21c0 16-10 27-24 33C18 60 8 49 8 33V12z" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="32" cy="34" r="10" fill="none" stroke="currentColor" stroke-width="4"/><path d="M32 27l5 4-2 6h-6l-2-6z" fill="currentColor"/></svg></span><span class="pt-txt"><small>JOIN</small><b>RED</b></span><span class="pt-go">PLAY</span></button>
+            <button class="ps-team blue" data-team="1"><span class="pt-emb"><svg viewBox="0 0 64 72"><path d="M32 4 56 12v21c0 16-10 27-24 33C18 60 8 49 8 33V12z" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="32" cy="34" r="10" fill="none" stroke="currentColor" stroke-width="4"/><path d="M32 27l5 4-2 6h-6l-2-6z" fill="currentColor"/></svg></span><span class="pt-txt"><small>JOIN</small><b>BLUE</b></span><span class="pt-go">PLAY</span></button>
           </div>
-          <button id="quickBtn" class="btn btn-play ps-go">QUICK MATCH</button>
-          <div class="ps-row"><button id="privateBtn" class="btn btn-sec">PRIVATE ROOM</button><button id="botsBtn" class="btn btn-sec">VS BOTS</button></div>
+          <div class="ps-row"><button id="privateBtn" class="btn btn-sec">PRIVATE ROOM</button><button id="botsBtn" class="btn btn-sec">OFFLINE MATCH</button></div>
         </div>
       </div>
     </div>
@@ -225,7 +222,7 @@
     <!-- Settings -->
     <div id="settings" class="modal">
       <div class="panel settings-panel">
-        <div class="panel-head"><span>Settings</span><button class="x-btn" data-close="settings">✕</button></div>
+        <div class="panel-head"><span>Settings</span><button class="x-btn" data-close="settings"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></button></div>
         <div id="settingsBody" class="panel-body scroll"></div>
       </div>
     </div>
@@ -233,7 +230,7 @@
     <!-- Private match -->
     <div id="private" class="modal">
       <div class="panel small">
-        <div class="panel-head"><span>Private Match</span><button class="x-btn" data-close="private">✕</button></div>
+        <div class="panel-head"><span>Private Match</span><button class="x-btn" data-close="private"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></button></div>
         <div class="panel-body col">
           <button id="createRoomBtn" class="btn btn-play">CREATE ROOM</button>
           <div class="or">or join with a code</div>

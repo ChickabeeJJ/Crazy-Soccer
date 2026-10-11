@@ -19,8 +19,9 @@ The whole build is ~1 MB in 10 files (CrazyGames limits: 50 MB initial download,
 | Move | WASD / arrows (physical keys, so AZERTY works automatically) |
 | Kick (hold to charge, aim with the crosshair) | Left mouse |
 | Pass | T / Right mouse |
+| Dive (goalkeepers, in their own box) | Right mouse |
 | Flick | Q |
-| Tackle (goalkeepers: Dive in their own box) | E |
+| Tackle | E |
 | Lob | F |
 | Request the ball | R |
 | **Jump** (no ball) / **Dribble skill** (with ball) | Space |
@@ -44,13 +45,13 @@ The game never binds Escape (a CrazyGames restricted key) and matches never paus
 ## Gameplay
 
 - **4v4** on two arenas (Cliffside grass, Canyon desert) plus an indoor training hall. Bots fill every empty spot; humans replace bots when they join.
-- **PLAY** opens one sheet: pick RED, BLUE or ANY, then Quick Match, Private Room or VS Bots. Quick Match starts instantly (bots fill in while real players are found in the background) and **Switch Team** is in the in-match menu.
+- **PLAY** opens the team picker: click RED or BLUE and you are put straight into a match on that team. The match starts instantly (bots fill in while real players are found in the background). Private Room and Offline Match sit under the team cards, and **Switch Team** is in the in-match menu.
 - **Random positions** at every kickoff (striker, wing, defender or goalkeeper).
-- **Goalkeepers** (white kit) are whoever walks into their own penalty box when the team has no keeper. Step out and you lose the gloves; the next teammate to walk in takes them, so a team can be left with no keeper. Keepers can't be tackled, stunned, frozen, knocked down or robbed. A keeper who catches the ball holds it in their hands for up to 6 s (kick to punt, pass to throw), then it is thrown out automatically.
-- **Stamina** is the main limit: sprinting, skill moves, kicks, tackles and jumps cost stamina, and a tired player kicks weaker.
+- **Goalkeepers** (white kit) are whoever walks into their own penalty box when the team has no keeper. Step out and you lose the gloves; the next teammate to walk in takes them, so a team can be left with no keeper. Keepers can't be tackled, stunned, frozen, knocked down or robbed, and nothing (tackles, items or contact) can take the ball out of a keeper's hands. A keeper who catches the ball holds it for up to 6 s (kick to punt, pass to throw) and can't carry it out of the box; then it is thrown out automatically. A keeper's throw or punt knocks down every rival in its path, like a tackle. Keepers dive with Right mouse (rebindable).
+- **Stamina** (175) is the main limit: sprinting, skill moves, kicks, tackles and jumps cost stamina, and a tired player kicks weaker.
 - **Ball lines**: while you charge a shot, a dotted line shows exactly where the ball will go (same physics as the game: gravity, bounces, curve, posts, nets). Fast balls in flight show their predicted path too.
 - **Goals only count through the goal mouth.** The frame, side nets, roof and back net are solid.
-- **Flick → volley**: Flick (Q) pops the ball up over your head. Press Kick while the ball is in the air next to you (stand or jump with Space to reach higher) for an instant volley, or a bicycle kick when the ball is above your head. Volleys come off faster than normal shots. **Crosshair aiming** sends the ball through the point under the crosshair.
+- **Flick → volley**: Flick (Q) pops the ball up over your head. Press Kick while the ball is in the air next to you (stand or jump with Space to reach higher) for an instant volley, or a bicycle kick when the ball is above your head (you turn your back to goal and scissor the ball over the top). The jump is high and the volley reach is generous, so flick, jump, kick is easy to land. Volleys come off faster than normal shots. **Crosshair aiming** sends the ball through the point under the crosshair.
 - **Items** (the original game's 14): Forcefield, Barricades, Energy Drink, Oil Spill (Common) · Shotgun, Grappling Hook, Magnet, Landmines (Uncommon) · Rocket Punch, Supercharge, Flintlock (Rare) · Freeze Gun, Bazooka (Epic) · Jetpack (Mythic). They come out of the glowing “?” cubes, which only drop items you own. New items come from the **Item Roll** in the Shop (250 coins, or 5 for 1,100): Common 46%, Uncommon 30%, Rare 16%, Epic 7%, Mythic 1%. Duplicates refund coins and a new item is guaranteed after 5 duplicates in a row.
 - **Training**: interactive tutorial, free practice, Shooting Challenge and Goalkeeper Challenge.
 - Rules: 6:00 matches, golden-goal overtime, last-chance extension, mercy rule (4-goal lead), goal replays.

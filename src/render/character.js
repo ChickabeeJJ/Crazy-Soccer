@@ -383,14 +383,16 @@ export class CharacterModel {
         break;
       }
       case 'volley': {
-        // Bicycle / scissor kick: lean back and whip the right leg over
-        rate = 30;
-        const up = Math.sin(Math.min(1, k * 1.4) * Math.PI);
-        t.pX = -1.1 * up; t.pY = 0.95 + up * 0.25;
-        t.rhX = k < 0.35 ? lerp(0.2, 1.4, k / 0.35) : lerp(1.4, -2.6, Math.min(1, (k - 0.35) / 0.3));
-        t.rkX = 0.15; t.lhX = 1.2 * up; t.lkX = 1.4 * up;
-        t.lsX = -1.6 * up; t.rsX = -1.2 * up; t.lsZ = 0.7; t.rsZ = -0.7;
-        t.hX = -0.4 * up;
+        // Bicycle kick: turn your back to the target, fall backwards and scissor the legs over the top
+        rate = 26;
+        const a = Math.min(1, k / 0.28), b = clamp((k - 0.22) / 0.36, 0, 1), c = clamp((k - 0.72) / 0.28, 0, 1);
+        const lean = (a * a * (3 - 2 * a)) * (1 - c * 0.55);
+        t.pRY = Math.PI * Math.min(1, k * 3.2);
+        t.pX = -2.05 * lean; t.pY = 0.95 + 0.4 * lean;
+        t.lhX = b < 1e-3 ? lerp(0, -1.5, a) : lerp(-1.5, 0.35, b); t.lkX = 0.7 * (1 - b);
+        t.rhX = b < 1e-3 ? lerp(0.2, 0.55, a) : lerp(0.55, -2.35, b * b * (3 - 2 * b)); t.rkX = 0.15 + 0.5 * (1 - b) * a;
+        t.lsX = -0.5 * lean; t.rsX = -0.5 * lean; t.lsZ = 0.2 + 1.2 * lean; t.rsZ = -0.2 - 1.2 * lean; t.leX = -0.3; t.reX = -0.3;
+        t.sX = 0.3 * lean; t.hX = 0.55 * lean;
         expr = 2;
         break;
       }

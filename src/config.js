@@ -41,7 +41,7 @@ export const PLAYER = {
   withBallMul: 0.94,
   accel: 70,
   turnRate: 14,
-  staminaMax: 150,
+  staminaMax: 175,
   sprintDrain: 19,
   staminaRegen: 26,
   regenDelay: 0.5,
@@ -63,8 +63,8 @@ export const KICK = {
   lobRange: 28,
   flickUp: 12.8,
   flickFwd: 1.6, // flick pops the ball up over your head (keeps your running speed) for volleys
-  volleyReachH: 2.7, // horizontal reach for a mid-air volley
-  volleyReachUp: 3.5, // how far above your feet you can volley the ball
+  volleyReachH: 3.4, // horizontal reach for a mid-air volley
+  volleyReachUp: 4.4, // how far above your feet you can volley the ball
   tackleSpeed: 18,
   tackleTime: 0.55,
   tackleCooldown: 0.9,
@@ -72,7 +72,7 @@ export const KICK = {
   diveTime: 0.62,
   diveCooldown: 1.6,
   dribbleCooldown: 1.5,
-  jumpSpeed: 10.5,
+  jumpSpeed: 12.5,
   jumpCooldown: 0.6,
   dribbleImmune: 0.6,
   requestCooldown: 2.5,

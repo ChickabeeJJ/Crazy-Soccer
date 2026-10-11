@@ -62,9 +62,12 @@ export function findItem(cat, id) {
   return CATALOG[cat].find((x) => x.id === id) || CATALOG[cat][0];
 }
 
-const BOT_NAMES = ['Ziggy', 'Turbo', 'Pip', 'Nova', 'Bolt', 'Mango', 'Pixel', 'Rocco', 'Juno', 'Kiwi', 'Blitz', 'Momo', 'Taco', 'Echo', 'Waffles', 'Sprout', 'Comet', 'Noodle', 'Biscuit', 'Zap'];
+// Bot names look like real players' usernames on a web games site
+const BOT_NAMES = ['jayden_fc', 'xNoahx', 'lucas2011', 'Kai_Plays', 'mia.goals', 'ProStriker99', 'notbrandon', 'Zyrox', 'ethan_ttv', 'dribblekingg', 'ItzAiden', 'sofiaa_7', 'ggLeo', 'Mateo_10', 'TheRealOwen', 'chloe.xo', 'Rafa_9', 'swiftyy', 'Nathan_YT', 'goalmachine14', 'vexx', 'liam.exe', 'ArloBallin', 'Zara_K', 'MaxPower07', 'k1lianfan', 'oscar_gg', 'Ruby_rb', 'n0vaStorm', 'theo_2010', 'jules.fc', 'Yassin_7', 'FinnTheFast', 'ellie_plays', 'Dexterr', 'carterz', 'Iker_GK', 'ninja_ronin', 'Ayaan10', 'benjixd'];
+let botOrder = null;
 export function botName(i) {
-  return BOT_NAMES[i % BOT_NAMES.length];
+  if (!botOrder) { botOrder = BOT_NAMES.map((n, k) => [Math.random(), n]).sort((a, b) => a[0] - b[0]).map((x) => x[1]); }
+  return botOrder[i % botOrder.length];
 }
 
 export function randomCosmetics(rng = Math.random) {

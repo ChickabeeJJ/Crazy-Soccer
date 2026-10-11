@@ -5,6 +5,7 @@ import { TEAMS, QUICK_CHAT, ITEMS, ITEM_KINDS, PLAYER, RARITY, RARITY_ORDER, ROL
 import { fmtTime, clamp } from '../util/math.js';
 import { itemSvg, previewJersey, previewBall, previewGoalFx, previewEmote, previewHair } from './icons.js';
 import { SDK } from '../sdk.js';
+import { PreviewStudio } from '../render/preview.js';
 
 const $ = (id) => document.getElementById(id);
 const TIPS = [
@@ -48,12 +49,12 @@ export class UI {
     const app = this.app;
     const click = (id, fn) => $(id).addEventListener('click', (e) => { e.stopPropagation(); app.audio.click(); fn(e); });
     click('playBtn', () => this.openPlaySheet());
+    // Clicking a team puts you straight into a match on that team
     document.querySelectorAll('.ps-team').forEach((b) => {
-      b.addEventListener('click', (e) => { e.stopPropagation(); app.audio.click(); this.pickTeam(+b.dataset.team); });
-      b.addEventListener('mouseenter', () => { if (+b.dataset.team >= 0) app.menuTeam = +b.dataset.team; });
+      b.addEventListener('click', (e) => { e.stopPropagation(); app.audio.click(); this.modal('playSheet', false); app.quickPlay(+b.dataset.team); });
+      b.addEventListener('mouseenter', () => { app.menuTeam = +b.dataset.team; });
     });
-    click('quickBtn', () => { this.modal('playSheet', false); app.quickPlay(this.sheetTeam); });
-    click('botsBtn', () => { this.modal('playSheet', false); app.startOffline(null, this.sheetTeam); });
+    click('botsBtn', () => { this.modal('playSheet', false); app.startOffline(null, Save.p.team === 1 ? 1 : 0); });
     click('privateBtn', () => { this.modal('playSheet', false); $('privateMsg').textContent = ''; this.modal('private', true); });
     click('switchTeamBtn', () => app.switchTeam());
     click('rrDoneBtn', () => this.modal('rollReveal', false));
@@ -123,16 +124,7 @@ export class UI {
   }
 
   // Play sheet: choose a side (or ANY), then a mode
-  openPlaySheet() {
-    this.pickTeam(Save.p.team === 1 ? 1 : Save.p.team === 0 ? 0 : -1);
-    this.modal('playSheet', true);
-  }
-
-  pickTeam(t) {
-    this.sheetTeam = t;
-    document.querySelectorAll('.ps-team').forEach((b) => b.classList.toggle('on', +b.dataset.team === t));
-    if (t >= 0) this.app.menuTeam = t;
-  }
+  openPlaySheet() { this.modal('playSheet', true); }
 
   renderPlayPage() {
     const p = Save.p;
@@ -166,14 +158,14 @@ export class UI {
     const p = Save.p;
     $('bestShoot').textContent = `BEST ${p.best.shoot || 0}`;
     $('bestKeeper').textContent = `BEST ${p.best.keeper || 0} SAVES`;
-    $('tutTag').textContent = p.tutDone ? 'DONE ✓' : '+100 COINS';
+    $('tutTag').textContent = p.tutDone ? 'COMPLETED' : '+100 COINS';
   }
 
   showTrainingResult(r) {
     $('trTitle').textContent = r.title;
     $('trTitle').className = `res-title ${r.newBest ? '' : 'draw'}`;
     $('trScore').textContent = r.score;
-    $('trBest').textContent = r.newBest ? '★ NEW PERSONAL BEST! ★' : r.best;
+    $('trBest').textContent = r.newBest ? 'NEW PERSONAL BEST' : r.best;
     $('trCoins').textContent = `+${r.coins}`;
     $('trAgainBtn').classList.toggle('hidden', !r.retry);
     this.modal('trainRes', true);
@@ -231,7 +223,7 @@ export class UI {
       [kick, L('kick'), state.hasBall || state.item || state.nearBall, 'kick'],
       [pass, L('pass'), state.hasBall, 'pass'],
       ['Flick', L('flick'), state.hasBall, 'flick'],
-      [state.inBox ? 'Dive' : 'Tackle', L('tackle'), !state.hasBall, 'tackle'],
+      state.inBox ? ['Dive', L('dive'), true, 'tackle'] : ['Tackle', L('tackle'), !state.hasBall, 'tackle'],
       ['Lob', L('lob'), state.hasBall, 'lob'],
       ['Request', L('request'), !state.hasBall, 'request'],
       ['Jump / Dribble', L('dribble'), true, 'dribble', true],
@@ -363,7 +355,7 @@ export class UI {
   goalPopup(name, team, assist) {
     $('gpName').textContent = name || 'Own goal';
     $('gpSq').className = `sq ${team === 1 ? 'blue' : 'red'}`;
-    $('gpAssist').textContent = assist ? `⚽ ${assist}` : '';
+    $('gpAssist').textContent = assist ? `Assist: ${assist}` : '';
     const el = $('goalPop');
     el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
     $('hud').classList.add('goal');
@@ -412,7 +404,7 @@ export class UI {
     const v = session.view;
     const team = (t) => {
       const list = rows.filter((r) => r.team === t).sort((a, b) => (b.points || 0) - (a.points || 0));
-      const body = list.map((r) => `<tr class="${r.id === localId ? 'me' : ''}"><td>${esc(r.name)}${r.bot ? '<span class="bot">BOT</span>' : ''}</td><td>${r.points || 0}</td><td>${r.goals || 0}</td><td>${r.shots || 0}</td><td>${r.assists || 0}</td><td>${r.saves || 0}</td></tr>`).join('');
+      const body = list.map((r) => `<tr class="${r.id === localId ? 'me' : ''}"><td>${esc(r.name)}</td><td>${r.points || 0}</td><td>${r.goals || 0}</td><td>${r.shots || 0}</td><td>${r.assists || 0}</td><td>${r.saves || 0}</td></tr>`).join('');
       return `<div class="stats-team"><h3><span class="sq ${t ? 'blue' : 'red'}"></span>${TEAMS[t].name} Team — ${v.score[t]}</h3><table class="stats-table"><tr><th>Player</th><th>Points</th><th>Goals</th><th>Shots</th><th>Assists</th><th>Saves</th></tr>${body}</table></div>`;
     };
     $('statsBody').innerHTML = team(0) + team(1);
@@ -461,7 +453,7 @@ export class UI {
     t.textContent = r.outcome === 'win' ? 'VICTORY!' : r.outcome === 'lose' ? 'DEFEAT' : 'DRAW';
     t.className = `res-title ${r.outcome === 'lose' ? 'lose' : r.outcome === 'draw' ? 'draw' : ''}`;
     $('resScore').innerHTML = `<span style="color:var(--red)">${r.score[0]}</span> – <span style="color:var(--blue)">${r.score[1]}</span>`;
-    $('resMvp').textContent = r.mvp ? `⭐ MVP: ${r.mvp}` : '';
+    $('resMvp').textContent = r.mvp ? `MVP: ${r.mvp}` : '';
     const st = r.stats || {};
     $('resStats').innerHTML = `<div><b>${st.goals || 0}</b>Goals</div><div><b>${st.assists || 0}</b>Assists</div><div><b>${st.saves || 0}</b>Saves</div><div><b>${st.steals || 0}</b>Steals</div><div><b>${st.points || 0}</b>Points</div>`;
     $('resCoins').textContent = `+${r.coins}`;
@@ -495,14 +487,21 @@ export class UI {
   // ---------------------------------------------------------- shop/inventory
   preview(cat, id) {
     const p = Save.p;
-    const key = `${cat}|${id}|${cat === 'hair' ? `${p.eq.hairColor}|${p.eq.skin}` : ''}`;
+    const key = `${cat}|${id}|${cat === 'ball' || cat === 'goalfx' ? '' : `${p.eq.hairColor}|${p.eq.skin}|${p.eq.hair}|${p.eq.jersey}|${p.eq.number}|${this.app.menuTeam === 1 ? 1 : 0}`}`;
     if (!this.previewCache.has(key)) {
       let c;
-      if (cat === 'jersey') c = previewJersey(id, this.app.menuTeam === 1 ? 1 : 0);
-      else if (cat === 'ball') c = previewBall(id);
-      else if (cat === 'goalfx') c = previewGoalFx(id);
-      else if (cat === 'emote') c = previewEmote(id);
-      else c = previewHair(id, p.eq.hairColor, p.eq.skin);
+      // Real 3D renders of the in-game character / ball (2D art only for goal effects)
+      if (!this.studio) { try { this.studio = new PreviewStudio(); } catch (e) { this.studio = null; } }
+      const st = this.studio;
+      const team = this.app.menuTeam === 1 ? 1 : 0;
+      const look = { ...this.app.cos() };
+      try {
+        if (cat === 'goalfx' || !st) c = cat === 'goalfx' ? previewGoalFx(id) : cat === 'ball' ? previewBall(id) : cat === 'jersey' ? previewJersey(id, team) : cat === 'emote' ? previewEmote(id) : previewHair(id, p.eq.hairColor, p.eq.skin);
+        else if (cat === 'ball') c = st.ball(id);
+        else if (cat === 'jersey') c = st.character({ ...look, jersey: id }, team, 'jersey');
+        else if (cat === 'emote') c = st.character(look, team, 'emote', id);
+        else c = st.character({ ...look, hair: id }, team, 'hair');
+      } catch (e) { c = previewGoalFx('confetti'); }
       this.previewCache.set(key, c);
     }
     const src = this.previewCache.get(key);
@@ -584,7 +583,7 @@ export class UI {
     card.appendChild(nm);
     const foot = document.createElement('div');
     foot.className = 'sc-foot';
-    if (owned) foot.innerHTML = equipped ? `<span class="sc-eq">${cat === 'emote' ? 'ON WHEEL' : 'EQUIPPED'}</span>` : `<span class="sc-owned">${shop ? '✓ OWNED' : (cat === 'emote' ? 'ADD TO WHEEL' : 'EQUIP')}</span>`;
+    if (owned) foot.innerHTML = equipped ? `<span class="sc-eq">${cat === 'emote' ? 'ON WHEEL' : 'EQUIPPED'}</span>` : `<span class="sc-owned">${shop ? 'OWNED' : (cat === 'emote' ? 'ADD TO WHEEL' : 'EQUIP')}</span>`;
     else foot.innerHTML = `<span class="sc-buy ${p.coins >= it.price ? '' : 'cant'}"><span class="coin"></span>${it.price}</span>`;
     card.appendChild(foot);
     card.addEventListener('click', () => this.app.lockerClick(cat, it.id));
@@ -660,12 +659,14 @@ export class UI {
     const binds = Save.binds;
     const used = new Map();
     for (const [a, codes] of Object.entries(binds)) for (const c of codes) { if (!used.has(c)) used.set(c, []); used.get(c).push(a); }
+    // Pass and Dive may share a button: dive only happens for a keeper without the ball
+    for (const [c, list] of used) if (list.length === 2 && list.includes('pass') && list.includes('dive')) used.set(c, ['pass']);
     const bindRow = (a) => {
       const codes = binds[a] || [];
       const conflict = codes.some((c) => used.get(c).length > 1);
       const custom = Save.p.binds[a] !== undefined;
       return `<div class="set-row"><div class="lbl"><b>${BIND_LABELS[a]}</b><span class="${conflict ? 'warn' : custom ? 'cust' : ''}">${conflict ? 'Conflicting keybinds' : custom ? 'Custom keybinds' : 'Default keybinds'}</span></div>
-        <div class="binds">${custom ? `<button class="bind-reset" data-reset="${a}">↺</button>` : ''}${codes.map((c, i) => `<button class="bind" data-bind="${a}" data-i="${i}">${esc(app.input.label(c))}</button>`).join('')}${codes.length < 2 ? `<button class="bind-reset" data-bind="${a}" data-i="${codes.length}">+</button>` : ''}</div></div>`;
+        <div class="binds">${custom ? `<button class="bind-reset" data-reset="${a}" title="Reset"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12a7 7 0 1 0 2-5M5 4v4h4" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : ''}${codes.map((c, i) => `<button class="bind" data-bind="${a}" data-i="${i}">${esc(app.input.label(c))}</button>`).join('')}${codes.length < 2 ? `<button class="bind-reset" data-bind="${a}" data-i="${codes.length}">+</button>` : ''}</div></div>`;
     };
     body.innerHTML = `
       <div class="set-sec">Audio</div>
@@ -690,7 +691,7 @@ export class UI {
       <div class="set-sec">Mouse</div>
       ${bindRow('unlock')}
       <div class="set-sec" data-sec="keys">Gameplay Keybinds</div>
-      ${['kick', 'pass', 'flick', 'tackle', 'lob', 'request', 'dribble', 'sprint', 'item1', 'item2'].map(bindRow).join('')}
+      ${['kick', 'pass', 'flick', 'tackle', 'dive', 'lob', 'request', 'dribble', 'sprint', 'item1', 'item2'].map(bindRow).join('')}
       <div class="set-sec">Movement & UI Keybinds</div>
       ${['forward', 'back', 'left', 'right', 'stats', 'lobby', 'chat', 'emote'].map(bindRow).join('')}
       <div class="set-row"><div class="lbl"><b>Reset all keybinds</b><span>Restore the default controls</span></div><button class="bind-reset" id="resetBinds">Reset</button></div>

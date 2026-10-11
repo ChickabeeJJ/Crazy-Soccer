@@ -16,6 +16,7 @@ export const DEFAULT_BINDS = {
   request: ['KeyR'],
   dribble: ['Space'],
   sprint: ['ShiftLeft', 'ShiftRight'],
+  dive: ['Mouse2'],
   item1: ['Digit1'],
   item2: ['Digit2'],
   stats: ['Tab'],
@@ -26,7 +27,7 @@ export const DEFAULT_BINDS = {
 };
 
 export const BIND_LABELS = {
-  kick: 'Kick / Activate', pass: 'Pass', flick: 'Flick', tackle: 'Tackle / Dive', lob: 'Lob', request: 'Request',
+  kick: 'Kick / Activate', pass: 'Pass', flick: 'Flick', tackle: 'Tackle', dive: 'Dive (Goalkeeper)', lob: 'Lob', request: 'Request',
   dribble: 'Dribble', sprint: 'Sprint', item1: 'Item 1', item2: 'Item 2', stats: 'Stats', lobby: 'Return to Lobby',
   chat: 'Quick Chat', emote: 'Emotes', forward: 'Move Forward', back: 'Move Back', left: 'Move Left', right: 'Move Right',
   unlock: 'Unlock Mouse',

@@ -245,7 +245,7 @@ export class Training {
   hud() {
     const L2 = (a) => `<kbd>${this.opts.labels ? this.opts.labels(a) : a}</kbd>`;
     if (this.kind === 'shoot') return { timer: this.started ? fmt(Math.max(0, this.timeLeft)) : '1:00', drill: { score: this.score, label: 'POINTS' }, banner: { title: 'Shooting Challenge', text: 'Score through the glowing targets • top targets are worth more' } };
-    if (this.kind === 'keeper') return { timer: `SHOT ${Math.min(this.shots, TRAINING_INFO.keeper.shots)}/${TRAINING_INFO.keeper.shots}`, drill: { score: this.saves, label: 'SAVES' }, banner: { title: 'Goalkeeper Challenge', text: `Stay in your box • ${this.key('tackle')} to dive • catch or block every shot` } };
+    if (this.kind === 'keeper') return { timer: `SHOT ${Math.min(this.shots, TRAINING_INFO.keeper.shots)}/${TRAINING_INFO.keeper.shots}`, drill: { score: this.saves, label: 'SAVES' }, banner: { title: 'Goalkeeper Challenge', text: `Stay in your box • ${this.key('dive')} to dive` } };
     if (this.kind === 'tutorial') {
       const st = TUT_STEPS[Math.min(this.tut.i, TUT_STEPS.length - 1)];
       const mob = !!this.opts.mobile;
@@ -293,7 +293,7 @@ const TUT_STEPS = [
     check: (t) => t.tut.flags.item },
   { title: 'Become the goalkeeper', html: () => 'Run into <b>your own</b> penalty box (the goal behind you). Whoever walks in first when there is no keeper gets the white keeper kit.', mob: 'Run into your own penalty box (the goal behind you) to become the keeper.',
     check: (t) => t.me.keeper, progress: (t) => clamp(1 - (t.me.x + L - FIELD.boxL) / (L + 20), 0, 1) },
-  { title: 'Dive!', html: (k) => `Keepers can dive: press ${k('tackle')}. Keepers can't be tackled, but step out of the box and you lose the gloves!`, mob: 'Tap DIVE to dive. Leave the box and you lose the gloves!', check: (t) => t.tut.flags.dive,
+  { title: 'Dive!', html: (k) => `Keepers can dive: press ${k('dive')}. Keepers can't be tackled, but step out of the box and you lose the gloves!`, mob: 'Tap DIVE to dive. Leave the box and you lose the gloves!', check: (t) => t.tut.flags.dive,
     // You can't dive while holding the ball, so roll it out to the edge of the box
     enter: (t) => { if (t.w.ball.owner === t.me.id) t.w.ball.owner = -1; placeBall(t, { x: -L + FIELD.boxL + 6, z: 8 }); },
     tick: (t) => { if (t.w.ball.owner === t.me.id) { t.w.ball.owner = -1; placeBall(t, { x: -L + FIELD.boxL + 6, z: 8 }); } } },

@@ -1,7 +1,7 @@
 // A Session is one room: offline (vs bots / practice), online host, or online client.
 // The host/offline session runs the authoritative World. Clients predict their own
 // player + the ball locally and interpolate everyone else from snapshots.
-import { World, animName, kickVelocity } from '../sim/world.js';
+import { World, animName, kickVelocity, clampInOwnBox } from '../sim/world.js';
 import { createPlayer, movePlayer, setAnim, canAct, stunPlayer, spendStamina } from '../sim/player.js';
 import { createBall, stepBall } from '../sim/ball.js';
 import { FIELD, PLAYER, KICK, PHYS, NET, MATCH, GAME_VERSION, MAPS, STAMINA } from '../config.js';
@@ -424,6 +424,7 @@ export class Session {
     const hasBall = this.cball.owner === this.localId || this.predOwnT > 0;
     if (p.zipT > 0) { const dx = this.cball.x - p.x, dz = this.cball.z - p.z, d = len2(dx, dz) || 1; p.zipX = dx / d; p.zipZ = dz / d; if (d < 1.6) p.zipT = 0; }
     if (v.phase !== 'replay') movePlayer(p, dt, hasBall, frozen || v.phase === 'end');
+    if (this.cball.owner === this.localId && this.cball.held && p.keeper) clampInOwnBox(p);
     this.collideLocal(p);
 
     // Interpolate others
@@ -613,9 +614,11 @@ export class Session {
       case 'pass': if (p.cd.pass > 0 || !(mine || near)) return; p.cd.pass = KICK.cooldown; setAnim(p, 'pass', 0.3); launch('pass'); spendStamina(p, STAMINA.pass); break;
       case 'lob': if (p.cd.lob > 0 || !(mine || near)) return; p.cd.lob = KICK.cooldown; setAnim(p, 'kick', 0.38); launch('lob'); spendStamina(p, STAMINA.lob); break;
       case 'flick': if (p.cd.flick > 0 || !(mine || near)) return; p.cd.flick = 0.8; setAnim(p, 'flick', 0.35); launch('flick'); spendStamina(p, STAMINA.flick); break;
+      case 'dive':
       case 'tackle': {
         if (mine) return;
         const ml = len2(act.mx || 0, act.mz || 0);
+        if (a === 'dive' && !(p.keeper && inOwnBox(p, 0.6))) return;
         if (p.keeper && inOwnBox(p, 0.6)) {
           if (p.cd.dive > 0) return;
           p.cd.dive = KICK.diveCooldown;

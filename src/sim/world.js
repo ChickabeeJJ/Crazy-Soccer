@@ -331,6 +331,7 @@ export class World {
       this.award(p, 'Recover', 10);
     }
     b.pass = null;
+    b.gkThrow = null;
     b.owner = p.id;
     // A keeper in the box catches the ball in their hands (max KICK.keeperHold seconds)
     b.held = !!(p.keeper && this.inOwnBox(p, 0.6));
@@ -371,9 +372,12 @@ export class World {
   launch(p, vx, vy, vz, kind, power, from) {
     const b = this.ball;
     const volley = b.owner !== p.id && kind === 'shot' && b.y > 1.05;
+    b.gkThrow = null;
     if (b.owner === p.id) {
       b.owner = -1;
       const o = this.ballOffset(p);
+      // A keeper's throw/punt from the hands bowls over any rival in its path (like a tackle)
+      if (b.held) b.gkThrow = { team: p.team, by: p.id, t: 1.4 };
       b.x = o.x; b.z = o.z; b.y = b.held ? p.y + 1.35 : Math.max(PHYS.ballR, p.y + PHYS.ballR);
       b.held = false;
     } else if (from) {
@@ -489,10 +493,12 @@ export class World {
         this.launch(p, k.vx, k.vy, k.vz, 'flick', k.pw);
         return;
       }
+      case 'dive':
       case 'tackle': {
         if (this.hasBall(p)) return;
         let mx = Number.isFinite(act.mx) ? act.mx : 0, mz = Number.isFinite(act.mz) ? act.mz : 0;
         const ml = len2(mx, mz);
+        if (a === 'dive' && !this.keeperInBox(p)) return; // only goalkeepers dive
         if (this.keeperInBox(p)) {
           if (p.cd.dive > 0) return;
           p.cd.dive = KICK.diveCooldown;
@@ -730,6 +736,7 @@ export class World {
       movePlayer(p, dt, b.owner === p.id, frozen);
     }
     separatePlayers(this.players);
+    if (b.owner >= 0 && b.held) { const o = this.byId.get(b.owner); if (o && !o.remote) clampInOwnBox(o); }
     if (this.walls.length) for (const p of this.players) if (!p.remote) this.collideWallsCircle(p, PLAYER.radius, false);
 
     // Ball
@@ -825,6 +832,7 @@ export class World {
   // Client-reported state for a remote human (client-authoritative movement, clamped).
   applyRemoteState(p, s) {
     if (!p || !s) return;
+    const heldByMe = this.ball.owner === p.id && this.ball.held;
     const maxStep = 3.5;
     const nx = clamp(s.x, -FIELD.wallX, FIELD.wallX), nz = clamp(s.z, -FIELD.wallZ, FIELD.wallZ);
     const dx = nx - p.x, dz = nz - p.z;
@@ -846,6 +854,7 @@ export class World {
     if (Number.isFinite(s.sx)) { p.slideX = s.sx; p.slideZ = s.sz; }
     p.in.yaw = s.yaw ?? p.in.yaw;
     p.in.pitch = s.pitch ?? p.in.pitch;
+    if (heldByMe) clampInOwnBox(p);
   }
 
   ballInteractions(dt) {
@@ -907,6 +916,7 @@ export class World {
     for (const p of this.players) {
       if (p.left || p.stun > 0 || p.anim === 'frozen' || p.anim === 'getup') continue;
       if (b.block === p.id) continue;
+      if (b.gkThrow && b.gkThrow.team !== p.team && speed > 9) continue; // they get bowled over instead
       const dx = b.x - p.x, dz = b.z - p.z;
       const d = len2(dx, dz);
       const rel = b.y - p.y;
@@ -1061,6 +1071,20 @@ export class World {
         break;
       }
     }
+    if (b.gkThrow && b.owner < 0) {
+      b.gkThrow.t -= dt;
+      const sp = Math.hypot(b.vx, b.vy, b.vz);
+      if (b.gkThrow.t <= 0 || sp < 9) b.gkThrow = null;
+      else {
+        for (const q of this.players) {
+          if (q.team === b.gkThrow.team || q.stun > 0 || q.left) continue;
+          if (len2(q.x - b.x, q.z - b.z) < PLAYER.radius + PHYS.ballR + 0.35 && b.y - q.y < 2.8) {
+            const ux = b.vx / (sp || 1), uz = b.vz / (sp || 1);
+            if (this.hitPlayer(this.byId.get(b.gkThrow.by), q, 'fall', 1.0, ux * 8, uz * 8, 'Bowled Over')) this.emit({ e: 'tackle', id: q.id });
+          }
+        }
+      }
+    }
     if (b.fire && b.owner < 0) {
       // Fireball knocks down players in its path
       const sp = Math.hypot(b.vx, b.vz);
@@ -1192,6 +1216,15 @@ export class World {
   roster() {
     return this.players.map((p) => ({ id: p.id, name: p.name, team: p.team, slot: p.slot, gk: p.keeper ? 1 : 0, bot: p.isBot ? 1 : 0, cos: p.cos, stats: p.stats }));
   }
+}
+
+// Keep a keeper who holds the ball in their hands inside their own penalty box
+export function clampInOwnBox(p) {
+  const s = p.team === 0 ? -1 : 1;
+  const inner = FIELD.halfL - FIELD.boxL + 0.4;
+  if (p.x * s < inner) { p.x = s * inner; if (p.vx * s < 0) p.vx = 0; }
+  const zl = FIELD.boxW / 2 - 0.4;
+  if (Math.abs(p.z) > zl) { p.z = Math.sign(p.z) * zl; p.vz = 0; }
 }
 
 export function sanitizePowers(list) {

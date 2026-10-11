@@ -3,8 +3,8 @@ import { CATALOG, SKIN_TONES, HAIR_COLORS } from '../cosmetics.js';
 import { jerseyTexture } from '../render/textures.js';
 
 // Glossy rounded-tile icons: gradient background, inked glyph, highlight sheen.
-const S = (id, c1, c2, inner) => `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect x="3" y="3" width="58" height="58" rx="14" fill="url(#g${id})" stroke="#1b1530" stroke-width="4"/><path d="M9 20 Q9 9 20 9 H44 Q55 9 55 20 V24 Q32 16 9 28 Z" fill="#fff" opacity="0.28"/>${inner}</svg>`;
-const INK = 'stroke="#1b1530" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"';
+const S = (id, c1, c2, inner) => `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><path d="M2 2H54L62 10V62H10L2 54Z" fill="url(#g${id})"/>${inner}</svg>`;
+const INK = 'stroke="#1b1530" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"';
 
 export const ITEM_SVG = {
   fire: S('fire', '#bdf6ff', '#1aa7d8', `<circle cx="32" cy="34" r="17" fill="#1b2a52" ${INK}/><path d="M36 14L22 37h10l-4 17 16-25H34l4-15z" fill="#ffe14a" ${INK}/><path d="M12 22l5 3M10 40l6-2M52 22l-5 3M54 40l-6-2" stroke="#38e1ff" stroke-width="3" stroke-linecap="round"/>`),

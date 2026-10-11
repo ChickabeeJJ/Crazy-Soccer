@@ -791,8 +791,12 @@ class App {
         else s.action({ a: 'kick', pw: 0, ...shotAim, cv: 0 });
       }
       const simple = (name, extra = {}) => { if (inp.wasPressed(name)) { s.action({ a: name, ...aim, mx, mz, ...extra }); this.ui.flashControl(name); } };
+      // Goalkeepers dive with RMB by default (shares the button with Pass, which needs the ball)
+      const canDive = me.keeper && inOwnBox(me, 0.6) && !s.hasBall();
+      const dived = canDive && inp.wasPressed('dive');
+      if (dived) { s.action({ a: 'dive', ...aim, mx, mz }); this.ui.flashControl('tackle'); }
       if (inp.wasPressed('pass') && equip >= 0) me.equip = -1;
-      else simple('pass', { assist: settings.assistedPasses });
+      else if (!dived) simple('pass', { assist: settings.assistedPasses });
       simple('lob'); simple('flick'); simple('tackle'); simple('dribble'); simple('request');
       if (inp.wasPressed('chat')) this.ui.toggleWheel('chat');
       if (inp.wasPressed('emote')) this.ui.toggleWheel('emote');
@@ -850,8 +854,8 @@ class App {
     this.ui.tutorialBox(th && th.tut ? th.tut : null);
     if (th && th.timer) this.ui.setVal('timerText', 'text', th.timer);
     let role = '';
-    if (me && s.mode !== 'practice') role = me.keeper ? '🧤 GOALKEEPER' : ROLE_NAMES[(me.slot ?? 0) % 4];
-    else if (me && me.keeper) role = '🧤 GOALKEEPER';
+    if (me && s.mode !== 'practice') role = me.keeper ? 'GOALKEEPER' : ROLE_NAMES[(me.slot ?? 0) % 4];
+    else if (me && me.keeper) role = 'GOALKEEPER';
     if (me && me.keeper && ball && ball.owner === me.id && ball.held) role += ` · THROW IN ${Math.max(0, Math.ceil(ball.holdT || 0))}`;
     this.ui.setRole(role, !!(me && me.keeper));
     this.updateBanners(s, v, th);
@@ -937,14 +941,7 @@ class App {
       if (this.session.intermission > 0 && v.phase === 'end') list.push({ title: 'Next match', text: `${Math.ceil(this.session.intermission)}s`, kind: 'good' });
     }
     this.ui.setBanners(list);
-    // Online status chip (top-left)
-    let chip = '';
-    if (s.mode === 'match') {
-      if (s.net && (s.role === 'client' || (s.net && s.net.isHost))) chip = `<i class="dot on"></i>${s.humanCount()}/8 online`;
-      else if (this.netStatus === 'search') chip = '<i class="dot search"></i>Finding players';
-      else chip = '<i class="dot"></i>Bots';
-    }
-    this.ui.setVal('netChip', 'html', chip);
+
     if (s.roomKind === 'priv' && v.phase === 'warmup') {
       const players = s.isAuthority ? s.world.humans().map((p) => ({ name: p.name, team: p.team })) : [...s.roster.values()].filter((r) => !r.bot).map((r) => ({ name: r.name, team: r.team }));
       this.ui.showRoomPanel({ code: s.roomCode, players, isHost: s.isAuthority });
