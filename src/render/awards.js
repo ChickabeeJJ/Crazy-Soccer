@@ -111,10 +111,10 @@ export class AwardStage {
       const h = SLOT_H[i];
       const riser = new THREE.Mesh(new THREE.BoxGeometry(2.9, h, 2.7), i === 0 ? ink2 : ink);
       riser.position.set(x, 0.32 + h / 2, 0);
-      riser.castShadow = true; riser.receiveShadow = true;
+      riser.castShadow = true; riser.receiveShadow = false; // no shadow acne shimmering on the steps
       const trimMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
       const trim = new THREE.Mesh(new THREE.BoxGeometry(2.96, 0.1, 2.76), trimMat);
-      trim.position.set(x, 0.32 + h - 0.05, 0);
+      trim.position.set(x, 0.32 + h - 0.044, 0); // top sits just above the riser top: no z-fighting
       const face = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.08), trimMat);
       face.position.set(x, 0.32 + h * 0.3, 1.36);
       const beamMat = softBeamMaterial(0xfff1c8, 0, { top: 1, bottom: 0.45 });
@@ -123,7 +123,7 @@ export class AwardStage {
       const glowMat = new THREE.MeshBasicMaterial({ map: this.r.glowTex, color: 0xffe9a8, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
       const glow = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 4.2), glowMat);
       glow.rotation.x = -Math.PI / 2;
-      glow.position.set(x, 0.33 + h + 0.02, 0);
+      glow.position.set(x, 0.32 + h + 0.03, 0);
       g.add(riser, trim, face, beam, glow);
       return { x, top: 0.32 + h, riser, trimMat, beam, glow };
     });
