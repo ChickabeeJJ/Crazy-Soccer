@@ -13,7 +13,7 @@ Everything to paste into the CrazyGames developer portal.
 | Platforms | Desktop and mobile (touch controls appear automatically) |
 | Multiplayer | Yes: real-time online 4v4, invite links and private rooms (bots fill empty spots) |
 | Account / saving | Progress is saved with the CrazyGames Data module (cloud save when logged in) |
-| Build | `crazy-soccer-html5.zip` (about 0.5 MB, 16 files, no external assets) |
+| Build | `crazy-soccer-html5.zip` (about 5.3 MB, 18 files; includes two music tracks, everything else is generated in code) |
 
 ## Short description
 
@@ -23,11 +23,11 @@ Chaotic 4v4 soccer with no referee: slide tackles, bicycle kicks, bazookas and f
 
 Crazy Soccer is fast 4v4 online soccer where anything goes. There's no referee, so slide-tackle the ball carrier, knock rivals over with a rocket punch, or freeze them solid with an ice gun, then hammer the ball into the net.
 
-Grab the glowing mystery cubes for 14 items: Bazooka, Freeze Gun, Grappling Hook, Jetpack, Magnet, Landmines, Shotgun, Supercharge, Forcefield and more. Flick the ball up, jump and hang in the air for a slow-motion bicycle kick that bends straight into the top corner.
+Grab the glowing mystery cubes for 14 items: Bazooka, Freeze Gun, Grappling Hook, Jetpack, Magnet, Landmines, Shotgun, Supercharge, Forcefield and more. Flick the ball up, jump and hang in the air for a bicycle kick that nobody can take off you without an item, then release to send it into the top corner.
 
 Every kickoff gives you a new random position. Walk into your own box to take the goalkeeper gloves: keepers can't be tackled, hold the ball in their hands and bowl over anyone in the path of their throw. Step out of the box and you lose the gloves, so your team might be left with an empty net.
 
-New players get a quick, skippable tutorial and a free roll for their first item. Join a team and play live against real players straight away. Bots fill any empty spot until people join, and you can invite friends to a private room. Earn coins to unlock new items with the Item Roll and customise your player with jerseys, boots, 16 hairstyles, skin, hair and eye colours, balls, goal effects and emotes. New players can take the optional tutorial or practise their shooting and goalkeeping in the training ground.
+New players get a quick, skippable tutorial and a free roll for their first item. Join a team and play live against real players straight away. Bots fill any empty spot until people join, and you can invite friends to a private room. Earn coins to unlock new items with the Item Roll and customise your player with jerseys, boots, 16 hairstyles, skin and hair colours, balls, goal effects and emotes. New players can take the optional tutorial or practise their shooting and goalkeeping in the training ground.
 
 ### Features
 
@@ -39,7 +39,7 @@ New players get a quick, skippable tutorial and a free roll for their first item
 - A podium award ceremony after every match: MVP, Top Scorer, Playmaker, The Wall and more
 - Tutorial, free practice, shooting challenge and goalkeeper challenge
 - Item Roll, levels and daily rewards
-- Deep customisation: jerseys, boots, 16 hairstyles, skin, hair and eye colours
+- Deep customisation: jerseys, boots, 16 hairstyles, skin and hair colours
 - Full touch controls for phones and tablets
 
 ## Controls
@@ -53,7 +53,7 @@ New players get a quick, skippable tutorial and a free roll for their first item
 - **Q**: Flick the ball up
 - **E**: Slide tackle
 - **F**: Lob
-- **Space**: Jump (without the ball) or skill move (with the ball)
+- **Space**: Jump (without the ball) or spin move (with the ball)
 - **Shift**: Sprint
 - **1 / 2**: Select an item, then click to use it
 - **R**: Call for the ball
@@ -93,4 +93,4 @@ The tools in `tools/` render these with the game's own engine (`node tools/make-
 - **Restricted keys**: Escape, F-keys and browser shortcuts are never bound. The mouse is released with M, which can be rebound.
 - **Matches keep running**: they never pause. An online host keeps the match running even when their tab is in the background.
 - **Content**: cartoon slapstick only (no blood); suitable for PEGI 12.
-- **No external links or other branding**: all art, characters, sounds and music are generated in code.
+- **No external links or other branding**: all art, characters and sound effects are generated in code; the two soundtracks ship with the game.
