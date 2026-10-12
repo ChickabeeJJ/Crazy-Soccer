@@ -108,13 +108,6 @@ export class BotBrain {
           const ex = b.x + b.vx * t * 0.8, ez = b.z + b.vz * t * 0.8;
           t = clamp(len2(ex - p.x, ez - p.z) / 12, 0, 1.6);
         }
-        // A rival hanging in a bicycle kick: intercept it with a bicycle kick of our own
-        if (decide && b.bike >= 0 && p.cd.kick <= 0 && w.canBike(p) && Math.random() < 0.5) {
-          const yaw = Math.atan2(oppXFor(p) - p.x, -p.z);
-          p.face = yaw; if (p.in) p.in.yaw = yaw;
-          w.doAction(p, { a: 'bike' });
-          return;
-        }
         // Volley a bouncing/flicked ball towards goal, or jump for a high one
         if (decide && w.canVolley(p) && p.cd.kick <= 0 && Math.random() < 0.55) {
           const gz = (Math.random() - 0.5) * FIELD.goalW * 0.6;

@@ -63,15 +63,18 @@ export class CameraRig {
     // Over-the-shoulder: the camera sits a little to the right, so your player is left of the crosshair
     const sx = -Math.cos(this.yaw) * this.shoulder, sz = Math.sin(this.yaw) * this.shoulder;
     // Stay inside the arena: zooming out never puts the camera behind the end walls, stands or
-    // jumbotrons (the camera slides in along its view line instead)
-    let dd = d;
+    // jumbotrons. The furthest allowed distance along the view line is solved exactly and eased,
+    // so the camera glides along the wall instead of stepping or snapping.
     const XL = FIELD.wallX - 0.8, ZL = FIELD.wallZ - 0.8;
-    for (let i = 0; i < 24; i++) {
-      c.set(this.smoothTarget.x - f.x * dd + sx, this.smoothTarget.y - f.y * dd, this.smoothTarget.z - f.z * dd + sz);
-      if ((Math.abs(c.x) <= XL && Math.abs(c.z) <= ZL) || dd < 2.5) break;
-      dd *= 0.9;
-    }
-    c.x = clamp(c.x, -XL, XL); c.z = clamp(c.z, -ZL, ZL);
+    const bx = this.smoothTarget.x + sx, bz = this.smoothTarget.z + sz;
+    let dMax = d;
+    if (f.x > 1e-4) dMax = Math.min(dMax, (bx + XL) / f.x); else if (f.x < -1e-4) dMax = Math.min(dMax, (bx - XL) / f.x);
+    if (f.z > 1e-4) dMax = Math.min(dMax, (bz + ZL) / f.z); else if (f.z < -1e-4) dMax = Math.min(dMax, (bz - ZL) / f.z);
+    dMax = Math.max(1.5, dMax);
+    // pull in immediately (never through the wall), ease back out
+    this.wallD = this.wallD === undefined || dMax < this.wallD ? dMax : damp(this.wallD, dMax, 6, dt);
+    const dd = Math.min(d, this.wallD);
+    c.set(this.smoothTarget.x - f.x * dd + sx, this.smoothTarget.y - f.y * dd, this.smoothTarget.z - f.z * dd + sz);
     if (c.y < 0.6) c.y = 0.6;
     // The camera moves freely through the goals: a goal near the camera turns see-through instead
     // (Stadium.update), so nothing pushes the view around

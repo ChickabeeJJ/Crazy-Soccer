@@ -346,6 +346,8 @@ export class CharacterModel {
     this.bodyMats[MAT.shorts] = shorts;
     this.bodyMats[MAT.socks] = socks;
     this.bodyMats[MAT.trim] = toon(keeper ? T.color : 0xffffff);
+    // double-sided so no gap between the separate tubes can ever show as a see-through hole
+    for (const m of this.bodyMats) if (m.side !== THREE.DoubleSide) { m.side = THREE.DoubleSide; m.needsUpdate = true; }
     this.body.material = this.bodyMats;
     this.headRig.setSkin(skin);
     this.headRig.setBrow(toon(new THREE.Color(hairC).multiplyScalar(0.8).getHex()));

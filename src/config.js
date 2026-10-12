@@ -1,6 +1,6 @@
 // Central tuning values for Crazy Soccer. Units are metres-ish "studs", seconds and radians.
 
-export const GAME_VERSION = '1.1.0';
+export const GAME_VERSION = '1.3.0';
 export const SAVE_KEY = 'crazysoccer_profile_v1';
 
 export const FIELD = {
@@ -159,7 +159,7 @@ export const RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'mythic'];
 // Item Roll: chance per rarity (items inside a rarity are equally likely), close to the
 // original's rates (Forcefield ~11.5%, Shotgun/Grapple ~7.5%, Rocket Punch ~5.3%, Freeze Gun/Bazooka 3.5%, Jetpack 1%).
 // A new item is guaranteed after ROLL.pity duplicates in a row; duplicates refund coins.
-export const ROLL = { cost: 250, cost5: 1100, odds: { common: 0.46, uncommon: 0.30, rare: 0.16, epic: 0.07, mythic: 0.01 }, pity: 5 };
+export const ROLL = { cost: 250, cost5: 1100, odds: { common: 0.46, uncommon: 0.30, rare: 0.16, epic: 0.07, mythic: 0.01 }, pity: 5, noDupeRolls: 3, dupeRefund: 75, minEnabled: 3 };
 export const ITEM_KINDS = Object.keys(ITEMS);
 
 export const QUICK_CHAT = ['Pass!', 'Shoot!', 'Nice one!', 'Defend!', 'I\'m open!', 'Thanks!', 'GG', 'Wow!'];

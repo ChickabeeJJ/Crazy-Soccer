@@ -49,7 +49,9 @@ export function setAnim(p, anim, dur) {
   if (anim !== 'emote') p.emote = '';
 }
 
+export const STUN_EXTRA = 1; // every knockdown/stun lasts one second longer
 export function stunPlayer(p, kind, dur) {
+  dur += STUN_EXTRA;
   p.stun = dur;
   // knocked down: no actions (tackles included) until fully back on your feet
   p.knockT = dur + 0.5;

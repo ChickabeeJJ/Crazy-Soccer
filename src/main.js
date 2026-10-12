@@ -1006,10 +1006,7 @@ class App {
   // Ball high above you: bicycle kick (also intercepts a rival's bicycle kick in progress)
   canBike(s, me, b) {
     if (!me || !b || b.owner >= 0 || b.grapple >= 0 || b.phase) return false;
-    if (b.bike >= 0) {
-      const o = s.view.players.find((q) => q && q.id === b.bike);
-      if (b.bike === me.id || !o || o.team === me.team) return false;
-    }
+    if (b.bike >= 0) return false; // someone is already bicycle-kicking it
     if ((me.y || 0) < KICK.bikeAirY) return false; // mid-air only
     const rel = b.y - (me.y || 0);
     return rel > KICK.bikeMinH && rel < KICK.volleyReachUp && len2(b.x - me.x, b.z - me.z) < KICK.volleyReachH;

@@ -750,7 +750,7 @@ export class UI {
     if (tab === 'powers') {
       if (!this.invSel || !ITEMS[this.invSel]) this.invSel = p.powers[0];
       const k = this.invSel, it = ITEMS[k], own = Save.ownsPower(k), on = Save.powerOn(k);
-      extra.innerHTML = `<span class="inv-count"><b>${p.powers.length}</b>/${ITEM_KINDS.length} owned · <b>${Save.activePowers().length}</b> in cubes</span>`;
+      extra.innerHTML = `<span class="inv-count"><b>${p.powers.length}</b>/${ITEM_KINDS.length} owned · <b>${Save.activePowers().length}</b> enabled</span>`;
       const tiles = ITEM_KINDS.map((key) => {
         const o = Save.ownsPower(key);
         return `<button class="itile ${o ? '' : 'locked'} ${key === k ? 'sel' : ''} ${o && !Save.powerOn(key) ? 'off' : ''}" style="--rc:${RARITY[ITEMS[key].rarity].color}" data-it="${key}"><span class="it-ico">${itemSvg(key)}</span><span class="it-name">${o ? esc(ITEMS[key].name) : '???'}</span></button>`;
@@ -761,13 +761,13 @@ export class UI {
           <div class="id-ico ${own ? '' : 'locked'}">${itemSvg(k)}</div>
           <div class="id-name">${own ? esc(it.name) : 'Locked'}</div>
           <div class="id-desc">${own ? esc(it.desc) : 'Get it from the Item Roll in the Shop.'}</div>
-          ${own ? `<div class="id-toggle"><span>In mystery cubes</span><button class="toggle ${on ? 'on' : ''}" data-pw="${k}"></button></div>` : '<button class="btn btn-gold id-go" data-goroll="1">ITEM ROLL</button>'}
+          ${own ? `<div class="id-toggle"><span>${on ? 'Enabled' : 'Disabled'}</span><button class="toggle ${on ? 'on' : ''}" data-pw="${k}"></button></div>` : '<button class="btn btn-gold id-go" data-goroll="1">ITEM ROLL</button>'}
         </div></div>`;
       grid.querySelectorAll('[data-it]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.audio.click(); this.invSel = b.dataset.it; this.renderInventory(); }));
       grid.querySelectorAll('[data-pw]').forEach((b) => b.addEventListener('click', (e) => {
         e.stopPropagation();
         this.app.audio.click();
-        if (!Save.togglePower(b.dataset.pw)) this.globalToast('Keep at least one item switched on!');
+        if (!Save.togglePower(b.dataset.pw)) this.globalToast('Keep at least 3 items enabled');
         this.renderInventory();
       }));
       grid.querySelectorAll('[data-goroll]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.audio.click(); this.shopTab = 'roll'; this.setPage('shop'); }));

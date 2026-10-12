@@ -439,13 +439,10 @@ export class World {
   }
 
   // Ball high enough above you for a bicycle kick (hang in the air, then scissor it over)
-  // A rival can intercept a bicycle kick in progress with a bicycle kick of their own
+  // Bicycle kick: only from the air, and never on a ball someone else is already bicycle-kicking
   canBike(p) {
     const b = this.ball;
-    if (b.bike >= 0) {
-      const o = this.byId.get(b.bike);
-      if (b.bike === p.id || (o && o.team === p.team)) return false;
-    }
+    if (b.bike >= 0) return false;
     if (b.owner >= 0 || b.grapple >= 0 || b.phase) return false;
     if ((p.y || 0) < KICK.bikeAirY) return false; // jump first: no bicycle kicks from the ground
     const rel = b.y - (p.y || 0);
@@ -485,12 +482,6 @@ export class World {
         // Start a bicycle kick: player and ball hang in the air while you aim; the kick fires on
         // release or by itself after KICK.bikeHold
         if (p.cd.kick > 0 || !this.canBike(p)) return;
-        if (b.bike >= 0) {
-          // Intercepted: the rival's own bicycle kick takes the ball off the first kicker
-          const prev = this.byId.get(b.bike);
-          if (prev) { prev.bikeT = 0; prev.cd.kick = 0.4; }
-          this.emit({ e: 'bikesteal', id: p.id, from: b.bike });
-        }
         p.charging = false; p.charge = 0;
         p.bikeT = KICK.bikeHold;
         b.bikeY = Math.max(b.y, KICK.bikeBallY); // ball and player float up together
@@ -509,7 +500,7 @@ export class World {
         const fromBike = b.bike === p.id || p.anim === 'bike';
         p.bikeT = 0;
         // High ball above your head = bicycle kick, otherwise a normal kick swing
-        setAnim(p, volley && (fromBike || b.y - p.y > 1.9) ? 'volley' : 'kick', volley ? 0.5 : 0.38);
+        setAnim(p, volley && (fromBike || ((p.y || 0) >= KICK.bikeAirY && b.y - p.y > 1.9)) ? 'volley' : 'kick', volley ? 0.5 : 0.38);
         if (fromBike) p.animT = 0.12; // already leaning back: go straight into the scissor
         if (volley) { act = { ...act, volley: 1, pw: Math.max(act.pw || 0, 0.85), sx: b.x, sy: b.y, sz: b.z }; }
         if (volley || this.ballReachable(p, KICK.hitRange + 0.2)) {

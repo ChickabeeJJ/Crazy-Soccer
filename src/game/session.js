@@ -604,10 +604,9 @@ export class Session {
     const near = len2(cb.x - p.x, cb.z - p.z) < KICK.hitRange && cb.y < 2.6 + p.y && (cb.owner < 0 || mine);
     const rel = cb.y - (p.y || 0);
     const reach = cb.owner < 0 && !cb.phase && rel < KICK.volleyReachUp && len2(cb.x - p.x, cb.z - p.z) < KICK.volleyReachH;
-    const bikeBy = cb.bike >= 0 ? v.players.find((q) => q && q.id === cb.bike) : null;
     // Someone else's bicycle kick can't be volleyed away, only intercepted by a rival's own bicycle kick
     const volleyable = reach && cb.y > 1.05 && rel > 0.3 && !(cb.bike >= 0 && cb.bike !== this.localId);
-    const bikeable = reach && (p.y || 0) >= KICK.bikeAirY && rel > KICK.bikeMinH && (!(cb.bike >= 0) || (cb.bike !== this.localId && bikeBy && bikeBy.team !== p.team));
+    const bikeable = reach && (p.y || 0) >= KICK.bikeAirY && rel > KICK.bikeMinH && !(cb.bike >= 0);
     const launch = (kind, fire) => {
       const k = kickVelocity(p, act, v.players, fire);
       if (mine) { cb.x = p.x + Math.sin(p.face) * PLAYER.dribbleDist; cb.z = p.z + Math.cos(p.face) * PLAYER.dribbleDist; cb.y = cb.held ? p.y + 1.35 : PHYS.ballR + p.y; cb.held = false; }
@@ -633,7 +632,7 @@ export class Session {
         const fromBike = p.anim === 'bike';
         p.bikeT = 0; this.bikeLocalT = 0;
         if (volleyable && !mine) { act = { ...act, volley: 1, pw: Math.max(act.pw || 0, 0.85), sx: cb.x, sy: cb.y, sz: cb.z }; }
-        setAnim(p, volleyable && (fromBike || rel > 1.9) ? 'volley' : 'kick', volleyable ? 0.5 : 0.38);
+        setAnim(p, volleyable && (fromBike || ((p.y || 0) >= KICK.bikeAirY && rel > 1.9)) ? 'volley' : 'kick', volleyable ? 0.5 : 0.38);
         if (fromBike) p.animT = 0.12;
         if (mine || near || volleyable) { launch('shot', p.fx.fire > 0); spendStamina(p, STAMINA.kickBase + STAMINA.kickPower * clamp(act.pw || 0, 0, 1)); }
         break;

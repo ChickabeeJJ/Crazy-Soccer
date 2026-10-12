@@ -1,5 +1,5 @@
 import { SDK } from './sdk.js';
-import { SAVE_KEY, ITEMS, ITEM_KINDS, RARITY, ROLL } from './config.js';
+import { SAVE_KEY, ITEMS, ITEM_KINDS, ROLL } from './config.js';
 import { CATALOG, guestName } from './cosmetics.js';
 import { todayKey } from './util/math.js';
 
@@ -127,6 +127,8 @@ export const Save = {
       // Saves from before the starter roll already have their items
       this.p.starterRoll = data.starterRoll ?? this.p.powers.length > 0;
       this.p.powersOff = (Array.isArray(data.powersOff) ? data.powersOff : []).filter((k) => this.p.powers.includes(k));
+      // at least 3 items (or all you own, if fewer) stay enabled
+      while (this.p.powersOff.length && this.activePowers().length < Math.min(ROLL.minEnabled, this.p.powers.length)) this.p.powersOff.pop();
       for (const cat of Object.keys(CATALOG)) {
         for (const it of CATALOG[cat]) if (it.price === 0 && !this.p.owned[cat].includes(it.id)) this.p.owned[cat].push(it.id);
       }
@@ -202,14 +204,15 @@ export const Save = {
     const out = [];
     for (let i = 0; i < n; i++) {
       const locked = ITEM_KINDS.filter((k) => !this.ownsPower(k));
+      const early = (this.p.rolls || 0) + i < ROLL.noDupeRolls; // a player's first rolls never repeat
       let k;
-      if (locked.length && (this.p.pity || 0) >= ROLL.pity) {
+      if (locked.length && (early || (this.p.pity || 0) >= ROLL.pity)) {
         k = pickByRarity(locked); // pity: guaranteed new item
       } else k = pickByRarity(ITEM_KINDS);
       const isNew = !this.ownsPower(k);
       const rarity = ITEMS[k].rarity;
       let refund = 0;
-      if (isNew) { this.p.powers.push(k); this.p.pity = 0; } else { refund = RARITY[rarity].refund; this.p.coins += refund; this.p.pity = (this.p.pity || 0) + 1; }
+      if (isNew) { this.p.powers.push(k); this.p.pity = 0; } else { refund = ROLL.dupeRefund; this.p.coins += refund; this.p.pity = (this.p.pity || 0) + 1; }
       out.push({ k, rarity, isNew, refund });
     }
     this.p.rolls = (this.p.rolls || 0) + n;
@@ -224,7 +227,7 @@ export const Save = {
     const off = this.p.powersOff;
     if (off.includes(k)) off.splice(off.indexOf(k), 1);
     else {
-      if (this.activePowers().length <= 1) return false; // at least one power stays in the cube pool
+      if (this.activePowers().length <= Math.min(ROLL.minEnabled, this.p.powers.length)) return false; // keep at least 3 items in the cube pool
       off.push(k);
     }
     this.save();
