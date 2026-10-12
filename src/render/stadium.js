@@ -223,8 +223,8 @@ function buildStands(g, o, quality) {
     addJumbotron(g, s, X0 + et * td + 1.6, H, trimMat);
   }
   // Crowd: shirts + heads (two instanced meshes)
-  const body = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.27, 0.45, 2, 6), new THREE.MeshLambertMaterial(), seats.length);
-  const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshLambertMaterial(), seats.length);
+  const body = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.27, 0.45, 1, 5), new THREE.MeshLambertMaterial(), seats.length);
+  const head = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.22, 0), new THREE.MeshLambertMaterial(), seats.length);
   const shirts = [TEAMS[0].color, TEAMS[0].color, TEAMS[1].color, TEAMS[1].color, 0xffffff, 0x2a2238, 0xffcf3f, 0x4cf08a];
   const skins = [0xf6d2b0, 0xe8b48e, 0xc98a5e, 0x9a6440, 0x6b4128];
   const m = new THREE.Matrix4(), c = new THREE.Color();
@@ -359,37 +359,59 @@ function addJumbotron(g, s, x, standH, mat) {
   }
 }
 
-// Waving flags on poles (team colours); the cloth is animated in Stadium.update
+// Waving flags on poles (team colours): all cloth is one mesh, animated on the CPU in Stadium.update
 function addFlags(g, spots) {
   const poleMat = new THREE.MeshLambertMaterial({ color: 0xd8d4e8 });
-  const flags = [];
-  spots.forEach(([x, y, z, team], i) => {
+  const W = 3.2, H = 1.9, SX = 10, SY = 2;
+  const per = (SX + 1) * (SY + 1);
+  const pos = new Float32Array(spots.length * per * 3), col = new Float32Array(spots.length * per * 3);
+  const idx = [];
+  const meta = [];
+  const c = new THREE.Color();
+  spots.forEach(([x, y, z, team], f) => {
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 6, 6), poleMat);
     pole.position.set(x, y + 3, z);
     g.add(pole);
-    const geo = new THREE.PlaneGeometry(3.2, 1.9, 10, 2);
-    geo.translate(1.6, 0, 0);
-    const mat = new THREE.MeshLambertMaterial({ color: team === 2 ? 0xffcf3f : TEAMS[team].color, side: THREE.DoubleSide });
-    const flag = new THREE.Mesh(geo, mat);
-    flag.userData.dynamic = true; // cloth is animated: never batched
-    flag.position.set(x, y + 5, z);
-    flag.rotation.y = Math.atan2(z, -x) * 0 + (i % 2 ? 0.4 : -0.4);
-    g.add(flag);
-    flags.push({ geo, base: Float32Array.from(geo.attributes.position.array), ph: i * 1.7 });
+    c.set(team === 2 ? 0xffcf3f : TEAMS[team].color);
+    const rot = f % 2 ? 0.4 : -0.4;
+    meta.push({ x, y: y + 5, z, cos: Math.cos(rot), sin: Math.sin(rot), ph: f * 1.7 });
+    const o = f * per;
+    for (let j = 0; j <= SY; j++) for (let i = 0; i <= SX; i++) {
+      const k = (o + j * (SX + 1) + i) * 3;
+      col[k] = c.r; col[k + 1] = c.g; col[k + 2] = c.b;
+      if (i < SX && j < SY) { const a = o + j * (SX + 1) + i, b = a + SX + 1; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+    }
   });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+  mesh.userData.dynamic = true;
+  mesh.frustumCulled = false;
+  g.add(mesh);
+  const flags = { geo, meta, W, H, SX, SY };
+  waveFlags(flags, 0);
   return flags;
 }
 
 function waveFlags(flags, t) {
-  for (const f of flags) {
-    const p = f.geo.attributes.position.array, b = f.base;
-    for (let i = 0; i < p.length; i += 3) {
-      const u = b[i] / 3.2;
-      p[i + 2] = b[i + 2] + Math.sin(t * 5 + b[i] * 1.9 + f.ph) * 0.32 * u;
-      p[i + 1] = b[i + 1] - u * u * 0.25 + Math.sin(t * 3.3 + b[i] * 1.4 + f.ph) * 0.06 * u;
+  const { geo, meta, W, H, SX, SY } = flags;
+  const p = geo.attributes.position.array;
+  let k = 0;
+  for (const m of meta) {
+    for (let j = 0; j <= SY; j++) for (let i = 0; i <= SX; i++) {
+      const lx = (i / SX) * W, ly = (j / SY - 0.5) * H;
+      const u = lx / W;
+      const lz = Math.sin(t * 5 + lx * 1.9 + m.ph) * 0.32 * u;
+      const yy = ly - u * u * 0.25 + Math.sin(t * 3.3 + lx * 1.4 + m.ph) * 0.06 * u;
+      p[k++] = m.x + lx * m.cos + lz * m.sin;
+      p[k++] = m.y + yy;
+      p[k++] = m.z - lx * m.sin + lz * m.cos;
     }
-    f.geo.attributes.position.needsUpdate = true;
   }
+  geo.attributes.position.needsUpdate = true;
+  geo.computeVertexNormals();
 }
 
 // Flags along the top of the side stands and the end stands
@@ -710,7 +732,7 @@ function buildDesert(root, quality) {
     const a = rnd() * Math.PI * 2, r = 95 + rnd() * 130;
     const sx = 20 + rnd() * 30, sy = 6 + rnd() * 12, sz = 14 + rnd() * 20;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (gap(x, z) < Math.max(sx, sz) + 4) continue;
+    if (gap(x, z) < Math.max(sx, sz) + 10) continue;
     placed++;
     const d = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), duneMat);
     d.position.set(x, -0.5, z);
@@ -916,24 +938,31 @@ export class Stadium {
     buildWalls(this.wallsStd);
     buildDesertWalls(this.wallsDesert);
     this.goals = [buildGoal(this.common, -1, 0), buildGoal(this.common, 1, 1)];
-    this.outdoor = buildOutdoor(this.root, quality);
-    this.indoor = buildIndoor(this.root);
-    this.desert = buildDesert(this.root, quality);
-    // Static batching: every non-moving mesh of an arena is merged into one mesh per material
-    for (const grp of [this.outdoor, this.desert, this.indoor, this.pitchOutdoor, this.pitchIndoor, this.pitchDesert, this.wallsStd, this.wallsDesert]) bakeStatic(grp);
+    // Arenas are built (and batched) the first time they are shown, so loading only pays for one
+    this.quality = quality;
+    this.outdoor = null; this.indoor = null; this.desert = null;
+    // Static batching: every non-moving mesh is merged into one mesh per material
+    for (const grp of [this.pitchOutdoor, this.pitchIndoor, this.pitchDesert, this.wallsStd, this.wallsDesert]) bakeStatic(grp);
     this.time = 0;
     this.setVariant('grass');
   }
 
   // 'grass' (cliffside arena), 'desert' (canyon arena) or 'indoor' (practice hall)
+  ensure(v) {
+    if (v === 'grass' && !this.outdoor) { this.outdoor = buildOutdoor(this.root, this.quality); bakeStatic(this.outdoor); }
+    if (v === 'desert' && !this.desert) { this.desert = buildDesert(this.root, this.quality); bakeStatic(this.desert); }
+    if (v === 'indoor' && !this.indoor) { this.indoor = buildIndoor(this.root); bakeStatic(this.indoor); }
+  }
+
   setVariant(v) {
     if (v === 'outdoor') v = 'grass';
+    this.ensure(v);
     this.variant = v;
-    this.outdoor.visible = v === 'grass';
+    if (this.outdoor) this.outdoor.visible = v === 'grass';
     this.pitchOutdoor.visible = v === 'grass';
-    this.indoor.visible = v === 'indoor';
+    if (this.indoor) this.indoor.visible = v === 'indoor';
     this.pitchIndoor.visible = v === 'indoor';
-    this.desert.visible = v === 'desert';
+    if (this.desert) this.desert.visible = v === 'desert';
     this.pitchDesert.visible = v === 'desert';
     this.wallsStd.visible = v !== 'desert';
     this.wallsDesert.visible = v === 'desert';
@@ -946,7 +975,7 @@ export class Stadium {
     this.goalTeam = side > 0 ? 0 : 1;
     this.goalT = 4;
     drawJumbo(this.lastScore || [0, 0], this.goalTeam);
-    for (const grp of [this.outdoor, this.desert]) if (grp.userData.crowd) grp.userData.crowd.hype = 4;
+    for (const grp of [this.outdoor, this.desert]) if (grp && grp.userData.crowd) grp.userData.crowd.hype = 4;
   }
 
   // The crowd jumps after a goal (only animated while excited, so it costs nothing otherwise)

@@ -1,4 +1,4 @@
-// Procedural Web Audio: every sound is synthesised at runtime (no audio files to download).
+// Web Audio: sound effects are synthesised at runtime; the soundtrack streams from two music files.
 export class Audio {
   constructor() {
     this.ctx = null;
@@ -42,7 +42,7 @@ export class Audio {
     const m = this.muted || this.adMuted ? 0 : this.vol.master;
     this.master.gain.setTargetAtTime(m, t, 0.05);
     this.sfxBus.gain.setTargetAtTime(this.vol.sfx, t, 0.05);
-    this.musicBus.gain.setTargetAtTime(this.vol.music * 0.5, t, 0.05);
+    this.musicBus.gain.setTargetAtTime(this.vol.music * 0.8, t, 0.05);
   }
 
   suspend() { if (this.ctx && this.ctx.state === 'running') this.ctx.suspend().catch(() => {}); }
@@ -202,41 +202,39 @@ export class Audio {
     this.crowd = null;
   }
 
-  // ---------------------------------------------------------- menu music
+  // ---------------------------------------------------------- music
+  // Two soundtracks played as a looping playlist. They stream (nothing is downloaded until music
+  // first plays) and run through the music bus, so the volume, mute and ad settings apply.
   startMusic() {
-    if (!this.ctx || this.musicOn) return;
+    if (!this.ctx) return;
+    if (!this.track) {
+      const base = import.meta.env.BASE_URL || './';
+      this.tracks = [`${base}music/punto-final.mp3`, `${base}music/buant-groove.mp3`];
+      this.trackI = Math.floor(Math.random() * this.tracks.length);
+      const a = new window.Audio();
+      a.preload = 'none';
+      a.crossOrigin = 'anonymous';
+      a.addEventListener('ended', () => { this.trackI = (this.trackI + 1) % this.tracks.length; a.src = this.tracks[this.trackI]; a.play().catch(() => {}); });
+      a.src = this.tracks[this.trackI];
+      this.track = a;
+      try {
+        this.duckGain = this.ctx.createGain();
+        this.ctx.createMediaElementSource(a).connect(this.duckGain);
+        this.duckGain.connect(this.musicBus);
+      } catch (e) { this.duckGain = null; }
+    }
     this.musicOn = true;
-    this.step = 0;
-    this.nextT = this.ctx.currentTime + 0.1;
-    const bpm = 112;
-    this.stepDur = 60 / bpm / 4;
-    const chords = [[48, 55, 64, 67], [45, 52, 60, 64], [41, 48, 57, 60], [43, 50, 59, 62]];
-    const melody = [76, -1, 79, 76, 74, -1, 72, -1, 74, 76, -1, 72, 69, -1, 67, -1];
-    const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
-    const tick = () => {
-      if (!this.musicOn || !this.ctx) return;
-      while (this.nextT < this.ctx.currentTime + 0.2) {
-        const s = this.step;
-        const bar = Math.floor(s / 16) % 4;
-        const ch = chords[bar];
-        const t = this.nextT;
-        const d = t - this.ctx.currentTime;
-        if (s % 4 === 0) this.tone('sine', 110, 45, 0.18, 0.5, this.musicBus, d);
-        if (s % 8 === 4) this.noise(0.12, 0.25, 'highpass', 1800, 1800, 0.8, d, this.musicBus);
-        if (s % 2 === 1) this.noise(0.03, 0.08, 'highpass', 7000, 7000, 0.8, d, this.musicBus);
-        if (s % 4 === 0 || s % 16 === 10) this.tone('triangle', midi(ch[0] - 12), midi(ch[0] - 12), 0.22, 0.22, this.musicBus, d);
-        if (s % 8 === 2 || s % 8 === 6) ch.slice(1).forEach((n) => this.tone('square', midi(n), midi(n), 0.08, 0.025, this.musicBus, d));
-        const m = melody[s % 16];
-        if (m > 0 && bar % 2 === 1) this.tone('triangle', midi(m), midi(m), 0.16, 0.06, this.musicBus, d);
-        this.step++;
-        this.nextT += this.stepDur;
-      }
-      this.musicTimer = setTimeout(tick, 60);
-    };
-    tick();
+    this.track.play().catch(() => {});
   }
+
+  // Softer under the crowd during matches, full volume in the menus
+  duckMusic(on) {
+    this.ducked = on;
+    if (this.duckGain && this.ctx) this.duckGain.gain.setTargetAtTime(on ? 0.45 : 1, this.ctx.currentTime, 0.4);
+  }
+
   stopMusic() {
     this.musicOn = false;
-    clearTimeout(this.musicTimer);
+    if (this.track) this.track.pause();
   }
 }

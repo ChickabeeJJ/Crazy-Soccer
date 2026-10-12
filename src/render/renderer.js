@@ -136,6 +136,7 @@ export class GameRenderer {
     const q = qualityFor(perf);
     if (q.perf === this.quality.perf) return;
     this.quality = q;
+    this.dynPR = q.pixelRatio;
     this.r.setPixelRatio(q.pixelRatio);
     this.r.shadowMap.enabled = q.shadows;
     this.sun.castShadow = q.shadows;
@@ -167,6 +168,20 @@ export class GameRenderer {
     }
   }
 
+  // Dynamic resolution: called about every 2 s with the measured frame rate. Drops the render
+  // resolution a step when the game struggles and restores it when there is headroom.
+  adaptResolution(fps) {
+    const max = this.quality.pixelRatio;
+    const cur = this.dynPR ?? max;
+    let next = cur;
+    if (fps < 45) next = Math.max(0.6, cur - (fps < 30 ? 0.25 : 0.15));
+    else if (fps > 57) next = Math.min(max, cur + 0.1);
+    if (Math.abs(next - cur) < 0.01) return;
+    this.dynPR = next;
+    this.r.setPixelRatio(next);
+    this.resize();
+  }
+
   resize() {
     const w = this.canvas.clientWidth || window.innerWidth;
     const h = this.canvas.clientHeight || window.innerHeight;
@@ -175,7 +190,7 @@ export class GameRenderer {
     // Keep horizontal field of view sensible on tall/narrow screens
     this.cam.fov = w / h < 1 ? 80 : 70;
     this.cam.updateProjectionMatrix();
-    this.vfx.setScale(h * this.quality.pixelRatio);
+    this.vfx.setScale(h * (this.dynPR ?? this.quality.pixelRatio));
   }
 
   makeStarTex() {

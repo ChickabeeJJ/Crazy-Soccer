@@ -1,6 +1,6 @@
 // DOM UI: main menu (play / training / shop / inventory), HUD, settings, wheels, results, touch controls.
 import { Save, BIND_LABELS, DEFAULT_BINDS } from '../save.js';
-import { CATALOG, TAB_LABELS, SKIN_TONES, HAIR_COLORS, EYE_COLORS } from '../cosmetics.js';
+import { CATALOG, TAB_LABELS, SKIN_TONES, HAIR_COLORS } from '../cosmetics.js';
 import { TEAMS, QUICK_CHAT, ITEMS, ITEM_KINDS, PLAYER, RARITY, RARITY_ORDER, ROLL } from '../config.js';
 import { fmtTime, clamp } from '../util/math.js';
 import { itemSvg, previewJersey, previewBall, previewGoalFx, previewEmote, previewHair } from './icons.js';
@@ -776,11 +776,9 @@ export class UI {
     if (tab === 'hair') {
       extra.innerHTML = `<label>Skin</label>${SKIN_TONES.map((c, i) => `<div class="swatch ${p.eq.skin === i ? 'on' : ''}" data-skin="${i}" style="background:${c}"></div>`).join('')}
         <label>Hair</label>${HAIR_COLORS.map((c, i) => `<div class="swatch ${p.eq.hairColor === i ? 'on' : ''}" data-hc="${i}" style="background:${c}"></div>`).join('')}
-        <label>Eyes</label>${EYE_COLORS.map((c, i) => `<div class="swatch ${(p.eq.eyeColor || 0) === i ? 'on' : ''}" data-ec="${i}" style="background:${c}"></div>`).join('')}
         <label>Number</label><button class="num-btn" id="numDown">−</button><b class="num">${p.eq.number}</b><button class="num-btn" id="numUp">+</button>`;
       extra.querySelectorAll('[data-skin]').forEach((el) => el.addEventListener('click', () => { p.eq.skin = +el.dataset.skin; this.app.audio.click(); this.renderInventory(); this.app.onCosmeticsChanged(); }));
       extra.querySelectorAll('[data-hc]').forEach((el) => el.addEventListener('click', () => { p.eq.hairColor = +el.dataset.hc; this.app.audio.click(); this.renderInventory(); this.app.onCosmeticsChanged(); }));
-      extra.querySelectorAll('[data-ec]').forEach((el) => el.addEventListener('click', () => { p.eq.eyeColor = +el.dataset.ec; this.app.audio.click(); this.renderInventory(); this.app.onCosmeticsChanged(); }));
       $('numDown').onclick = () => { p.eq.number = p.eq.number <= 1 ? 99 : p.eq.number - 1; this.renderInventory(); this.app.onCosmeticsChanged(); };
       $('numUp').onclick = () => { p.eq.number = p.eq.number >= 99 ? 1 : p.eq.number + 1; this.renderInventory(); this.app.onCosmeticsChanged(); };
     } else if (tab === 'emote') {

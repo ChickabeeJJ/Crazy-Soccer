@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export const PELVIS_Y = 1.25; // rest height of the pelvis joint
-export const HEAD_SCALE = 0.62; // head size relative to the original chibi head
+export const HEAD_SCALE = 0.74; // head size relative to the original chibi head
 export const BONES = ['pelvis', 'spine', 'chest', 'neck', 'head', 'clavL', 'shL', 'elL', 'wrL', 'clavR', 'shR', 'elR', 'wrR', 'hipL', 'kneeL', 'ankleL', 'hipR', 'kneeR', 'ankleR'];
 const BI = Object.fromEntries(BONES.map((n, i) => [n, i]));
 // bone: [parent, x, y, z] (local offsets in the rest pose)

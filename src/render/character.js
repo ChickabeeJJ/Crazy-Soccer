@@ -298,11 +298,11 @@ export class CharacterModel {
     // Hands and boots are rigid, attached to the wrist and ankle bones
     const limb = (side) => {
       const S = side > 0 ? 'L' : 'R';
-      const hand = this.mesh(side > 0 ? BG.handL : BG.handR, placeholder, bones[`wr${S}`], [0, 0.01, 0], true, 0.012);
+      const hand = this.mesh(side > 0 ? BG.handL : BG.handR, placeholder, bones[`wr${S}`], [0, 0.01, 0], false);
       hand.castShadow = false;
       const boot = new THREE.Group();
       bones[`ankle${S}`].add(boot);
-      const upper = this.mesh(BG.boot.upper, placeholder, boot, null, true, 0.014);
+      const upper = this.mesh(BG.boot.upper, placeholder, boot, null, false);
       upper.castShadow = false;
       const sole = this.mesh(BG.boot.sole, placeholder, boot, null, false);
       sole.castShadow = false;
@@ -404,7 +404,7 @@ export class CharacterModel {
       case 'cap': {
         shell(g.shellUnder, mat);
         const m = this.mesh(g.hairCap, toon(T.color), h, [0, 0.13, 0]);
-        m.scale.set(0.9, 0.92, 1.0);
+        m.scale.set(1.0, 0.92, 1.03);
         const b = this.mesh(g.brim, toon(T.dark), h, [0, 0.29, -0.66]);
         b.rotation.x = 0.15;
         break;
@@ -517,9 +517,9 @@ export class CharacterModel {
         const bm = toon(T.color);
         const m = this.mesh(g.beanie, bm, h, [0, 0.3, -0.02]);
         m.rotation.x = -0.15;
-        m.scale.set(0.9, 1, 0.98);
+        m.scale.set(1, 1, 1);
         const top = this.mesh(g.hairCap, bm, h, [0, 0.2, -0.04]);
-        top.scale.set(0.88, 0.9, 0.96);
+        top.scale.set(0.98, 0.9, 0.98);
         this.mesh(g.pom, toon(0xffffff), h, [0, 0.82, -0.12]);
         break;
       }

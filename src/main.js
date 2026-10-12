@@ -88,7 +88,7 @@ class App {
     $('game').addEventListener('click', () => this.onCanvasClick());
     // Inside the CrazyGames iframe, make sure keyboard input goes to the game
     window.addEventListener('pointerdown', () => { try { window.focus(); } catch (e) { /* ignore */ } });
-    const unlock = () => { this.audio.unlock(); if (this.state === 'menu') this.audio.startMusic(); };
+    const unlock = () => { this.audio.unlock(); if (!this.audio.musicOn) { this.audio.startMusic(); this.audio.duckMusic(this.state === 'game'); } };
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
     // Activity tracking for the online inactivity kick
@@ -175,7 +175,7 @@ class App {
     this.renderer.clearWorld();
     this.renderer.setVariant('outdoor');
     this.audio.stopCrowd();
-    if (this.audio.ctx) this.audio.startMusic();
+    if (this.audio.ctx) { this.audio.startMusic(); this.audio.duckMusic(false); }
     SDK.gameplayStop();
     // Open the signalling connection now so Quick Match connects instantly
     try { prewarmNet(); } catch (e) { /* offline */ }
@@ -460,7 +460,8 @@ class App {
     this.renderer.clearWorld();
     this.renderer.setVariant(s.mode === 'practice' ? 'indoor' : s.view.map || 'grass');
     this.renderer.ball.setSkin(Save.p.eq.ball);
-    this.audio.stopMusic();
+    this.audio.startMusic();
+    this.audio.duckMusic(true);
     this.audio.startCrowd();
     const me = s.me;
     const team = me ? me.team : 0;
@@ -797,6 +798,12 @@ class App {
     this.last = t;
     this.fpsAcc += dt; this.fpsN++;
     if (this.fpsAcc > 0.5) { this.fps = Math.round(this.fpsN / this.fpsAcc); this.fpsAcc = 0; this.fpsN = 0; }
+    // real frame rate over ~2 s drives the dynamic resolution (skipped while the tab is hidden or an ad plays)
+    this.drAcc = (this.drAcc || 0) + this.rawDt; this.drN = (this.drN || 0) + 1;
+    if (this.drAcc > 2) {
+      if (!document.hidden && !this.adPlaying && this.rawDt < 0.5) this.renderer.adaptResolution(this.drN / this.drAcc);
+      this.drAcc = 0; this.drN = 0;
+    }
     try {
       if (this.session && (this.state === 'game')) this.updateGame(dt);
       else this.updateMenu(dt);
