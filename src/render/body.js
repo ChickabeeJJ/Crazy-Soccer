@@ -153,7 +153,9 @@ function buildBody() {
     const lg = [[-0.07, 0.112, 0, S], [0.06, 0.128, 0.006, S], [0.2, 0.128, 0.012, S], [0.34, 0.112, 0.012, S], [0.46, 0.094, 0.006, S], [0.55, 0.082, 0.004, S], [0.6, 0.08, -0.004, S],
       [0.625, 0.079, -0.006, SO], [0.63, 0.087, -0.008, SO], [0.7, 0.092, -0.024, SO], [0.8, 0.085, -0.022, SO], [0.92, 0.066, -0.01, SO], [1.02, 0.056, -0.006, SO], [1.1, 0.052, -0.012, SO]];
     const kz = W[`knee${side}`][2];
-    B.tube(lg.map(([d, r, oz, m]) => ({ x: hx, y: hy - d, z: oz + (d > 0.56 ? kz : 0), rx: r * 1.12, rz: r * 1.18, m, v: m === SO ? 1 - (d - 0.625) / 0.475 : d })), 18,
+    // muscular legs: the upper thigh (under the shorts) stays slim so the shorts can fit close
+    const legK = (d) => 1.12 + 0.2 * ss(0.18, 0.36, d);
+    B.tube(lg.map(([d, r, oz, m]) => ({ x: hx, y: hy - d, z: oz + (d > 0.56 ? kz : 0), rx: r * legK(d), rz: r * legK(d) * 1.05, m, v: m === SO ? 1 - (d - 0.625) / 0.475 : d })), 18,
       (x, y) => {
         const d = hy - y;
         const knee = ss(0.48, 0.64, d), ankle = ss(0.98, 1.08, d), top = 1 - ss(-0.08, 0.05, d);
@@ -162,7 +164,7 @@ function buildBody() {
     // Arm: loose sleeve with a trimmed cuff, then the bare arm to the wrist
     const sx = W[`sh${side}`][0], sy = W[`sh${side}`][1];
     const ar = [[-0.07, 0.085, J], [0.0, 0.1, J], [0.08, 0.102, J], [0.16, 0.098, J], [0.205, 0.103, T], [0.235, 0.1, S], [0.236, 0.074, S], [0.29, 0.075, S], [0.34, 0.068, S], [0.365, 0.062, S], [0.41, 0.066, S], [0.5, 0.062, S], [0.6, 0.051, S], [0.67, 0.043, S]];
-    B.tube(ar.map(([d, r, m]) => ({ x: sx, y: sy - d, z: 0, rx: r * 1.22, rz: r * 1.26, m, v: d })), 16,
+    B.tube(ar.map(([d, r, m]) => ({ x: sx, y: sy - d, z: 0, rx: r * 1.42, rz: r * 1.46, m, v: d })), 16,
       (x, y) => {
         const d = sy - y;
         const clav = 1 - ss(-0.07, 0.04, d), el = ss(0.29, 0.43, d), wr = ss(0.61, 0.68, d);
@@ -276,7 +278,7 @@ function handGeometry(side) {
   th.translate(-side * 0.018, -0.045, 0.05);
   parts.push(th);
   const g = mergeGeometries(parts.map((p) => p.toNonIndexed()));
-  g.scale(1.3, 1.3, 1.3);
+  g.scale(1.45, 1.45, 1.45);
   g.computeVertexNormals();
   return g;
 }
