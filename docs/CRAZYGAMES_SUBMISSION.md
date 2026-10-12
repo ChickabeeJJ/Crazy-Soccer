@@ -13,7 +13,7 @@ Everything to paste into the CrazyGames developer portal.
 | Platforms | Desktop and mobile (touch controls appear automatically) |
 | Multiplayer | Yes: real-time online 4v4, invite links and private rooms (bots fill empty spots) |
 | Account / saving | Progress is saved with the CrazyGames Data module (cloud save when logged in) |
-| Build | `crazy-soccer-html5.zip` (about 5.3 MB, 18 files; includes two music tracks, everything else is generated in code) |
+| Build | `crazy-soccer-html5.zip` in the repo root (about 5 MB, 18 files). Upload this file, not GitHub's "Download ZIP" of the repo, which is the source code. `npm run build` regenerates it. |
 
 ## Short description
 
