@@ -129,7 +129,7 @@ export function speedLines(p0, dir, count = 14) {
 export function logo(opts) {
   const el = document.createElement('div');
   el.className = 'cover-logo';
-  Object.assign(el.style, { left: `${opts.x}px`, top: `${opts.y}px`, fontSize: `${opts.size}px` });
+  Object.assign(el.style, { left: `${opts.x}px`, fontSize: `${opts.size}px` }, opts.bottom != null ? { bottom: `${opts.bottom}px` } : { top: `${opts.y}px` });
   el.innerHTML = '<div class="lg-crazy">CRAZY</div><div class="lg-soccer">SOCCER</div><div class="lg-bars"><i class="r"></i><i class="b"></i></div>';
   stage.appendChild(el);
   return el;
@@ -249,7 +249,7 @@ function coverLandscape() {
   bicycleScene();
   settle(2);
   setCam(31.2, 0.9, 8.4, 32.6, 3.0, -2.0, 52);
-  logo({ x: 84, y: 70, size: 150 });
+  logo({ x: 84, bottom: 70, size: 150 });
 }
 
 function coverPortrait() {
@@ -258,7 +258,7 @@ function coverPortrait() {
   bicycleScene({ ballP: new THREE.Vector3(33.6, 6.4, -1.4) });
   settle(2);
   setCam(30.4, 0.7, 5.4, 31.6, 4.1, -2.0, 74);
-  logo({ x: 52, y: 60, size: 112 });
+  logo({ x: 52, bottom: 56, size: 112 });
 }
 
 function coverSquare() {
@@ -267,7 +267,7 @@ function coverSquare() {
   bicycleScene();
   settle(2);
   setCam(31.0, 0.8, 7.0, 32.4, 3.2, -2.0, 62);
-  logo({ x: 44, y: 40, size: 96 });
+  logo({ x: 44, bottom: 40, size: 96 });
 }
 
 window.__ready = false;
