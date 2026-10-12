@@ -764,3 +764,44 @@ body.is-touch .tb-text { font-size: calc(var(--u) * 0.9); }
   .rr-wrap { gap: 10px; }
   .rr-intro .cube-scene { width: 120px; }
 }
+
+/* Mercy rule warning (under the timer) */
+.mercy-bar { --tc: #ff3b5c; display: none; align-items: stretch; margin-top: 6px; font-family: var(--f-head); font-style: italic; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; font-size: calc(var(--u) * 0.78); clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
+.mercy-bar.show { display: flex; }
+.mercy-bar.pop { animation: mercyIn 0.45s cubic-bezier(.2, .8, .2, 1); }
+.mb-tag { background: var(--tc); color: #fff; padding: 4px 10px 4px 14px; }
+.mb-text { background: var(--ink); color: var(--paper); padding: 4px 14px 4px 10px; border-bottom: 2px solid var(--hi); }
+.mercy-bar.show .mb-tag { animation: mercyPulse 1.6s ease-in-out infinite; }
+@keyframes mercyIn { from { opacity: 0; transform: translateY(-8px) skewX(-8deg); } to { opacity: 1; transform: none; } }
+@keyframes mercyPulse { 50% { filter: brightness(1.35); } }
+
+/* ===== Touch controls: flat dark discs, thin rings, line icons ===== */
+.touch .tb { border: none; border-radius: 50%; background: radial-gradient(circle at 50% 35%, rgba(40, 32, 70, 0.62), rgba(12, 9, 22, 0.72)); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.28), 0 4px 14px rgba(0, 0, 0, 0.28); color: #fff; font-family: var(--f-head); font-style: italic; font-weight: 900; letter-spacing: 0.04em; font-size: calc(var(--tb) * 0.15); gap: 1px; text-shadow: none; transition: transform 0.08s, background 0.12s, box-shadow 0.12s, opacity 0.15s; }
+.touch .tb .ti { width: 46%; height: 46%; display: block; }
+.touch .tb .ti svg { width: 100%; height: 100%; display: block; }
+.touch .tb span { line-height: 1; }
+.touch .tb small { font-family: var(--f-head); font-weight: 800; font-size: 0.7em; opacity: 0.6; letter-spacing: 0.12em; margin-top: 1px; }
+.touch .tb.on { background: var(--hi); color: var(--ink); transform: scale(0.94); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6), 0 2px 8px rgba(0, 0, 0, 0.25); }
+.touch .tb-kick { background: radial-gradient(circle at 50% 35%, rgba(40, 32, 70, 0.7), rgba(12, 9, 22, 0.8)); box-shadow: inset 0 0 0 3px var(--hi), 0 0 22px rgba(255, 207, 63, 0.25), 0 4px 14px rgba(0, 0, 0, 0.3); color: var(--hi); font-size: calc(var(--tb) * 0.22); }
+.touch .tb-kick .ti { width: 40%; height: 40%; }
+.touch.item .tb-kick { background: radial-gradient(circle at 50% 35%, rgba(47, 227, 155, 0.35), rgba(12, 9, 22, 0.8)); box-shadow: inset 0 0 0 3px #2fe39b, 0 0 24px rgba(47, 227, 155, 0.35); color: #2fe39b; }
+.touch .tb-tackle { color: #ff6a86; box-shadow: inset 0 0 0 2px rgba(255, 90, 122, 0.75), 0 4px 14px rgba(0, 0, 0, 0.28); }
+.touch .tb-dribble { color: #8fc2ff; box-shadow: inset 0 0 0 2px rgba(110, 170, 255, 0.75), 0 4px 14px rgba(0, 0, 0, 0.28); }
+.touch .tb-sprint { color: var(--hi); box-shadow: inset 0 0 0 2px rgba(255, 207, 63, 0.75), 0 4px 14px rgba(0, 0, 0, 0.28); font-size: calc(var(--tb) * 0.14); }
+.touch .tb-sprint.on { background: var(--hi); color: var(--ink); }
+.touch .stick { border: none; background: radial-gradient(circle, rgba(12, 9, 22, 0.05) 40%, rgba(12, 9, 22, 0.35) 100%); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.3); }
+.touch .stick::before { content: ''; position: absolute; inset: 10%; border-radius: 50%; border: 1px dashed rgba(255, 255, 255, 0.22); }
+.touch .knob { border: none; background: radial-gradient(circle at 50% 35%, #3a2f66, #120d22); box-shadow: inset 0 0 0 3px var(--hi), 0 4px 12px rgba(0, 0, 0, 0.35); }
+
+/* ===== HUD item slots: angular tiles with the item's rarity colour ===== */
+.slots { gap: 10px; }
+.slot, .slot.full, .slot.eq { --rc: transparent; position: relative; isolation: isolate; width: calc(var(--u) * 3.5); height: calc(var(--u) * 3.5); border: none; border-radius: 0; background: none; box-shadow: none; transition: transform 0.12s; }
+.slot::before { content: ''; position: absolute; inset: 0; z-index: -1; background: rgba(12, 9, 22, 0.55); clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.28); }
+.slot.full::before { background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--rc) 30%, transparent), transparent 70%), rgba(12, 9, 22, 0.82); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.4), inset 0 -4px 0 var(--rc); }
+.slot.eq { transform: translateY(-4px); }
+.slot.eq::before { box-shadow: inset 0 0 0 3px var(--hi), inset 0 -4px 0 var(--rc); background: radial-gradient(circle at 50% 40%, rgba(255, 207, 63, 0.35), transparent 70%), rgba(12, 9, 22, 0.88); }
+.slot .slot-ico { width: 58%; height: 58%; }
+.slot-num { top: 3px; left: 4px; bottom: auto; transform: none; background: none; border: none; color: rgba(255, 255, 255, 0.7); font-family: var(--f-head); font-weight: 900; font-size: calc(var(--u) * 0.62); padding: 0; }
+.slot-name { position: absolute; left: 50%; bottom: calc(100% + 5px); transform: translateX(-50%); white-space: nowrap; font-family: var(--f-head); font-style: italic; font-weight: 900; font-size: calc(var(--u) * 0.62); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); background: var(--hi); padding: 1px 7px; opacity: 0; transition: opacity 0.15s; pointer-events: none; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%); }
+.slot.eq .slot-name { opacity: 1; }
+body.is-touch .slot, body.is-touch .slot.full, body.is-touch .slot.eq { width: calc(var(--u) * 4.4); height: calc(var(--u) * 4.4); }

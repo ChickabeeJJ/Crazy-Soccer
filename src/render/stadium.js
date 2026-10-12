@@ -160,6 +160,95 @@ function buildWalls(group) {
   mk(Z * 2, X, 0, Math.PI / 2);
 }
 
+// Tiered stands along both touchlines with roofs, team-coloured trim and an instanced crowd
+function buildStands(g, o, quality) {
+  const rnd = seeded(o.seed || 5);
+  const L = FIELD.halfL - 4, Z0 = FIELD.wallZ + 5.5;
+  const tiers = 5, td = 2.1, th = 1.1;
+  const standMat = new THREE.MeshLambertMaterial({ color: o.stand });
+  const trimMat = new THREE.MeshLambertMaterial({ color: o.trim });
+  const seats = [];
+  for (const s of [-1, 1]) {
+    for (let t = 0; t < tiers; t++) {
+      const step = new THREE.Mesh(new THREE.BoxGeometry(L * 2, th * (t + 1), td), standMat);
+      step.position.set(0, (th * (t + 1)) / 2, s * (Z0 + t * td + td / 2));
+      step.receiveShadow = true;
+      g.add(step);
+      for (let x = -L + 0.8; x < L - 0.8; x += 1.15 + rnd() * 0.4) if (rnd() < o.fill) seats.push([x + (rnd() - 0.5) * 0.3, th * (t + 1), s * (Z0 + t * td + td * 0.55)]);
+    }
+    const H = th * tiers + 5;
+    const back = new THREE.Mesh(new THREE.BoxGeometry(L * 2 + 2, H, 0.8), standMat);
+    back.position.set(0, H / 2, s * (Z0 + tiers * td + 0.4));
+    back.castShadow = quality.shadows;
+    g.add(back);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(L * 2 + 4, 0.5, tiers * td + 3.5), trimMat);
+    roof.position.set(0, H, s * (Z0 + (tiers * td) / 2 + 0.2));
+    roof.rotation.x = s * 0.12;
+    roof.castShadow = quality.shadows;
+    g.add(roof);
+    for (let x = -L; x <= L; x += L / 3) {
+      const col = new THREE.Mesh(new THREE.BoxGeometry(0.5, H, 0.5), trimMat);
+      col.position.set(x, H / 2, s * (Z0 + tiers * td));
+      g.add(col);
+    }
+    const team = TEAMS[s < 0 ? 0 : 1];
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(L * 2, 0.4, 0.15), new THREE.MeshBasicMaterial({ color: team.color }));
+    trim.position.set(0, th - 0.15, s * (Z0 - 0.08));
+    g.add(trim);
+    const glow = new THREE.Mesh(new THREE.BoxGeometry(L * 2 + 4, 0.18, 0.18), new THREE.MeshBasicMaterial({ color: team.color }));
+    glow.position.set(0, H - 0.35, s * (Z0 - 1.4));
+    g.add(glow);
+  }
+  // Crowd: shirts + heads (two instanced meshes)
+  const body = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.27, 0.45, 2, 6), new THREE.MeshLambertMaterial(), seats.length);
+  const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshLambertMaterial(), seats.length);
+  const shirts = [TEAMS[0].color, TEAMS[0].color, TEAMS[1].color, TEAMS[1].color, 0xffffff, 0x2a2238, 0xffcf3f, 0x4cf08a];
+  const skins = [0xf6d2b0, 0xe8b48e, 0xc98a5e, 0x9a6440, 0x6b4128];
+  const m = new THREE.Matrix4(), c = new THREE.Color();
+  seats.forEach(([x, y, z], i) => {
+    m.makeTranslation(x, y + 0.5, z); body.setMatrixAt(i, m);
+    m.makeTranslation(x, y + 1.08, z); head.setMatrixAt(i, m);
+    // Fans lean towards their team's colours on their own stand
+    const pick = z < 0 && rnd() < 0.45 ? 0 : z > 0 && rnd() < 0.45 ? 2 : Math.floor(rnd() * shirts.length);
+    body.setColorAt(i, c.set(shirts[pick]));
+    head.setColorAt(i, c.set(skins[Math.floor(rnd() * skins.length)]));
+  });
+  g.add(body, head);
+  return { body, head, seats, phase: seats.map(() => rnd() * Math.PI * 2), hype: 0 };
+}
+
+// Floodlight heads with a warm glow and a faint light beam towards the pitch
+function addFloodlights(g, spots, h) {
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff3d6 });
+  const frameMat = new THREE.MeshLambertMaterial({ color: 0x1d1830 });
+  const beamMat = new THREE.MeshBasicMaterial({ color: 0xffe8c0, transparent: true, opacity: 0.045, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+  const glowTex = TX.glowTexture();
+  for (const [x, z] of spots) {
+    const head = new THREE.Group();
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.4, 0.6), frameMat);
+    head.add(frame);
+    for (let r = 0; r < 2; r++) for (let k = 0; k < 3; k++) {
+      const lamp = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.9), lampMat);
+      lamp.position.set(-1.35 + k * 1.35, 0.55 - r * 1.1, 0.31);
+      head.add(lamp);
+    }
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffe2b0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.85 }));
+    glow.scale.set(11, 11, 1);
+    glow.position.z = 0.8;
+    head.add(glow);
+    head.position.set(x, h, z);
+    head.lookAt(0, 0, 0);
+    g.add(head);
+    // light beam: open cone from the lamp towards the middle of the pitch
+    const dx = -x * 0.55, dz = -z * 0.55, len = Math.hypot(dx, h, dz);
+    const beam = new THREE.Mesh(new THREE.ConeGeometry(9, len, 24, 1, true), beamMat);
+    beam.position.set(x + dx / 2, h / 2, z + dz / 2);
+    beam.lookAt(x, h, z);
+    beam.rotateX(Math.PI / 2);
+    g.add(beam);
+  }
+}
+
 function buildOutdoor(root, quality) {
   const g = new THREE.Group();
   root.add(g);
@@ -167,7 +256,7 @@ function buildOutdoor(root, quality) {
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
-    uniforms: { top: { value: new THREE.Color('#3f8fe8') }, mid: { value: new THREE.Color('#9fd4ff') }, bottom: { value: new THREE.Color('#fff1dc') } },
+    uniforms: { top: { value: new THREE.Color('#2a56b8') }, mid: { value: new THREE.Color('#8fb8ea') }, bottom: { value: new THREE.Color('#ffc890') } },
     vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 bottom; varying vec3 vP; void main(){ float h = vP.y; vec3 c = h > 0.12 ? mix(mid, top, smoothstep(0.12, 0.8, h)) : mix(bottom, mid, smoothstep(-0.05, 0.12, h)); gl_FragColor = vec4(c, 1.0); }',
   });
@@ -176,11 +265,12 @@ function buildOutdoor(root, quality) {
   g.add(sky);
 
   // Sun
-  const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: TX.glowTexture(), color: 0xfffbe8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-  sun.position.set(-210, 190, 240);
-  sun.scale.set(120, 120, 1);
+  // Low golden-hour sun (matches the key light direction in the renderer)
+  const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: TX.glowTexture(), color: 0xffc27a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  sun.position.set(-300, 155, 200);
+  sun.scale.set(190, 190, 1);
   g.add(sun);
-  const sunCore = new THREE.Mesh(new THREE.CircleGeometry(16, 32), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  const sunCore = new THREE.Mesh(new THREE.CircleGeometry(15, 32), new THREE.MeshBasicMaterial({ color: 0xfff1d6, fog: false }));
   sunCore.position.copy(sun.position);
   sunCore.lookAt(0, 0, 0);
   g.add(sunCore);
@@ -268,6 +358,8 @@ function buildOutdoor(root, quality) {
     p.castShadow = quality.shadows;
     g.add(p);
   }
+  g.userData.crowd = buildStands(g, { stand: 0x4a4466, trim: 0x2a2440, fill: 0.86, seed: 11 }, quality);
+  addFloodlights(g, [[-FIELD.wallX - 3.5, -FIELD.wallZ - 3.5], [FIELD.wallX + 3.5, -FIELD.wallZ - 3.5], [-FIELD.wallX - 3.5, FIELD.wallZ + 3.5], [FIELD.wallX + 3.5, FIELD.wallZ + 3.5]], 25.5);
   // Outer floor between wall and plateau edge
   const outer = new THREE.Mesh(new THREE.RingGeometry(Math.hypot(FIELD.wallX, FIELD.wallZ) - 6, IR + 0.5, 48), new THREE.MeshLambertMaterial({ color: 0x4f9a3f }));
   outer.rotation.x = -Math.PI / 2;
@@ -317,16 +409,17 @@ function buildDesert(root, quality) {
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
-    uniforms: { top: { value: new THREE.Color('#8fc4f0') }, mid: { value: new THREE.Color('#e6eef5') }, bottom: { value: new THREE.Color('#ffe9cf') } },
+    uniforms: { top: { value: new THREE.Color('#2c2a78') }, mid: { value: new THREE.Color('#d98a8c') }, bottom: { value: new THREE.Color('#ffc27a') } },
     vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 bottom; varying vec3 vP; void main(){ float h = vP.y; vec3 c = h > 0.12 ? mix(mid, top, smoothstep(0.12, 0.8, h)) : mix(bottom, mid, smoothstep(-0.05, 0.12, h)); gl_FragColor = vec4(c, 1.0); }',
   });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(520, 32, 16), skyMat);
   sky.renderOrder = -10;
   g.add(sky);
-  const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: TX.glowTexture(), color: 0xfff4dc, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-  sun.position.set(-210, 190, 240);
-  sun.scale.set(140, 140, 1);
+  // Setting sun low over the canyon
+  const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: TX.glowTexture(), color: 0xff9a5a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  sun.position.set(340, 70, -140);
+  sun.scale.set(230, 230, 1);
   g.add(sun);
   const pano = new THREE.Mesh(
     new THREE.CylinderGeometry(390, 390, 300, 64, 1, true),
@@ -352,8 +445,10 @@ function buildDesert(root, quality) {
   }
   // Crystal clusters
   const crystalMats = [new THREE.MeshToonMaterial({ color: 0x8a6bd8 }), new THREE.MeshToonMaterial({ color: 0xb49cf0 }), new THREE.MeshToonMaterial({ color: 0x6b4fb0 })];
+  const clear = (x, z) => Math.abs(x) < FIELD.wallX + 14 && Math.abs(z) < FIELD.wallZ + 20; // keep the stands area free
   for (let i = 0; i < 18; i++) {
     const a = rnd() * Math.PI * 2, r = 70 + rnd() * 60;
+    if (clear(Math.cos(a) * r, Math.sin(a) * r)) continue;
     const cl = new THREE.Group();
     for (let k = 0; k < 5; k++) {
       const h = 6 + rnd() * 16;
@@ -369,6 +464,7 @@ function buildDesert(root, quality) {
   const rockMat = new THREE.MeshLambertMaterial({ color: 0xa9603a, flatShading: true });
   for (let i = 0; i < 22; i++) {
     const a = rnd() * Math.PI * 2, r = 62 + rnd() * 40;
+    if (clear(Math.cos(a) * r, Math.sin(a) * r)) continue;
     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(2 + rnd() * 4, 0), rockMat);
     rock.position.set(Math.cos(a) * r, 0.5, Math.sin(a) * r);
     rock.scale.y = 0.6;
@@ -386,6 +482,8 @@ function buildDesert(root, quality) {
     p.castShadow = quality.shadows;
     g.add(p);
   }
+  g.userData.crowd = buildStands(g, { stand: 0xb07a4e, trim: 0x6b3f22, fill: 0.82, seed: 23 }, quality);
+  addFloodlights(g, [[-FIELD.wallX - 3.5, -FIELD.wallZ - 3.5], [FIELD.wallX + 3.5, -FIELD.wallZ - 3.5], [-FIELD.wallX - 3.5, FIELD.wallZ + 3.5], [FIELD.wallX + 3.5, FIELD.wallZ + 3.5]], 23);
   return g;
 }
 
@@ -517,10 +615,30 @@ export class Stadium {
   flashGoal(side) {
     const g = this.goals.find((x) => x.side === side);
     if (g) g.flash = 1.6;
+    for (const grp of [this.outdoor, this.desert]) if (grp.userData.crowd) grp.userData.crowd.hype = 4;
+  }
+
+  // The crowd jumps after a goal (only animated while excited, so it costs nothing otherwise)
+  animateCrowd(dt) {
+    const grp = this.variant === 'desert' ? this.desert : this.variant === 'grass' ? this.outdoor : null;
+    const c = grp && grp.userData.crowd;
+    if (!c || (c.hype <= 0 && !c.dirty)) return;
+    c.hype = Math.max(0, c.hype - dt);
+    const amp = Math.min(1, c.hype) * 0.45;
+    const m = this._m || (this._m = new THREE.Matrix4());
+    c.seats.forEach(([x, y, z], i) => {
+      const j = Math.max(0, Math.sin(this.time * 9 + c.phase[i])) * amp;
+      m.makeTranslation(x, y + 0.5 + j, z); c.body.setMatrixAt(i, m);
+      m.makeTranslation(x, y + 1.08 + j, z); c.head.setMatrixAt(i, m);
+    });
+    c.body.instanceMatrix.needsUpdate = true;
+    c.head.instanceMatrix.needsUpdate = true;
+    c.dirty = c.hype > 0;
   }
 
   update(dt, cam) {
     this.time += dt;
+    this.animateCrowd(dt);
     for (const g of this.goals) {
       if (g.flash > 0) g.flash -= dt;
       const f = Math.max(0, g.flash);

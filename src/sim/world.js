@@ -616,6 +616,27 @@ export class World {
     return true;
   }
 
+  // Rocket Punch arriving at the ball: knock over rivals around it and punch the ball away
+  punchBall(pr) {
+    const b = this.ball;
+    const by = this.byId.get(pr.owner);
+    const sp = Math.hypot(pr.vx, pr.vz) || 1, ux = pr.vx / sp, uz = pr.vz / sp;
+    const owner = b.owner >= 0 ? this.byId.get(b.owner) : null;
+    let freed = !owner;
+    for (const q of this.players) {
+      if (q.team === pr.team || q.left || q.stun > 0) continue;
+      if (len2(q.x - b.x, q.z - b.z) < 2.6 && Math.abs(q.y - b.y) < 3) {
+        if (this.hitPlayer(by, q, 'fall', 1.4, ux * 18, uz * 18, 'Knockout')) { q.vy = 6; if (q === owner) freed = true; }
+      }
+    }
+    if (freed && b.owner < 0 && b.bike < 0 && !b.held) {
+      b.vx = ux * 26 + b.vx * 0.2; b.vz = uz * 26 + b.vz * 0.2; b.vy = Math.max(b.vy, 7);
+      b.lastTouch = pr.owner; b.lastTeam = pr.team; b.shot = null;
+    }
+    this.emit({ e: 'shatter', x: r2(b.x), y: r2(Math.max(0.6, b.y)), z: r2(b.z), k: 'fist' });
+    this.emit({ e: 'boom', x: r2(b.x), z: r2(b.z), r: 2.6, k: 'fist' });
+  }
+
   useItem(p, kind, yaw, pitch) {
     const dir = this.aimDir(yaw);
     const b = this.ball;
@@ -631,7 +652,7 @@ export class World {
       case 'shield': p.fx.shield = 7; break; // Forcefield
       case 'jet': p.fx.jet = 3.2; p.vy = 9; break;
       case 'ice': shoot('ice', 38, 1.3); break; // Freeze Gun
-      case 'punch': shoot('fist', 42, 0.75); break; // Rocket Punch
+      case 'punch': shoot('fist', 30, 4.5); break; // Rocket Punch: homes in on the ball
       case 'flintlock': shoot('bullet', 78, 0.9); break;
       case 'bazooka': shoot('rocket', 34, 1.5); break;
       case 'oil': p.fx.oil = 3.2; p.oilT = 0; break; // Oil Spill
@@ -1071,6 +1092,20 @@ export class World {
         if (boom) { if (pr.life > 0) this.explode(pr.x, pr.z, 2.6, 12, pr.owner, pr.team, 'mine'); this.projs.splice(i, 1); }
         continue;
       }
+      if (pr.k === 'fist') {
+        // Rocket Punch: steers towards the ball (wherever it goes) and only bursts when it gets there
+        const tx = b.x - pr.x, ty = b.y + 0.2 - pr.y, tz = b.z - pr.z;
+        const d = Math.hypot(tx, ty, tz) || 1;
+        const sp = Math.min(46, Math.hypot(pr.vx, pr.vy, pr.vz) + 30 * dt);
+        const turn = Math.min(1, dt * 7);
+        pr.vx += ((tx / d) * sp - pr.vx) * turn; pr.vy += ((ty / d) * sp - pr.vy) * turn; pr.vz += ((tz / d) * sp - pr.vz) * turn;
+        const v = Math.hypot(pr.vx, pr.vy, pr.vz) || 1;
+        pr.vx *= sp / v; pr.vy *= sp / v; pr.vz *= sp / v;
+        pr.x += pr.vx * dt; pr.y = Math.max(0.5, pr.y + pr.vy * dt); pr.z += pr.vz * dt;
+        if (d < 1.5) { this.punchBall(pr); this.projs.splice(i, 1); }
+        else if (pr.life <= 0) { this.emit({ e: 'shatter', x: r2(pr.x), y: r2(pr.y), z: r2(pr.z), k: 'fist' }); this.projs.splice(i, 1); }
+        continue;
+      }
       if (pr.k === 'ice' || pr.k === 'rocket') pr.vy -= 6 * dt;
       pr.x += pr.vx * dt; pr.y += pr.vy * dt; pr.z += pr.vz * dt;
       let dead = pr.life <= 0 || pr.y < 0.1 || Math.abs(pr.x) > FIELD.wallX || Math.abs(pr.z) > FIELD.wallZ;
@@ -1239,6 +1274,7 @@ export class World {
         (p.sprinting ? 1 : 0) | (p.charging ? 2 : 0) | (p.req > 0 ? 4 : 0) | (p.fx.fire > 0 ? 8 : 0) | (p.fx.speed > 0 ? 16 : 0) | (p.fx.shield > 0 ? 32 : 0) | (p.fx.jet > 0 ? 64 : 0) | (p.immune > 0 ? 128 : 0) | (p.keeper ? 256 : 0),
         p.items[0] || 0, p.items[1] || 0, r2(p.stun), p.emote || 0, p.chatT > 0 ? p.chat : -1,
         r2(p.fx.fire), r2(p.fx.speed), r2(p.fx.shield), r2(p.fx.jet), r2(p.fx.oil || 0),
+        p.charging ? r2(p.in.yaw ?? p.face) : 0, p.charging ? r2(p.in.pitch ?? 0.28) : 0, // aim, so everyone sees shot lines
       ]),
       bx: this.boxes.map((x) => [x.id, r2(x.x), r2(x.z), x.c]),
       pu: this.puddles.map((x) => [x.id, r2(x.x), r2(x.z), r2(x.r), r2(x.life)]),

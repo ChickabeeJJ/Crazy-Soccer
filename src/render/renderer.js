@@ -60,6 +60,11 @@ export class GameRenderer {
     this.trajCore = new Ribbon(160, 0xffffff);
     this.trajHalo.mesh.renderOrder = 7; this.trajCore.mesh.renderOrder = 8;
     this.scene.add(this.trajHalo.mesh, this.trajCore.mesh);
+    // Everyone else's shot line (the ball carrier charging a shot), in their team colour
+    this.oHalo = new Ribbon(160, 0x140f26);
+    this.oCore = new Ribbon(160, 0xffffff);
+    this.oHalo.mesh.renderOrder = 7; this.oCore.mesh.renderOrder = 8;
+    this.scene.add(this.oHalo.mesh, this.oCore.mesh);
     this.trajLand = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.15, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
     this.trajLand.rotation.x = -Math.PI / 2;
     this.trajLand.renderOrder = 7;
@@ -141,18 +146,22 @@ export class GameRenderer {
 
   setVariant(v) {
     this.stadium.setVariant(v);
+    // Cinematic grades: Canyon at sunset dusk, Cliffside at golden hour (low sun, long shadows, warm haze)
     if (v === 'desert') {
-      this.scene.fog.color.set(0xf4e2c4); this.scene.fog.near = 120; this.scene.fog.far = 520;
-      this.hemi.color.set(0xfff0dc); this.hemi.groundColor.set(0x9a7a50); this.hemi.intensity = 1.35;
-      this.sun.color.set(0xffe6c0); this.sun.intensity = 2.5;
+      this.scene.fog.color.set(0xe8a07e); this.scene.fog.near = 100; this.scene.fog.far = 460;
+      this.hemi.color.set(0xd0a8e0); this.hemi.groundColor.set(0x8a5a3a); this.hemi.intensity = 1.25;
+      this.sun.color.set(0xffb070); this.sun.intensity = 2.7;
+      this.sun.position.set(64, 26, -26);
     } else if (v === 'indoor') {
       this.scene.fog.color.set(0x5a2a22); this.scene.fog.near = 60; this.scene.fog.far = 200;
       this.hemi.color.set(0xffe2c8); this.hemi.groundColor.set(0x6a3a2a); this.hemi.intensity = 1.5;
       this.sun.color.set(0xffe0b8); this.sun.intensity = 1.8;
+      this.sun.position.set(-30, 60, 40);
     } else {
-      this.scene.fog.color.set(0xcfe8ff); this.scene.fog.near = 120; this.scene.fog.far = 520;
-      this.hemi.color.set(0xdcefff); this.hemi.groundColor.set(0x5a7a48); this.hemi.intensity = 1.35;
-      this.sun.color.set(0xfff1dc); this.sun.intensity = 2.4;
+      this.scene.fog.color.set(0xf2d2ae); this.scene.fog.near = 110; this.scene.fog.far = 480;
+      this.hemi.color.set(0xbcd4ff); this.hemi.groundColor.set(0x6a6a3a); this.hemi.intensity = 1.3;
+      this.sun.color.set(0xffd6a0); this.sun.intensity = 2.7;
+      this.sun.position.set(-62, 30, 42);
     }
   }
 
@@ -539,6 +548,14 @@ export class GameRenderer {
   }
 
   // pts: [{x,y,z}] predicted ball path; kind 'aim' (bright, your shot) or 'flight' (faint)
+  syncOtherAim(pts, color) {
+    if (!pts || pts.length < 2) { this.oHalo.hide(); this.oCore.hide(); return; }
+    const cam = this.cam.position;
+    this.oHalo.update(pts, cam, 0.55, 0.45);
+    this.oCore.setColor(color);
+    this.oCore.update(pts, cam, 0.26, 0.95);
+  }
+
   syncTrajectory(pts, kind, land) {
     if (!pts || pts.length < 2) { this.trajHalo.hide(); this.trajCore.hide(); this.trajLand.visible = false; return; }
     const aim = kind === 'aim';

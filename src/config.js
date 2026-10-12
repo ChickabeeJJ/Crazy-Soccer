@@ -74,8 +74,8 @@ export const KICK = {
   dribbleCooldown: 1.5,
   jumpSpeed: 12.5,
   gkStunSpeed: 15, // a keeper's throw/punt only bowls rivals over while the ball is this fast
-  bikeHold: 0.8, // bicycle kick: seconds you hang in the air aiming before it fires on its own
-  bikeBallY: 2.7, // the ball floats up to at least this height during the hang
+  bikeHold: 0.9, // bicycle kick: max seconds you hang in the air aiming (release Kick to shoot sooner)
+  bikeBallY: 3.8, // the ball floats up to at least this height during the hang (player hangs ~1.9 m below it)
   bikeMinH: 1.5, // ball this far above your feet (or more) turns a volley into a bicycle kick
   jumpCooldown: 0.6,
   dribbleImmune: 0.6,

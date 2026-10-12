@@ -295,6 +295,8 @@ export class UI {
         this.cache[key] = it;
         $(`slot${i}`).querySelector('.slot-ico').innerHTML = it ? itemSvg(it) : '';
         $(`slot${i}`).title = it ? `${ITEMS[it].name}: ${ITEMS[it].desc}` : '';
+        $(`slot${i}`).style.setProperty('--rc', it ? RARITY[ITEMS[it].rarity].color : 'transparent');
+        $(`slot${i}`).querySelector('.slot-name').textContent = it ? ITEMS[it].name : '';
       }
     }
     // Stamina / charge bar
@@ -870,6 +872,7 @@ export class UI {
     this.isTouch = true;
     document.body.classList.add('is-touch');
     const touch = $('touch');
+    for (const [sel, icon, label] of [['.tb-kick', 'kick', 'KICK'], ['.tb-pass', 'pass', 'PASS'], ['.tb-tackle', 'tackle', 'TACKLE'], ['.tb-dribble', 'jump', 'JUMP'], ['.tb-lob', 'lob', 'LOB'], ['.tb-req', 'request', 'CALL'], ['.tb-flick', 'flick', 'FLICK'], ['.tb-sprint', 'sprint', 'SPRINT']]) this.touchButton(sel, icon, label);
     // iOS Safari: block pinch-zoom gestures over the game
     document.addEventListener('gesturestart', (e) => e.preventDefault());
     const stick = $('stick'), knob = $('stickKnob');
@@ -946,15 +949,41 @@ export class UI {
     });
   }
 
+  // Line icons for the touch buttons (same stroke style as the menus)
+  touchIcon(name) {
+    const L = 'fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"';
+    const I = {
+      kick: `<path d="M6 17l4-1 3-7 4 1-1 5 3 2v3H6z" ${L}/><circle cx="18" cy="6" r="2.6" ${L}/>`,
+      use: `<path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z" ${L}/>`,
+      pass: `<path d="M4 12h14M13 6l6 6-6 6" ${L}/>`,
+      lob: `<path d="M4 18c3-10 13-10 16 0M16 15l4 3 1-5" ${L}/>`,
+      flick: `<path d="M12 20V6M7 11l5-5 5 5" ${L}/><circle cx="12" cy="4" r="1.6" fill="currentColor"/>`,
+      tackle: `<path d="M3 18h12l5-4M7 14l4-4 4 1" ${L}/><circle cx="16" cy="6" r="2.2" ${L}/>`,
+      dive: `<path d="M7 14V8a1.5 1.5 0 0 1 3 0v4M10 11V5.5a1.5 1.5 0 0 1 3 0V11M13 11V6.5a1.5 1.5 0 0 1 3 0V11M16 11.5V8.5a1.5 1.5 0 0 1 3 0V15c0 3-2.2 5-5 5h-1.5c-2.4 0-3.8-1-4.8-2.7L5 13.5a1.4 1.4 0 0 1 2.2-1.7L8 13" ${L}/>`,
+      jump: `<path d="M6 13l6-6 6 6M6 19l6-6 6 6" ${L}/>`,
+      skill: `<path d="M20 12a8 8 0 1 1-3-6.3M20 4v4h-4" ${L}/>`,
+      request: `<path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V11V4.5a1.5 1.5 0 0 1 3 0V11V6a1.5 1.5 0 0 1 3 0v8c0 3.5-2.5 6-6 6s-5-2-6-4l-2-3.5a1.4 1.4 0 0 1 2.3-1.6z" ${L}/>`,
+      sprint: `<path d="M13 3L6 13h5l-1 8 7-10h-5z" ${L}/>`,
+    };
+    return `<svg viewBox="0 0 24 24">${I[name] || ''}</svg>`;
+  }
+
+  touchButton(sel, icon, label) {
+    const b = document.querySelector(sel);
+    if (!b) return;
+    const small = b.querySelector('small');
+    b.innerHTML = `<i class="ti">${this.touchIcon(icon)}</i><span>${label}</span>${small ? small.outerHTML : ''}`;
+  }
+
   touchVisible(on) { this.cache.touchclass = null; $('touch').classList.toggle('show', !!on && this.isTouch); }
-  setTackleLabel(dive) { if (this.setVal('tbTackleLbl', 'v', dive)) document.querySelector('.tb-tackle span').textContent = dive ? 'DIVE' : 'TACKLE'; }
+  setTackleLabel(dive) { if (this.setVal('tbTackleLbl', 'v', dive)) this.touchButton('.tb-tackle', dive ? 'dive' : 'tackle', dive ? 'DIVE' : 'TACKLE'); }
   // Context-sensitive touch buttons: ball actions when you have the ball, defending actions without
   setTouchState(hasBall, dive, item) {
     if (!this.isTouch) return;
     const cls = `touch show ${hasBall ? 'has-ball' : 'no-ball'} ${item ? 'item' : ''}`;
     this.setVal('touch', 'class', cls);
-    if (this.setVal('tbDribLbl', 'v', hasBall)) document.querySelector('.tb-dribble span').textContent = hasBall ? 'SKILL' : 'JUMP';
-    if (this.setVal('tbKickLbl', 'v', item)) document.querySelector('.tb-kick span').textContent = item ? 'USE' : 'KICK';
+    if (this.setVal('tbDribLbl', 'v', hasBall)) this.touchButton('.tb-dribble', hasBall ? 'skill' : 'jump', hasBall ? 'SKILL' : 'JUMP');
+    if (this.setVal('tbKickLbl', 'v', item)) this.touchButton('.tb-kick', item ? 'use' : 'kick', item ? 'USE' : 'KICK');
     this.setTackleLabel(dive);
   }
 }

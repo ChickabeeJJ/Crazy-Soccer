@@ -501,6 +501,7 @@ export class Session {
       o.fx.fire = rb[17]; o.fx.speed = rb[18]; o.fx.shield = rb[19]; o.fx.jet = rb[20]; o.fx.oil = rb[21] || 0;
       o.items[0] = rb[12] || null; o.items[1] = rb[13] || null;
       o.stun = rb[14]; o.emote = rb[15] || ''; o.chat = rb[16]; o.chatT = rb[16] >= 0 ? 1 : 0;
+      o.aimYaw = rb[22] ?? o.face; o.aimPitch = rb[23] ?? 0.28;
       list.push(o);
     }
     if (!list.includes(this.localP)) list.push(this.localP);

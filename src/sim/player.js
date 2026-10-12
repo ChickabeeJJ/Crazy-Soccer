@@ -173,8 +173,8 @@ export function movePlayer(p, dt, hasBall, frozenPhase, noDrain = false) {
   if (p.bikeT > 0) {
     // Weightless: float up to the ball and hang there while aiming
     p.bikeT -= dt;
-    p.vx *= Math.max(0, 1 - 10 * dt); p.vz *= Math.max(0, 1 - 10 * dt);
-    p.vy = ((p.bikeY ?? p.y) - p.y) * 9;
+    p.vx = 0; p.vz = 0; // frozen in place
+    p.vy = ((p.bikeY ?? p.y) - p.y) * 11;
   } else if (p.fx.jet > 0) {
     p.vy += (2.8 - p.y) * 10 * dt - p.vy * 4 * dt;
   } else {

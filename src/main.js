@@ -828,18 +828,19 @@ class App {
         if (inp.wasPressed('item1') && me.items[0]) me.equip = me.equip === 0 ? -1 : 0;
         if (inp.wasPressed('item2') && me.items[1]) me.equip = me.equip === 1 ? -1 : 1;
       }
-      // Bicycle kick: hang in the air aiming, then it fires by itself (or click again to fire early)
+      // Bicycle kick: press Kick on the ball to hang in position, aim, then RELEASE to shoot
+      // (it fires by itself if you keep holding past KICK.bikeHold)
       const fireBike = () => { s.action({ a: 'kick', pw: 0.95, ...shotAim, cv: 0 }); this.bikeAim = null; this.kickSuppressed = inp.isDown('kick'); };
       if (this.bikeAim) {
         this.bikeAim.t += dt;
+        if (!inp.isDown('kick')) this.bikeAim.released = true;
         if (me.anim !== 'bike' && me.anim !== 'volley' && this.bikeAim.t > 0.2) this.bikeAim = null; // knocked out of it
-        else if (this.bikeAim.t >= KICK.bikeHold) fireBike();
+        else if (this.bikeAim.t >= KICK.bikeHold || (this.bikeAim.released && this.bikeAim.t >= 0.14)) fireBike();
       }
       if (inp.wasPressed('kick')) {
         const b = s.view.ball;
         if (this.bikeAim) {
-          if (this.bikeAim.t > 0.12) fireBike();
-          else this.kickSuppressed = true;
+          this.kickSuppressed = true;
         } else if (equip >= 0) {
           s.action({ a: 'item', slot: equip, ...aim });
           me.equip = -1;
@@ -943,9 +944,31 @@ class App {
 
   // Ball lines: preview of your shot while charging, and the predicted path of any fast ball.
   // Both run the real ball physics (gravity, bounces, curve, posts, nets, walls).
+  // The ball carrier's aim line, shown to everyone while they charge a shot
+  otherAimPath(s, me) {
+    const b = s.view.ball;
+    if (!b || b.owner < 0 || (me && b.owner === me.id)) return null;
+    const p = s.view.players.find((q) => q && q.id === b.owner);
+    if (!p || !p.charging) return null;
+    const yaw = Number.isFinite(p.aimYaw) ? p.aimYaw : (p.in && Number.isFinite(p.in.yaw) ? p.in.yaw : p.face);
+    const pitch = Number.isFinite(p.aimPitch) ? p.aimPitch : (p.in && Number.isFinite(p.in.pitch) ? p.in.pitch : 0.28);
+    const k = kickVelocity({ ...p, face: yaw }, { a: 'kick', pw: p.charge || 0, yaw, pitch, cv: 0 }, s.view.players, p.fx && p.fx.fire > 0);
+    const sim = { ...createBall(), x: p.x + Math.sin(yaw) * PLAYER.dribbleDist, y: (p.y || 0) + 0.55, z: p.z + Math.cos(yaw) * PLAYER.dribbleDist, vx: k.vx, vy: k.vy, vz: k.vz, curve: k.curve };
+    const pts = [], ev = [];
+    for (let i = 1; i <= 120; i++) {
+      stepBall(sim, 1 / 60, ev);
+      if (i % 2 === 0) pts.push({ x: sim.x, y: sim.y, z: sim.z });
+      if (sim.inNet || ev.some((e) => e.e !== 'bounce')) { pts.push({ x: sim.x, y: sim.y, z: sim.z }); break; }
+      if (Math.hypot(sim.vx, sim.vz) < 3 && sim.y < 0.6) break;
+    }
+    return { pts, color: TEAMS[p.team].color };
+  }
+
   updateTrajectory(s, me, frame, shotAim, cv) {
     const R = this.renderer;
     const b = s.view.ball;
+    const other = frame || !b || s.view.phase === 'replay' ? null : this.otherAimPath(s, me);
+    R.syncOtherAim(other && other.pts, other && other.color);
     if (frame || !b || s.view.phase === 'replay') { R.syncTrajectory(null); return; }
     let sim = null, kind = 'flight';
     const near = me && (b.owner === me.id || (b.owner < 0 && len2(b.x - me.x, b.z - me.z) < KICK.hitRange && b.y < 2.6 + (me.y || 0)));
@@ -1014,6 +1037,25 @@ class App {
   }
 
   updateBanners(s, v, th) {
+    // Mercy rule: one more goal by the leading team ends the match
+    const mercy = (s.rules && s.rules.mercy) || MATCH.mercy;
+    const diff = (v.score ? v.score[0] - v.score[1] : 0);
+    const onMercy = s.mode === 'match' && mercy > 1 && Math.abs(diff) === mercy - 1 && ['kickoff', 'play', 'goal', 'replay'].includes(v.phase) && !v.ot;
+    const lead = diff > 0 ? 0 : 1;
+    const me = s.me;
+    const key = onMercy ? `${lead}|${v.score[0]}-${v.score[1]}` : '';
+    if (key !== this.mercyKey) {
+      this.mercyKey = key;
+      const bar = $('mercyBar');
+      bar.classList.toggle('show', onMercy);
+      if (onMercy) {
+        bar.style.setProperty('--tc', TEAMS[lead].css);
+        const mine = me && me.team === lead;
+        $('mercyText').textContent = mine ? `One more ${TEAMS[lead].name.toUpperCase()} goal wins it` : `One more ${TEAMS[lead].name.toUpperCase()} goal ends the match`;
+        bar.classList.remove('pop'); void bar.offsetWidth; bar.classList.add('pop');
+        this.audio.beep(false);
+      }
+    }
     const list = [];
     if (s.mode !== 'practice') {
       if (v.phase === 'warmup' && !s.isAuthority) list.push({ title: 'Waiting for the host' });

@@ -39,7 +39,13 @@ export class CameraRig {
   setLensShift(on) {
     const c = this.cam;
     const has = !!(c.view && c.view.enabled);
-    if (on && !has) c.setViewOffset(1000, 1000, 0, -75, 1000, 1000);
+    if (on && !has) {
+      // setViewOffset() overwrites the aspect with fullWidth/fullHeight: keep the real one
+      const aspect = c.aspect;
+      c.setViewOffset(1000 * aspect, 1000, 0, -75, 1000 * aspect, 1000);
+      c.aspect = aspect;
+      c.updateProjectionMatrix();
+    }
     else if (!on && has) c.clearViewOffset();
   }
 
