@@ -150,8 +150,8 @@ function buildBody() {
     B.tube(sl.map(([d, r]) => ({ x: hx + s * 0.008, y: hy + d, z: 0, rx: r, rz: r * 1.04, m: SH })), 20,
       (x, y) => { const d = hy - y; const p = 1 - ss(-0.05, 0.08, d); return { pelvis: p * 0.7, [`hip${side}`]: 1 - p * 0.7 }; }, { top: true });
     // Leg: thigh and knee (skin), ribbed sock from just below the knee down into the boot
-    const lg = [[-0.07, 0.112, 0, S], [0.06, 0.128, 0.006, S], [0.2, 0.128, 0.012, S], [0.34, 0.112, 0.012, S], [0.46, 0.094, 0.006, S], [0.55, 0.082, 0.004, S], [0.6, 0.08, -0.004, S],
-      [0.625, 0.079, -0.006, SO], [0.63, 0.087, -0.008, SO], [0.7, 0.092, -0.024, SO], [0.8, 0.085, -0.022, SO], [0.92, 0.066, -0.01, SO], [1.02, 0.056, -0.006, SO], [1.1, 0.052, -0.012, SO]];
+    const lg = [[-0.07, 0.112, 0, S], [0.06, 0.128, 0.006, S], [0.2, 0.126, 0.012, S], [0.34, 0.114, 0.012, S], [0.46, 0.1, 0.006, S], [0.55, 0.09, 0.002, S], [0.6, 0.087, -0.004, S],
+      [0.625, 0.087, -0.006, SO], [0.66, 0.091, -0.012, SO], [0.73, 0.095, -0.022, SO], [0.82, 0.087, -0.02, SO], [0.92, 0.07, -0.01, SO], [1.02, 0.058, -0.006, SO], [1.1, 0.054, -0.012, SO]];
     const kz = W[`knee${side}`][2];
     // muscular legs: the upper thigh (under the shorts) stays slim so the shorts can fit close
     const legK = (d) => 1.12 + 0.1 * ss(0.18, 0.36, d);
@@ -278,7 +278,7 @@ function handGeometry(side) {
   th.translate(-side * 0.018, -0.045, 0.05);
   parts.push(th);
   const g = mergeGeometries(parts.map((p) => p.toNonIndexed()));
-  g.scale(1.38, 1.38, 1.38);
+  g.scale(1.52, 1.52, 1.52);
   g.computeVertexNormals();
   return g;
 }

@@ -1,4 +1,4 @@
-// Original chibi footballer: toon-shaded, outlined, fully procedural animation (no external assets).
+// Original chibi footballer: toon-shaded, fully procedural animation (no external assets).
 import * as THREE from 'three';
 import { TEAMS } from '../config.js';
 import { SKIN_TONES, HAIR_COLORS, EYE_COLORS, CATALOG } from '../cosmetics.js';
@@ -238,7 +238,7 @@ function basePose() {
 export class CharacterModel {
   constructor(cos, team, opts = {}) {
     geos();
-    this.outline = opts.outline !== false;
+    this.outline = false; // players are drawn without the ink outline
     this.shadows = opts.shadows !== false;
     this.root = new THREE.Group();
     this.pose = basePose();
