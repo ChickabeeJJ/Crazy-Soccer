@@ -8,7 +8,7 @@ import { CameraRig } from './camera.js';
 import { AwardStage } from './awards.js';
 import * as TX from './textures.js';
 import { TEAMS, ITEMS, PHYS, FIELD, QUICK_CHAT } from '../config.js';
-import { clamp, len2, lerp } from '../util/math.js';
+import { clamp, len2, lerp, wrapAngle } from '../util/math.js';
 
 const ANIM_DUR = { volley: 0.5, kick: 0.38, pass: 0.3, flick: 0.35, slide: 0.55, recover: 0.22, dive: 0.62, getup: 0.42, punch: 0.45, throw: 0.32, spin: 0.42, dodge: 0.3, hit: 0.85, fall: 1.1, slip: 1.4 };
 const BOX_COLORS = ['#3fa9ff', '#ff4fa3', '#4cf08a', '#a46bff', '#ffc93f'];
@@ -312,6 +312,7 @@ export class GameRenderer {
       m.update(dt * (opts.replaySpeed || 1), {
         anim, animT, animDur: p.actDur || ANIM_DUR[anim] || 0.4, speed: Math.min(speed, 20), sprinting: speed > 11.5,
         charging: !frame && p.charging, charge, hasBall, emote: p.emote, fx: { jet: jet ? 1 : 0 }, y, id: p.id, stun: p.stun,
+        look: frame || hasBall ? 0 : wrapAngle(Math.atan2(view.ball.x - x, view.ball.z - z) - face),
       });
       c.ring.position.set(x, 0.04, z);
       const isLocal = p.id === localId;
@@ -322,7 +323,7 @@ export class GameRenderer {
       c.own.position.set(x, 0.05, z);
       c.blob.position.set(x, 0.03, z);
       c.blob.scale.setScalar(0.85 / (1 + y * 0.3));
-      const headY = y + 3.15;
+      const headY = y + 2.95;
       c.tag.visible = this.showNames && !isLocal && !frame;
       if (c.tag.visible) {
         const d = this.cam.position.distanceTo(m.root.position);
@@ -395,7 +396,7 @@ export class GameRenderer {
     this.marker.visible = !!meP && !frame && view.phase !== 'replay';
     if (meP) {
       this.marker.userData.setColor(TEAMS[meP.team].color);
-      this.marker.position.set(meP.x, (meP.y || 0) + 3.55 + Math.sin(this.time * 4) * 0.12, meP.z);
+      this.marker.position.set(meP.x, (meP.y || 0) + 3.3 + Math.sin(this.time * 4) * 0.12, meP.z);
       this.marker.rotation.y += dt * 2;
     }
     // Ball carrier arrow in the colour of the team in possession
@@ -403,7 +404,7 @@ export class GameRenderer {
     this.carrierMarker.visible = !!carrier;
     if (carrier) {
       this.carrierMarker.userData.setColor(TEAMS[carrier.team].color);
-      this.carrierMarker.position.set(carrier.x, (carrier.y || 0) + 3.55 + Math.sin(this.time * 4 + 1) * 0.12, carrier.z);
+      this.carrierMarker.position.set(carrier.x, (carrier.y || 0) + 3.3 + Math.sin(this.time * 4 + 1) * 0.12, carrier.z);
       this.carrierMarker.rotation.y += dt * 2;
     }
 
@@ -585,7 +586,7 @@ export class GameRenderer {
     this.aim.material.map.repeat.set(1, len / 4);
     this.aim.material.map.offset.y = -this.time * 1.5;
     this.aim.material.opacity = 0.55 + charge * 0.4;
-    this.chargeSprite.position.set(p.x, (p.y || 0) + 3.55, p.z);
+    this.chargeSprite.position.set(p.x, (p.y || 0) + 3.3, p.z);
     const seg = Math.round(charge * 8);
     if (seg !== this.lastChargeSeg) {
       this.lastChargeSeg = seg;

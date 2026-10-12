@@ -27,7 +27,7 @@ Grab the glowing mystery cubes for 14 items: Bazooka, Freeze Gun, Grappling Hook
 
 Every kickoff gives you a new random position. Walk into your own box to take the goalkeeper gloves: keepers can't be tackled, hold the ball in their hands and bowl over anyone in the path of their throw. Step out of the box and you lose the gloves, so your team might be left with an empty net.
 
-New players get a quick, skippable tutorial and a free roll for their first item. Join a team and play live against real players straight away. Bots fill any empty spot until people join, and you can invite friends to a private room. Earn coins to unlock new items with the Item Roll and customise your player with jerseys, hairstyles, balls, goal effects and emotes. New players can take the optional tutorial or practise their shooting and goalkeeping in the training ground.
+New players get a quick, skippable tutorial and a free roll for their first item. Join a team and play live against real players straight away. Bots fill any empty spot until people join, and you can invite friends to a private room. Earn coins to unlock new items with the Item Roll and customise your player with jerseys, boots, 16 hairstyles, skin, hair and eye colours, balls, goal effects and emotes. New players can take the optional tutorial or practise their shooting and goalkeeping in the training ground.
 
 ### Features
 
@@ -38,7 +38,8 @@ New players get a quick, skippable tutorial and a free roll for their first item
 - Ball-flight lines that show exactly where your shot will go
 - A podium award ceremony after every match: MVP, Top Scorer, Playmaker, The Wall and more
 - Tutorial, free practice, shooting challenge and goalkeeper challenge
-- Item Roll, cosmetics, levels and daily rewards
+- Item Roll, levels and daily rewards
+- Deep customisation: jerseys, boots, 16 hairstyles, skin, hair and eye colours
 - Full touch controls for phones and tablets
 
 ## Controls
@@ -64,7 +65,7 @@ New players get a quick, skippable tutorial and a free roll for their first item
 
 - **Left side of the screen**: Floating joystick (push to the edge to sprint)
 - **Right side of the screen**: Drag to look around
-- **Buttons**: Kick, Pass, Lob, Flick, Skill, Tackle / Dive, Jump, Call, plus the two item slots
+- **Buttons**: Kick, Pass, Lob, Flick, Spin, Tackle / Dive, Jump, Call, plus the two item slots
 
 ## Art assets
 

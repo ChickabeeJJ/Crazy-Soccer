@@ -62,19 +62,19 @@ export class CameraRig {
     const c = this.cam.position;
     // Over-the-shoulder: the camera sits a little to the right, so your player is left of the crosshair
     const sx = -Math.cos(this.yaw) * this.shoulder, sz = Math.sin(this.yaw) * this.shoulder;
-    c.set(this.smoothTarget.x - f.x * d + sx, this.smoothTarget.y - f.y * d, this.smoothTarget.z - f.z * d + sz);
-    if (c.y < 0.6) c.y = 0.6;
-    // A keeper's camera stays on the pitch side of their own goal line, so the posts and net are
-    // never between the camera and the play
-    if (opts.keeperSide) {
-      const lim = FIELD.halfL - 1.2;
-      if (c.x * opts.keeperSide > lim) c.x = opts.keeperSide * lim;
+    // Stay inside the arena: zooming out never puts the camera behind the end walls, stands or
+    // jumbotrons (the camera slides in along its view line instead)
+    let dd = d;
+    const XL = FIELD.wallX - 0.8, ZL = FIELD.wallZ - 0.8;
+    for (let i = 0; i < 24; i++) {
+      c.set(this.smoothTarget.x - f.x * dd + sx, this.smoothTarget.y - f.y * dd, this.smoothTarget.z - f.z * dd + sz);
+      if ((Math.abs(c.x) <= XL && Math.abs(c.z) <= ZL) || dd < 2.5) break;
+      dd *= 0.9;
     }
-    // Don't let the camera end up inside a goal net: rise smoothly over the crossbar instead
-    const ax = Math.abs(c.x), hw = FIELD.goalW / 2 + 1.2;
-    const inGoal = ax > FIELD.halfL - 0.6 && ax < FIELD.wallX + 8 && Math.abs(c.z) < hw;
-    this.netLift = damp(this.netLift || 0, inGoal ? 1 : 0, 6, dt);
-    if (this.netLift > 0.001) c.y = Math.max(c.y, lerp(c.y, FIELD.goalH + 1.6, this.netLift));
+    c.x = clamp(c.x, -XL, XL); c.z = clamp(c.z, -ZL, ZL);
+    if (c.y < 0.6) c.y = 0.6;
+    // The camera moves freely through the goals: a goal near the camera turns see-through instead
+    // (Stadium.update), so nothing pushes the view around
     this.lookAt.copy(this.smoothTarget).addScaledVector(f, 4);
     this.lookAt.x += sx; this.lookAt.z += sz;
     this.cam.lookAt(this.lookAt);
@@ -120,11 +120,11 @@ export class CameraRig {
     this.time += dt;
     this.shift = this.shift === undefined ? shift : damp(this.shift, shift, 5, dt);
     const a = faceYaw + Math.sin(this.time * 0.25) * 0.35 + sway;
-    const r = 6.4 + Math.abs(this.shift) * 0.25;
+    const r = 5.7 + Math.abs(this.shift) * 0.25;
     const aspect = this.cam.aspect || 1.6;
     const sh = aspect < 1 ? 0 : this.shift;
-    this.cam.position.set(cx + Math.sin(a) * r, 2.6, cz + Math.cos(a) * r);
-    this.cam.lookAt(cx - Math.sin(a + Math.PI / 2) * sh, 1.75, cz - Math.cos(a + Math.PI / 2) * sh);
+    this.cam.position.set(cx + Math.sin(a) * r, 2.45, cz + Math.cos(a) * r);
+    this.cam.lookAt(cx - Math.sin(a + Math.PI / 2) * sh, 1.6, cz - Math.cos(a + Math.PI / 2) * sh);
   }
 
   applyShake(dt) {

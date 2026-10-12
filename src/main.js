@@ -160,7 +160,7 @@ class App {
 
   cos() {
     const e = Save.p.eq;
-    return { skin: e.skin, hair: e.hair, hairColor: e.hairColor, jersey: e.jersey, ball: e.ball, goalfx: e.goalfx, number: e.number };
+    return { skin: e.skin, hair: e.hair, hairColor: e.hairColor, eyeColor: e.eyeColor || 0, jersey: e.jersey, boots: e.boots, ball: e.ball, goalfx: e.goalfx, number: e.number };
   }
   hello() { return { name: Save.displayName(), cos: this.cos(), team: Save.p.team === 1 ? 1 : 0, pw: Save.activePowers() }; }
 

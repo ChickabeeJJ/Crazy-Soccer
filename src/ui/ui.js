@@ -1,6 +1,6 @@
 // DOM UI: main menu (play / training / shop / inventory), HUD, settings, wheels, results, touch controls.
 import { Save, BIND_LABELS, DEFAULT_BINDS } from '../save.js';
-import { CATALOG, TAB_LABELS, SKIN_TONES, HAIR_COLORS } from '../cosmetics.js';
+import { CATALOG, TAB_LABELS, SKIN_TONES, HAIR_COLORS, EYE_COLORS } from '../cosmetics.js';
 import { TEAMS, QUICK_CHAT, ITEMS, ITEM_KINDS, PLAYER, RARITY, RARITY_ORDER, ROLL } from '../config.js';
 import { fmtTime, clamp } from '../util/math.js';
 import { itemSvg, previewJersey, previewBall, previewGoalFx, previewEmote, previewHair } from './icons.js';
@@ -508,7 +508,7 @@ export class UI {
   // ---------------------------------------------------------- shop/inventory
   preview(cat, id) {
     const p = Save.p;
-    const key = `${cat}|${id}|${cat === 'ball' || cat === 'goalfx' ? '' : `${p.eq.hairColor}|${p.eq.skin}|${p.eq.hair}|${p.eq.jersey}|${p.eq.number}|${this.app.menuTeam === 1 ? 1 : 0}`}`;
+    const key = `${cat}|${id}|${cat === 'ball' || cat === 'goalfx' ? '' : `${p.eq.hairColor}|${p.eq.eyeColor}|${p.eq.skin}|${p.eq.hair}|${p.eq.jersey}|${p.eq.boots}|${p.eq.number}|${this.app.menuTeam === 1 ? 1 : 0}`}`;
     if (!this.previewCache.has(key)) {
       let c;
       // Real 3D renders of the in-game character / ball (2D art only for goal effects)
@@ -517,8 +517,9 @@ export class UI {
       const team = this.app.menuTeam === 1 ? 1 : 0;
       const look = { ...this.app.cos() };
       try {
-        if (cat === 'goalfx' || !st) c = cat === 'goalfx' ? previewGoalFx(id) : cat === 'ball' ? previewBall(id) : cat === 'jersey' ? previewJersey(id, team) : cat === 'emote' ? previewEmote(id) : previewHair(id, p.eq.hairColor, p.eq.skin);
+        if (cat === 'goalfx' || !st) c = cat === 'goalfx' ? previewGoalFx(id) : cat === 'ball' ? previewBall(id) : cat === 'jersey' ? previewJersey(id, team) : cat === 'emote' ? previewEmote(id) : cat === 'boots' ? bootSwatch(id) : previewHair(id, p.eq.hairColor, p.eq.skin);
         else if (cat === 'ball') c = st.ball(id);
+        else if (cat === 'boots') c = st.character({ ...look, boots: id }, team, 'boots');
         else if (cat === 'jersey') c = st.character({ ...look, jersey: id }, team, 'jersey');
         else if (cat === 'emote') c = st.character(look, team, 'emote', id);
         else c = st.character({ ...look, hair: id }, team, 'hair');
@@ -540,7 +541,7 @@ export class UI {
   renderShop() {
     const p = Save.p;
     const tab = this.shopTab;
-    this.tabs($('shopTabs'), [['roll', 'Item Roll'], ['jersey', 'Jerseys'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes'], ['hair', 'Hairstyles']], tab, (t) => { this.shopTab = t; this.renderShop(); });
+    this.tabs($('shopTabs'), [['roll', 'Item Roll'], ['jersey', 'Jerseys'], ['boots', 'Boots'], ['hair', 'Hairstyles'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes']], tab, (t) => { this.shopTab = t; this.renderShop(); });
     const grid = $('shopGrid');
     grid.innerHTML = '';
     grid.classList.toggle('roll-mode', tab === 'roll');
@@ -741,7 +742,7 @@ export class UI {
   renderInventory() {
     const p = Save.p;
     const tab = this.invTab;
-    this.tabs($('invTabs'), [['powers', 'Items'], ['jersey', 'Jerseys'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes'], ['hair', 'Style']], tab, (t) => { this.invTab = t; this.renderInventory(); });
+    this.tabs($('invTabs'), [['powers', 'Items'], ['jersey', 'Jerseys'], ['boots', 'Boots'], ['hair', 'Style'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes']], tab, (t) => { this.invTab = t; this.renderInventory(); });
     const grid = $('invGrid');
     const extra = $('invExtra');
     grid.innerHTML = '';
@@ -775,9 +776,11 @@ export class UI {
     if (tab === 'hair') {
       extra.innerHTML = `<label>Skin</label>${SKIN_TONES.map((c, i) => `<div class="swatch ${p.eq.skin === i ? 'on' : ''}" data-skin="${i}" style="background:${c}"></div>`).join('')}
         <label>Hair</label>${HAIR_COLORS.map((c, i) => `<div class="swatch ${p.eq.hairColor === i ? 'on' : ''}" data-hc="${i}" style="background:${c}"></div>`).join('')}
+        <label>Eyes</label>${EYE_COLORS.map((c, i) => `<div class="swatch ${(p.eq.eyeColor || 0) === i ? 'on' : ''}" data-ec="${i}" style="background:${c}"></div>`).join('')}
         <label>Number</label><button class="num-btn" id="numDown">−</button><b class="num">${p.eq.number}</b><button class="num-btn" id="numUp">+</button>`;
       extra.querySelectorAll('[data-skin]').forEach((el) => el.addEventListener('click', () => { p.eq.skin = +el.dataset.skin; this.app.audio.click(); this.renderInventory(); this.app.onCosmeticsChanged(); }));
       extra.querySelectorAll('[data-hc]').forEach((el) => el.addEventListener('click', () => { p.eq.hairColor = +el.dataset.hc; this.app.audio.click(); this.renderInventory(); this.app.onCosmeticsChanged(); }));
+      extra.querySelectorAll('[data-ec]').forEach((el) => el.addEventListener('click', () => { p.eq.eyeColor = +el.dataset.ec; this.app.audio.click(); this.renderInventory(); this.app.onCosmeticsChanged(); }));
       $('numDown').onclick = () => { p.eq.number = p.eq.number <= 1 ? 99 : p.eq.number - 1; this.renderInventory(); this.app.onCosmeticsChanged(); };
       $('numUp').onclick = () => { p.eq.number = p.eq.number >= 99 ? 1 : p.eq.number + 1; this.renderInventory(); this.app.onCosmeticsChanged(); };
     } else if (tab === 'emote') {
@@ -982,8 +985,20 @@ export class UI {
     if (!this.isTouch) return;
     const cls = `touch show ${hasBall ? 'has-ball' : 'no-ball'} ${item ? 'item' : ''}`;
     this.setVal('touch', 'class', cls);
-    if (this.setVal('tbDribLbl', 'v', hasBall)) this.touchButton('.tb-dribble', hasBall ? 'skill' : 'jump', hasBall ? 'SKILL' : 'JUMP');
+    if (this.setVal('tbDribLbl', 'v', hasBall)) this.touchButton('.tb-dribble', hasBall ? 'skill' : 'jump', hasBall ? 'SPIN' : 'JUMP');
     if (this.setVal('tbKickLbl', 'v', item)) this.touchButton('.tb-kick', item ? 'use' : 'kick', item ? 'USE' : 'KICK');
     this.setTackleLabel(dive);
   }
+}
+
+// 2D fallback for boot cards when WebGL previews aren't available
+function bootSwatch(id) {
+  const b = CATALOG.boots.find((x) => x.id === id) || CATALOG.boots[0];
+  const c = document.createElement('canvas');
+  c.width = 312; c.height = 260;
+  const g = c.getContext('2d');
+  g.fillStyle = b.base; g.beginPath(); g.moveTo(70, 170); g.lineTo(250, 170); g.quadraticCurveTo(262, 140, 200, 130); g.lineTo(150, 95); g.lineTo(90, 95); g.quadraticCurveTo(66, 130, 70, 170); g.fill();
+  g.fillStyle = b.accent; g.beginPath(); g.moveTo(100, 160); g.lineTo(190, 160); g.lineTo(140, 130); g.lineTo(96, 130); g.fill();
+  g.fillStyle = b.sole; g.fillRect(66, 170, 190, 10);
+  return c;
 }

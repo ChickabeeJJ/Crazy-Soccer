@@ -1,13 +1,15 @@
 // Original chibi footballer: toon-shaded, outlined, fully procedural animation (no external assets).
 import * as THREE from 'three';
 import { TEAMS } from '../config.js';
-import { SKIN_TONES, HAIR_COLORS } from '../cosmetics.js';
-import { jerseyTexture, faceTexture, hairTexture, toonGradient } from './textures.js';
-import { clamp, lerp, damp } from '../util/math.js';
+import { SKIN_TONES, HAIR_COLORS, EYE_COLORS, CATALOG } from '../cosmetics.js';
+import { jerseyTexture, hairTexture, toonGradient } from './textures.js';
+import { Head, shapeDir, taperTube } from './head.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { createSkeleton, bodyGeos, MAT, PELVIS_Y, HEAD_SCALE, socksTexture, shortsTexture } from './body.js';
+import { clamp, lerp, damp, wrapAngle } from '../util/math.js';
 
 let G = null; // shared geometries
 let GRAD = null;
-let FACE_TEX = null;
 let HAIR_TEX = null;
 const hairMats = new Map();
 const jerseyCache = new Map();
@@ -16,10 +18,6 @@ const matCache = new Map();
 function geos() {
   if (G) return G;
   G = {
-    head: sculpt(new THREE.SphereGeometry(0.62, 40, 28)),
-    face: sculpt(new THREE.SphereGeometry(0.632, 32, 24, Math.PI / 2 - 0.85, 1.7, 0.92, 1.25)),
-    ear: earGeometry(),
-    nose: noseGeometry(),
     // Hair shells: one per hairline, hugging the head (see hairShell)
     shellCrop: hairShell({ thick: 0.045, lift: 0.05, front: 0.4, temple: 0.33 }),
     shellFade: hairShell({ thick: 0.012, lift: 0, back: -0.5, side: 0.18, burn: 0.05 }),
@@ -27,16 +25,11 @@ function geos() {
     shellBob: hairShell({ thick: 0.07, lift: 0.06, front: 0.24, temple: 0.2, side: -0.62, burn: -0.66, ear: -0.66, back: -0.72, flare: 0.1 }),
     shellUnder: hairShell({ thick: 0.03, lift: 0, back: -0.5 }),
     shellCurls: hairShell({ thick: 0.12, lift: 0.1, front: 0.38, back: -0.5 }),
+    shellBuzz: hairShell({ thick: 0.014, lift: 0, front: 0.42, back: -0.48 }),
+    shellSleek: hairShell({ thick: 0.04, lift: 0.02, front: 0.4, back: -0.5 }),
+    shellLong: hairShell({ thick: 0.07, lift: 0.05, front: 0.3, temple: 0.25, side: -0.95, burn: -0.95, ear: -0.95, back: -1.0, flare: 0.12 }),
     tuft: tuftGeometry(),
     curl: new THREE.IcosahedronGeometry(0.15, 1),
-    torso: new THREE.CapsuleGeometry(0.4, 0.34, 8, 20),
-    shorts: new THREE.CapsuleGeometry(0.38, 0.12, 6, 16),
-    upperArm: new THREE.CapsuleGeometry(0.14, 0.26, 4, 10),
-    forearm: new THREE.CapsuleGeometry(0.125, 0.2, 4, 10),
-    hand: new THREE.SphereGeometry(0.15, 12, 10),
-    thigh: new THREE.CapsuleGeometry(0.17, 0.2, 4, 10),
-    shin: new THREE.CapsuleGeometry(0.14, 0.18, 4, 10),
-    shoe: roundedBox(0.3, 0.2, 0.5, 0.08),
     hairCap: new THREE.SphereGeometry(0.665, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.52),
     bun: new THREE.SphereGeometry(0.24, 12, 10),
     brim: new THREE.BoxGeometry(0.62, 0.06, 0.4),
@@ -49,51 +42,8 @@ function geos() {
     nozzle: new THREE.CylinderGeometry(0.1, 0.14, 0.22, 10),
   };
   GRAD = toonGradient();
-  FACE_TEX = faceTexture();
   HAIR_TEX = hairTexture();
   return G;
-}
-
-// Head shape: a slightly narrower, taller skull with a tapered jaw and chin, so the face reads
-// as a face rather than a ball. Applied to the head, the face decal and the hair shells alike.
-function shapeDir(x, y, z, r) {
-  const ny = y / r;
-  const jaw = ny < 0 ? Math.min(1, -ny / 0.95) : 0;
-  const j = jaw * jaw * (3 - 2 * jaw);
-  let sx = 0.94 * (1 - 0.17 * j), sy = 1.04, sz = 0.97 * (1 - 0.05 * j);
-  // chin pushed slightly forward
-  const dz = z > 0 ? 0.035 * j * (z / r) * r : 0;
-  return [x * sx, y * sy, z * sz + dz];
-}
-function sculpt(geo) {
-  const p = geo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    const r = Math.hypot(x, y, z) || 1;
-    const [a, b, c] = shapeDir(x, y, z, r);
-    p.setXYZ(i, a, b, c);
-  }
-  geo.computeVertexNormals();
-  return geo;
-}
-
-function earGeometry() {
-  const geo = new THREE.SphereGeometry(0.12, 14, 10);
-  geo.scale(0.4, 1, 0.7);
-  return geo;
-}
-
-function noseGeometry() {
-  // small rounded wedge: narrow bridge, wider tip
-  const geo = new THREE.SphereGeometry(0.068, 14, 12);
-  const p = geo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    const u = (0.068 - y) / 0.136; // 0 top .. 1 bottom
-    p.setXYZ(i, x * (0.55 + 0.6 * u), y * 1.25, z * (0.6 + 0.5 * u));
-  }
-  geo.computeVertexNormals();
-  return geo;
 }
 
 // Hair shell: a sphere that hugs the head where there is hair and sinks under the skin elsewhere,
@@ -107,7 +57,7 @@ function hairShell(o = {}) {
     for (let k = 1; k < knots.length; k++) if (a <= knots[k][0]) { const [a0, y0] = knots[k - 1], [a1, y1] = knots[k]; return y0 + (y1 - y0) * ((a - a0) / (a1 - a0)); }
     return back;
   };
-  const geo = new THREE.SphereGeometry(1, 96, 56);
+  const geo = new THREE.SphereGeometry(1, 60, 36);
   const p = geo.attributes.position;
   const R = 0.62;
   for (let i = 0; i < p.count; i++) {
@@ -118,7 +68,7 @@ function hairShell(o = {}) {
     const k = e * e * (3 - 2 * e);
     const up = Math.max(0, y);
     const r = R - 0.05 + k * (0.05 + thick + lift * up * up + flare * Math.max(0, -y) * (a > 0.9 ? 1 : 0));
-    const [sx, sy, sz] = shapeDir(x * r, y * r, z * r, r);
+    const [sx, sy, sz] = shapeDir(x, y, z, r, false);
     p.setXYZ(i, sx, sy, sz);
   }
   geo.computeVertexNormals();
@@ -137,6 +87,77 @@ function tuftGeometry() {
   }
   geo.computeVertexNormals();
   return geo;
+}
+
+// Skin uses a softer four-tone ramp so faces don't get a hard dark half
+let SOFT_GRAD = null;
+const skinMats = new Map();
+function skinMat(color) {
+  if (!SOFT_GRAD) {
+    // smooth (linearly filtered) ramp: soft shading on skin, no blotchy bands across the face
+    SOFT_GRAD = new THREE.DataTexture(new Uint8Array([168, 168, 168, 255, 205, 205, 205, 255, 236, 236, 236, 255, 255, 255, 255, 255]), 4, 1, THREE.RGBAFormat);
+    SOFT_GRAD.minFilter = SOFT_GRAD.magFilter = THREE.LinearFilter;
+    SOFT_GRAD.needsUpdate = true;
+  }
+  if (!skinMats.has(color)) skinMats.set(color, new THREE.MeshToonMaterial({ color, gradientMap: SOFT_GRAD }));
+  return skinMats.get(color);
+}
+
+// Strand-based hairstyles built from tapered tubes (merged into one geometry per style, cached)
+const STYLE_GEO = {};
+const TUFT_GEO = new Map();
+const onHead = (a, y, r) => { const c = Math.sqrt(Math.max(0, 1 - y * y)); const [x, yy, z] = shapeDir(Math.sin(a) * c, y, Math.cos(a) * c, r, false); return new THREE.Vector3(x, yy, z); };
+function styleGeo(style) {
+  if (STYLE_GEO[style]) return STYLE_GEO[style];
+  const parts = [];
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  if (style === 'ponytail') {
+    // tail hangs from a tie at the back of the crown (pivot at the tie, see buildHair)
+    parts.push(taperTube([V(0, 0, 0), V(0, -0.08, -0.16), V(0, -0.36, -0.24), V(0, -0.66, -0.2), V(0, -0.86, -0.12)], 0.17, 0.05, 12, 20));
+  } else if (style === 'dreads') {
+    for (let i = 0; i < 18; i++) {
+      const a = Math.PI * 0.42 + (i / 17) * Math.PI * 1.16;
+      const top = onHead(a, 0.28 + (i % 2) * 0.12, 0.68);
+      const out = new THREE.Vector3(Math.sin(a), 0, Math.cos(a)).multiplyScalar(0.12);
+      parts.push(taperTube([top, top.clone().add(out).add(V(0, -0.18, 0)), top.clone().add(out.clone().multiplyScalar(1.4)).add(V(0, -0.55, 0)), top.clone().add(out.clone().multiplyScalar(1.5)).add(V(0, -0.9 - (i % 3) * 0.06, 0))], 0.055, 0.042, 6, 10));
+    }
+  } else if (style === 'cornrows') {
+    for (let i = -3; i <= 3; i++) {
+      const a = i * 0.24;
+      // from the hairline over the top of the head and down to the nape
+      const path = [];
+      for (let k = 0; k <= 10; k++) { const t = k / 10; const phi = 0.95 - t * 2.75; path.push(new THREE.Vector3(Math.sin(a) * Math.sin(phi), Math.cos(phi), Math.cos(a) * Math.sin(phi))); }
+      const ridge = path.map((d) => { const [x, y, z] = shapeDir(d.x, d.y, d.z, 0.64, false); return V(x, y, z); });
+      parts.push(taperTube(ridge, 0.045, 0.04, 6, 24));
+    }
+  } else if (style === 'long') {
+    // the hair hangs down the back to the shoulders
+    const back = new THREE.CylinderGeometry(0.5, 0.6, 0.62, 28, 1, true, Math.PI * 0.62, Math.PI * 0.76 * 1.0);
+    back.translate(0, -0.55, -0.06);
+    parts.push(back.toNonIndexed());
+    for (let i = 0; i < 10; i++) {
+      const a = Math.PI * 0.62 + (i / 9) * Math.PI * 0.76;
+      const p0 = V(Math.sin(a) * 0.55, -0.5, Math.cos(a) * 0.55 - 0.06);
+      parts.push(taperTube([p0, p0.clone().add(V(0, -0.22, 0)), p0.clone().add(V(Math.sin(a) * 0.04, -0.4, Math.cos(a) * 0.04))], 0.07, 0.02, 6, 8));
+    }
+  }
+  const g = mergeGeometries(parts.map((q) => (q.index ? q.toNonIndexed() : q)));
+  g.computeVertexNormals();
+  STYLE_GEO[style] = g;
+  return g;
+}
+
+const kitMats = new Map();
+function kitMat(map) {
+  if (!kitMats.has(map)) kitMats.set(map, new THREE.MeshToonMaterial({ color: 0xffffff, map, gradientMap: GRAD }));
+  return kitMats.get(map);
+}
+
+const hairMatsDS = new Map();
+function hairMatDS(color) {
+  const key = color.getHexString();
+  if (!hairMatsDS.has(key)) hairMatsDS.set(key, new THREE.MeshToonMaterial({ color, gradientMap: GRAD, map: HAIR_TEX, side: THREE.DoubleSide }));
+  return hairMatsDS.get(key);
 }
 
 function hairMat(color) {
@@ -173,14 +194,17 @@ function toon(color, extra = {}) {
   return m;
 }
 
-let OUTLINE = null;
-function outlineMat() {
-  if (OUTLINE) return OUTLINE;
-  OUTLINE = new THREE.MeshBasicMaterial({ color: 0x1b1530, side: THREE.BackSide });
-  OUTLINE.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normalize(normal) * 0.032;');
+// Thin ink outline hull (back faces pushed out along the normal); works for skinned meshes too
+const OUTLINES = new Map();
+function outlineMat(width = 0.02) {
+  if (OUTLINES.has(width)) return OUTLINES.get(width);
+  const m = new THREE.MeshBasicMaterial({ color: 0x1b1530, side: THREE.BackSide });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n transformed += normalize(normal) * ${width.toFixed(4)};`);
   };
-  return OUTLINE;
+  m.customProgramCacheKey = () => `outline${width}`;
+  OUTLINES.set(width, m);
+  return m;
 }
 
 function jersey(pattern, team, number) {
@@ -191,15 +215,19 @@ function jersey(pattern, team, number) {
   return m;
 }
 
+// Pose channels (radians, pY in rest-pose units where 0.95 = standing). lfl/rfl: how much each foot
+// is kept flat on the ground automatically; br: breathing; wf: wrist flex
 const J = ['pY', 'pX', 'pZ', 'pRY', 'sX', 'sY', 'sZ', 'hX', 'hY', 'hZ',
   'lsX', 'lsZ', 'leX', 'leZ', 'rsX', 'rsZ', 'reX', 'reZ',
-  'lhX', 'lhZ', 'lkX', 'lfX', 'rhX', 'rhZ', 'rkX', 'rfX', 'sq'];
+  'lhX', 'lhZ', 'lkX', 'lfX', 'rhX', 'rhZ', 'rkX', 'rfX', 'sq', 'lfl', 'rfl', 'br', 'wf'];
+const PK = PELVIS_Y / 0.95; // pose heights were authored for a 0.95 pelvis
 
 function basePose() {
   const p = {};
   for (const k of J) p[k] = 0;
   p.pY = 0.95;
   p.lsZ = 0.12; p.rsZ = -0.12; p.leX = -0.25; p.reX = -0.25;
+  p.lfl = 1; p.rfl = 1;
   return p;
 }
 
@@ -221,13 +249,13 @@ export class CharacterModel {
     this.setAppearance(cos, team);
   }
 
-  mesh(geo, mat, parent, pos, outline = true) {
+  mesh(geo, mat, parent, pos, outline = true, width) {
     const m = new THREE.Mesh(geo, mat);
     if (pos) m.position.set(pos[0], pos[1], pos[2]);
     m.castShadow = this.shadows;
     parent.add(m);
     if (outline && this.outline) {
-      const o = new THREE.Mesh(geo, outlineMat());
+      const o = new THREE.Mesh(geo, outlineMat(width));
       m.add(o);
     }
     return m;
@@ -236,76 +264,65 @@ export class CharacterModel {
   build() {
     const g = G;
     const placeholder = toon(0xffffff);
-    this.pelvis = new THREE.Group();
-    this.root.add(this.pelvis);
-    this.shortsM = this.mesh(g.shorts, placeholder, this.pelvis, [0, 0.02, 0]);
-    this.shortsM.scale.set(1.05, 0.8, 0.85);
-    this.spine = new THREE.Group();
-    this.spine.position.y = 0.08;
-    this.pelvis.add(this.spine);
-    this.torsoM = this.mesh(g.torso, placeholder, this.spine, [0, 0.36, 0]);
-    this.torsoM.scale.set(1.08, 0.82, 0.86);
-    this.neck = new THREE.Group();
-    this.neck.position.y = 0.8;
-    this.spine.add(this.neck);
+    const { bones, skeleton } = createSkeleton(this.root);
+    this.bones = bones;
+    this.skeleton = skeleton;
+    this.pelvis = bones.pelvis;
+    const BG = bodyGeos();
+    // One skinned body (jersey, skin, shorts, socks) + a skinned outline hull sharing the skeleton
+    this.bodyMats = [placeholder, placeholder, placeholder, placeholder, placeholder];
+    this.body = new THREE.SkinnedMesh(BG.body, this.bodyMats);
+    this.body.castShadow = this.shadows;
+    this.body.frustumCulled = false;
+    this.root.add(this.body);
+    this.body.bind(skeleton);
+    if (this.outline) {
+      const o = new THREE.SkinnedMesh(BG.body, outlineMat());
+      o.frustumCulled = false;
+      this.root.add(o);
+      o.bind(skeleton);
+    }
+    // Head: the face, hair and ears ride on the head bone
     this.head = new THREE.Group();
-    this.neck.add(this.head);
-    this.headM = this.mesh(g.head, placeholder, this.head, [0, 0.52, 0]);
-    this.faceTex = FACE_TEX.clone();
-    this.faceTex.needsUpdate = true;
-    this.faceM = new THREE.Mesh(g.face, new THREE.MeshBasicMaterial({ map: this.faceTex, transparent: true, depthWrite: false }));
-    this.faceM.position.set(0, 0.52, 0);
-    this.faceM.renderOrder = 1;
-    this.head.add(this.faceM);
-    this.ears = [-1, 1].map((sd) => {
-      const e = this.mesh(g.ear, placeholder, this.head, [sd * 0.6, 0.49, -0.04], false);
-      e.rotation.y = sd * 0.3;
-      return e;
-    });
-    this.noseM = this.mesh(g.nose, placeholder, this.head, [0, 0.44, 0.575], false);
-    this.noseM.rotation.x = -0.12;
+    this.head.scale.setScalar(HEAD_SCALE);
+    this.head.position.set(0, -0.012, 0);
+    bones.head.add(this.head);
+    const skullC = new THREE.Group();
+    skullC.position.y = 0.52;
+    this.head.add(skullC);
+    this.headRig = new Head(skullC, { skin: placeholder, brow: placeholder, outlineMat: this.outline ? outlineMat(0.018) : null, shadows: this.shadows });
+    this.headM = this.headRig.skull;
     this.hair = new THREE.Group();
     this.hair.position.y = 0.52;
     this.head.add(this.hair);
-
-    const arm = (side) => {
-      const sh = new THREE.Group();
-      sh.position.set(side * 0.47, 0.6, 0);
-      this.spine.add(sh);
-      const up = this.mesh(g.upperArm, placeholder, sh, [0, -0.2, 0]);
-      const el = new THREE.Group();
-      el.position.y = -0.4;
-      sh.add(el);
-      const fo = this.mesh(g.forearm, placeholder, el, [0, -0.17, 0]);
-      const hand = this.mesh(g.hand, placeholder, el, [0, -0.38, 0]);
-      return { sh, up, el, fo, hand };
+    // Hands and boots are rigid, attached to the wrist and ankle bones
+    const limb = (side) => {
+      const S = side > 0 ? 'L' : 'R';
+      const hand = this.mesh(side > 0 ? BG.handL : BG.handR, placeholder, bones[`wr${S}`], [0, 0.01, 0], true, 0.012);
+      hand.castShadow = false;
+      const boot = new THREE.Group();
+      bones[`ankle${S}`].add(boot);
+      const upper = this.mesh(BG.boot.upper, placeholder, boot, null, true, 0.014);
+      upper.castShadow = false;
+      const sole = this.mesh(BG.boot.sole, placeholder, boot, null, false);
+      sole.castShadow = false;
+      const laces = this.mesh(BG.boot.laces, toon(0xf4f4fa), boot, null, false);
+      const flash = this.mesh(BG.boot.flash, placeholder, boot, null, false);
+      return { sh: bones[`sh${S}`], el: bones[`el${S}`], wr: bones[`wr${S}`], clav: bones[`clav${S}`], hip: bones[`hip${S}`], knee: bones[`knee${S}`], foot: bones[`ankle${S}`], hand, upper, sole, laces, flash };
     };
-    this.armL = arm(1);
-    this.armR = arm(-1);
-    const leg = (side) => {
-      const hip = new THREE.Group();
-      hip.position.set(side * 0.21, -0.05, 0);
-      this.pelvis.add(hip);
-      const th = this.mesh(g.thigh, placeholder, hip, [0, -0.2, 0]);
-      const knee = new THREE.Group();
-      knee.position.y = -0.42;
-      hip.add(knee);
-      const shin = this.mesh(g.shin, placeholder, knee, [0, -0.16, 0]);
-      const foot = new THREE.Group();
-      foot.position.y = -0.36;
-      knee.add(foot);
-      const shoe = this.mesh(g.shoe, placeholder, foot, [0, -0.02, 0.08]);
-      return { hip, th, knee, shin, foot, shoe };
-    };
-    this.legL = leg(1);
-    this.legR = leg(-1);
+    const L = limb(1), R = limb(-1);
+    this.armL = { sh: L.sh, el: L.el, wr: L.wr, clav: L.clav, hand: L.hand };
+    this.armR = { sh: R.sh, el: R.el, wr: R.wr, clav: R.clav, hand: R.hand };
+    this.legL = { hip: L.hip, knee: L.knee, foot: L.foot, upper: L.upper, sole: L.sole, flash: L.flash };
+    this.legR = { hip: R.hip, knee: R.knee, foot: R.foot, upper: R.upper, sole: R.sole, flash: R.flash };
 
     // Props
-    this.glove = this.mesh(g.glove, toon(0xff3355), this.armR.el, [0, -0.5, 0.05]);
+    this.glove = this.mesh(g.glove, toon(0xff3355), this.armR.wr, [0, -0.1, 0.03]);
+    this.glove.scale.setScalar(0.8);
     this.glove.visible = false;
     this.jet = new THREE.Group();
-    this.jet.position.set(0, 0.42, -0.42);
-    this.spine.add(this.jet);
+    this.jet.position.set(0, 0.16, -0.24);
+    bones.chest.add(this.jet);
     this.mesh(g.jetpack, toon(0x8c93a8), this.jet, [0, 0, 0]);
     for (const s of [-1, 1]) this.mesh(g.nozzle, toon(0x3b3f4d), this.jet, [s * 0.16, -0.38, 0], false);
     this.jet.visible = false;
@@ -313,50 +330,70 @@ export class CharacterModel {
 
   setAppearance(cos, team, keeper = false) {
     cos = cos || {};
-    const key = JSON.stringify([cos.skin, cos.hair, cos.hairColor, cos.jersey, cos.number, team, keeper]);
+    const key = JSON.stringify([cos.skin, cos.hair, cos.hairColor, cos.eyeColor, cos.jersey, cos.number, cos.boots, team, keeper]);
     if (key === this.appKey) return;
     this.appKey = key;
     const T = TEAMS[team] || TEAMS[0];
-    const skin = toon(SKIN_TONES[cos.skin ?? 1] || SKIN_TONES[1]);
+    const skin = skinMat(SKIN_TONES[cos.skin ?? 1] || SKIN_TONES[1]);
     const hairC = HAIR_COLORS[cos.hairColor ?? 0] || HAIR_COLORS[0];
     const shirt = jersey(keeper ? 'keeper' : cos.jersey || 'classic', team, keeper ? 1 : cos.number || 7);
-    const shorts = toon(keeper ? 0x2b2f3d : 0xf4f4fa);
-    const socks = toon(keeper ? 0xffffff : T.color);
-    const shoes = toon(team === 0 ? 0x2b2340 : 0x23304a);
-    this.headM.material = skin;
-    for (const e of this.ears) e.material = skin;
-    this.noseM.material = skin;
-    this.torsoM.material = shirt;
-    this.shortsM.material = shorts;
-    for (const a of [this.armL, this.armR]) { a.up.material = shirt; a.fo.material = skin; a.hand.material = skin; }
-    for (const l of [this.legL, this.legR]) { l.th.material = shorts; l.shin.material = socks; l.shoe.material = shoes; }
+    // Kit: shorts with side stripes, ribbed socks with bands, collar and cuff trim
+    const tc = T.css;
+    const shorts = kitMat(shortsTexture(keeper ? '#2b2f3d' : '#f4f4fa', keeper ? '#ffffff' : tc));
+    const socks = kitMat(socksTexture(keeper ? '#f4f4fa' : tc, keeper ? tc : '#ffffff'));
+    this.bodyMats[MAT.jersey] = shirt;
+    this.bodyMats[MAT.skin] = skin;
+    this.bodyMats[MAT.shorts] = shorts;
+    this.bodyMats[MAT.socks] = socks;
+    this.bodyMats[MAT.trim] = toon(keeper ? T.color : 0xffffff);
+    this.body.material = this.bodyMats;
+    this.headRig.setSkin(skin);
+    this.headRig.setBrow(toon(new THREE.Color(hairC).multiplyScalar(0.8).getHex()));
+    this.headRig.setEyeColor(EYE_COLORS[cos.eyeColor ?? 0] || EYE_COLORS[0]);
+    // Keepers wear big gloves in the team colour
+    const handMat = keeper ? toon(T.color) : skin;
+    for (const a of [this.armL, this.armR]) { a.hand.material = handMat; a.hand.scale.setScalar(keeper ? 1.3 : 1); }
+    const bt = CATALOG.boots.find((b) => b.id === cos.boots) || CATALOG.boots[0];
+    for (const l of [this.legL, this.legR]) { l.upper.material = toon(bt.base); l.sole.material = toon(bt.sole); l.flash.material = toon(bt.accent); }
     this.buildHair(cos.hair || 'spiky', hairMat(hairC), T);
   }
 
   buildHair(style, mat, T) {
     const h = this.hair;
     while (h.children.length) h.remove(h.children[0]);
+    this.tail = null;
     const g = G;
     // Head-local point on the hair surface at a direction (yaw a from the front, height y on the unit sphere)
-    const at = (a, y, r = 0.69) => { const c = Math.sqrt(Math.max(0, 1 - y * y)); const [x, yy, z] = shapeDir(Math.sin(a) * c * r, y * r, Math.cos(a) * c * r, r); return new THREE.Vector3(x, yy, z); };
+    const at = (a, y, r = 0.69) => { const c = Math.sqrt(Math.max(0, 1 - y * y)); const [x, yy, z] = shapeDir(Math.sin(a) * c, y, Math.cos(a) * c, r, false); return new THREE.Vector3(x, yy, z); };
     // Tufts stand out along the head normal and lean back (sweep) / sideways
+    // All tufts of a style are baked into one cached geometry (one draw call per hairstyle)
+    let tuftCall = 0;
     const tufts = (list, m, scale = 1) => {
-      const up = new THREE.Vector3(0, 1, 0);
-      for (const [a, y, len, sweep, tw] of list) {
-        const pos = at(a, y, 0.64);
-        const t = new THREE.Mesh(g.tuft, m);
-        t.castShadow = this.shadows;
-        t.position.copy(pos);
-        const n = pos.clone().normalize();
-        t.quaternion.setFromUnitVectors(up, n);
-        t.rotateY(Math.PI - a * Math.sign(n.z >= 0 ? 1 : -1) * 0);
-        t.rotateX(-(sweep ?? 0.5));
-        t.rotateY(tw || 0);
-        t.scale.set(scale, (len || 1) * scale, scale);
-        h.add(t);
+      const key = `${style}|${tuftCall++}`;
+      if (!TUFT_GEO.has(key)) {
+        const up = new THREE.Vector3(0, 1, 0);
+        const o = new THREE.Object3D();
+        const parts = [];
+        for (const [a, y, len, sweep, tw] of list) {
+          const pos = at(a, y, 0.64);
+          o.position.copy(pos);
+          o.quaternion.setFromUnitVectors(up, pos.clone().normalize());
+          o.rotateY(Math.PI);
+          o.rotateX(-(sweep ?? 0.5));
+          o.rotateY(tw || 0);
+          o.scale.set(scale, (len || 1) * scale, scale);
+          o.updateMatrix();
+          parts.push(g.tuft.clone().applyMatrix4(o.matrix));
+        }
+        const merged = mergeGeometries(parts);
+        merged.computeVertexNormals();
+        TUFT_GEO.set(key, merged);
       }
+      const t = this.mesh(TUFT_GEO.get(key), m, h, [0, 0, 0], false);
+      t.castShadow = false;
     };
-    const shell = (geo, m, outline = true) => this.mesh(geo, m, h, [0, 0, 0], outline);
+    // hair has no ink outline: the hull would show as a dark seam along the hairline
+    const shell = (geo, m) => this.mesh(geo, m, h, [0, 0, 0], false);
     switch (style) {
       case 'bob': {
         // Chin-length bob: long sides framing the face, a soft side-swept fringe
@@ -366,9 +403,9 @@ export class CharacterModel {
       }
       case 'cap': {
         shell(g.shellUnder, mat);
-        const m = this.mesh(g.hairCap, toon(T.color), h, [0, 0.08, 0]);
-        m.scale.set(1.0, 0.92, 1.03);
-        const b = this.mesh(g.brim, toon(T.dark), h, [0, 0.24, -0.66]);
+        const m = this.mesh(g.hairCap, toon(T.color), h, [0, 0.13, 0]);
+        m.scale.set(0.9, 0.92, 1.0);
+        const b = this.mesh(g.brim, toon(T.dark), h, [0, 0.29, -0.66]);
         b.rotation.x = 0.15;
         break;
       }
@@ -383,6 +420,63 @@ export class CharacterModel {
           for (const side of [-0.13, 0, 0.13]) crest.push([t < 0 ? side : Math.PI - side, Math.cos(t), len, t < 0 ? 0.35 : 0.75, 0]);
         }
         tufts(crest, mat, 1.12);
+        break;
+      }
+      case 'buzz': {
+        shell(g.shellBuzz, hairMat(mat.color.clone().multiplyScalar(0.85)));
+        break;
+      }
+      case 'quiff': {
+        // short sides, volume swept up and back off the forehead
+        shell(g.shellCrop, mat);
+        const q = [];
+        for (let i = 0; i < 9; i++) { const a = -0.55 + (i / 8) * 1.1; q.push([a, 0.72, 1.55 - Math.abs(a) * 0.5, -0.15, 0]); q.push([a * 0.8, 0.86, 1.25, 0.25, 0]); }
+        tufts(q, mat, 1.1);
+        break;
+      }
+      case 'curtains': {
+        // middle part with the fringe falling to both sides
+        shell(g.shellFull, mat);
+        const c = [];
+        for (const sd of [-1, 1]) for (let i = 0; i < 4; i++) c.push([sd * (0.12 + i * 0.16), 0.66 - i * 0.04, 1.25 - i * 0.08, 1.35, sd * 0.45]);
+        tufts(c, mat, 1.08);
+        break;
+      }
+      case 'ponytail': {
+        shell(g.shellSleek, mat);
+        const pivot = new THREE.Group();
+        pivot.position.copy(onHead(Math.PI, 0.42, 0.66));
+        h.add(pivot);
+        const tail = this.mesh(styleGeo('ponytail'), mat, pivot, [0, 0, 0], false);
+        tail.castShadow = this.shadows;
+        const tie = this.mesh(g.crownRing, toon(T.color), pivot, [0, -0.02, -0.02], false);
+        tie.scale.set(0.24, 0.35, 0.24); tie.rotation.x = 1.2;
+        this.tail = pivot;
+        break;
+      }
+      case 'manbun': {
+        shell(g.shellSleek, mat);
+        const b = this.mesh(g.bun, mat, h, [0, 0.6, -0.3]);
+        b.scale.set(1.0, 0.85, 0.95);
+        const tie = this.mesh(g.crownRing, toon(0x1b1530), h, [0, 0.47, -0.24], false);
+        tie.scale.set(0.34, 0.3, 0.34); tie.rotation.x = -0.6;
+        break;
+      }
+      case 'cornrows': {
+        shell(g.shellBuzz, hairMat(mat.color.clone().multiplyScalar(0.8)));
+        this.mesh(styleGeo('cornrows'), mat, h, [0, 0, 0], false);
+        break;
+      }
+      case 'long': {
+        shell(g.shellLong, mat);
+        const back = this.mesh(styleGeo('long'), mat, h, [0, 0, 0], false);
+        back.material = hairMatDS(mat.color);
+        tufts([[-0.3, 0.62, 1.0, 1.3, 0.25], [0.3, 0.62, 1.0, 1.3, -0.25], [0, 0.66, 0.9, 1.25, 0]], mat, 1.05);
+        break;
+      }
+      case 'dreads': {
+        shell(g.shellFull, mat);
+        this.mesh(styleGeo('dreads'), mat, h, [0, 0, 0], false);
         break;
       }
       case 'buns': {
@@ -423,8 +517,9 @@ export class CharacterModel {
         const bm = toon(T.color);
         const m = this.mesh(g.beanie, bm, h, [0, 0.3, -0.02]);
         m.rotation.x = -0.15;
+        m.scale.set(0.9, 1, 0.98);
         const top = this.mesh(g.hairCap, bm, h, [0, 0.2, -0.04]);
-        top.scale.set(0.98, 0.9, 0.98);
+        top.scale.set(0.88, 0.9, 0.96);
         this.mesh(g.pom, toon(0xffffff), h, [0, 0.82, -0.12]);
         break;
       }
@@ -456,9 +551,8 @@ export class CharacterModel {
   }
 
   setExpression(i) {
-    if (this.expr === i) return;
     this.expr = i;
-    this.faceTex.offset.x = i * 0.25;
+    this.headRig.setExpression(i);
   }
 
   // st: { anim, animT, speed, sprinting, charging, charge, hasBall, emote, fx, y, id, frozen }
@@ -481,33 +575,74 @@ export class CharacterModel {
       return;
     }
 
-    // Locomotion base
+    // Body state shared by every animation: vertical speed, turning rate, landing, ground contact
+    const y = st.y || 0;
+    const yaw = this.root.rotation.y;
+    const yawRate = dt > 0 ? wrapAngle(yaw - (this.prevYaw ?? yaw)) / dt : 0;
+    this.prevYaw = yaw;
+    this.turn = damp(this.turn || 0, clamp(yawRate, -9, 9), 7, dt);
+    const air = y > 0.12;
+    if (this.wasAir && !air) this.landT = 0.3;
+    this.wasAir = air;
+    if (this.landT > 0) this.landT -= dt;
+    const lying = ['slide', 'dive', 'fall', 'hit', 'slip', 'getup', 'bike', 'volley', 'recover'].includes(anim) || (anim === 'emote' && st.emote === 'sit');
+    this.groundK = damp(this.groundK ?? 1, lying ? 0 : air ? 0.35 : 1, 14, dt);
+
+    // Locomotion: a stride-locked run cycle with contact/passing poses, pelvis bob and twist,
+    // counter-rotating chest and arms, forward lean and banking into turns
     const moving = speed > 0.5;
-    const A = clamp(speed / 10, 0, st.sprinting ? 1.25 : 1);
-    const stride = st.sprinting ? 2.9 : 2.4;
-    this.phase += (speed * dt * Math.PI * 2) / (stride * 1.4);
+    const A = clamp(speed / 10, 0, st.sprinting ? 1.3 : 1);
+    const stride = 2.6 + speed * 0.12; // metres per full cycle (two steps)
+    this.phase += (speed * dt * Math.PI * 2) / stride;
     const ph = this.phase;
     if (moving) {
       const s = Math.sin(ph), c = Math.cos(ph);
-      t.lhX = s * 0.95 * A; t.rhX = -s * 0.95 * A;
-      t.lkX = 0.12 + Math.max(0, -c) * 1.5 * A; t.rkX = 0.12 + Math.max(0, c) * 1.5 * A;
-      t.lfX = -t.lkX * 0.25; t.rfX = -t.rkX * 0.25;
-      const arm = st.sprinting ? 1.25 : 0.85;
-      t.lsX = -t.lhX * arm; t.rsX = -t.rhX * arm;
-      t.leX = -0.5 - A * 0.6; t.reX = -0.5 - A * 0.6;
-      t.pY = 0.95 + Math.abs(c) * 0.09 * A - 0.03 * A;
-      t.sX = 0.1 * A + (st.sprinting ? 0.22 : 0);
-      t.sY = s * 0.18 * A;
-      t.pRY = -s * 0.1 * A;
-      t.hX = -t.sX * 0.5;
-      if (st.hasBall) { t.hX += 0.22; t.sX += 0.05; }
+      const legA = 0.85 * A, kneeA = 1.4 * A;
+      t.lhX = -s * legA - 0.06 * A; t.rhX = s * legA - 0.06 * A;
+      t.lkX = 0.12 + Math.max(0, c) * kneeA + Math.max(0, -s) * 0.3 * A;
+      t.rkX = 0.12 + Math.max(0, -c) * kneeA + Math.max(0, s) * 0.3 * A;
+      t.lfX = Math.max(0, -s) * 0.55 * A - Math.max(0, c) * 0.25 * A;
+      t.rfX = Math.max(0, s) * 0.55 * A - Math.max(0, -c) * 0.25 * A;
+      const plant = 1 - clamp(A * 0.8, 0, 0.75);
+      t.lfl = plant; t.rfl = plant;
+      t.pY = 0.95 - 0.035 * A + Math.cos(2 * ph) * 0.032 * A;
+      t.pRY = s * 0.12 * A;
+      t.pZ = Math.cos(ph) * 0.035 * A;
+      t.pX = 0.05 * A + (st.sprinting ? 0.05 : 0);
+      t.sX = 0.07 * A + (st.sprinting ? 0.12 : 0);
+      t.sY = -s * 0.32 * A;
+      // arms swing opposite the legs, elbows bent harder when sprinting
+      const armA = (st.sprinting ? 1.05 : 0.8) * A;
+      t.lsX = s * armA; t.rsX = -s * armA;
+      t.leX = -(0.8 + 0.5 * A) - Math.max(0, -t.lsX) * 0.35;
+      t.reX = -(0.8 + 0.5 * A) - Math.max(0, -t.rsX) * 0.35;
+      t.lsZ = 0.14 + 0.06 * A; t.rsZ = -(0.14 + 0.06 * A);
+      // head stays level and looks where you run
+      t.hY = -(t.pRY + t.sY) * 0.85;
+      t.hX = -(t.pX + t.sX) * 0.75;
+      if (st.hasBall) { t.hX += 0.25; t.sX += 0.04; }
+      // bank into turns
+      const bank = clamp(-this.turn * 0.035 * A, -0.3, 0.3);
+      t.pZ += bank; t.sZ -= bank * 0.5; t.hZ -= bank * 0.4;
       if (st.sprinting) expr = 2;
     } else {
-      const br = Math.sin(this.time * 2.2);
-      t.sX = 0.03 * br; t.hX = -0.02 * br;
-      t.lsZ = 0.14 + br * 0.03; t.rsZ = -0.14 - br * 0.03;
-      t.pY = 0.95 + br * 0.008;
-      if (st.hasBall) t.hX = 0.25;
+      // Idle: breathing, a slow weight shift between the feet, relaxed arms, looking around
+      const br = Math.sin(this.time * 1.9), ws = Math.sin(this.time * 0.55);
+      t.pY = 0.938 + br * 0.004;
+      t.pZ = ws * 0.022; t.pX = 0.02;
+      t.lhZ = 0.035 - ws * 0.022; t.rhZ = -0.035 - ws * 0.022;
+      t.lkX = 0.08 + Math.max(0, -ws) * 0.13; t.rkX = 0.08 + Math.max(0, ws) * 0.13;
+      t.lhX = -t.lkX * 0.5; t.rhX = -t.rkX * 0.5;
+      t.sX = 0.02; t.br = br * 0.025;
+      t.lsZ = 0.13 + br * 0.012; t.rsZ = -(0.13 + br * 0.012);
+      t.lsX = 0.05; t.rsX = 0.05; t.leX = -0.24; t.reX = -0.24; t.wf = 0.1;
+      t.hY = Math.sin(this.time * 0.31) * Math.sin(this.time * 0.11 + 1) * 0.3;
+      t.hX = -0.02;
+      if (st.hasBall) {
+        // ready stance over the ball
+        t.lkX = 0.35; t.rkX = 0.35; t.lhX = -0.22; t.rhX = -0.22; t.pY = 0.9; t.sX = 0.16; t.hX = 0.28; t.hY = 0;
+        t.lsZ = 0.32; t.rsZ = -0.32; t.leX = -0.5; t.reX = -0.5;
+      }
     }
 
     // Jetpack flight
@@ -520,51 +655,70 @@ export class CharacterModel {
 
     // Kick charge
     if (st.charging && anim !== 'kick') {
+      // load the shot: kicking leg drawn back, plant knee flexed, hips and chest opened, arm out
       const c = st.charge || 0;
-      t.rhX = 0.4 + c * 0.75; t.rkX = 0.9 + c * 0.6;
-      t.lsZ = 0.6 + c * 0.3; t.rsZ = -0.45; t.lsX = -0.3; t.rsX = 0.4;
-      t.sX = -0.08 - c * 0.08; t.sY = 0.25 + c * 0.15;
-      t.pY = 0.93 - c * 0.04;
+      t.rhX = 0.45 + c * 0.7; t.rkX = 0.95 + c * 0.75; t.rfX = 0.45; t.rfl = 0;
+      t.lhX = -0.15 - c * 0.12; t.lkX = 0.28 + c * 0.2; t.lfl = 1;
+      t.lsZ = 0.65 + c * 0.45; t.rsZ = -0.4 - c * 0.2; t.lsX = -0.35; t.rsX = 0.45 + c * 0.2; t.leX = -0.45;
+      t.sX = -0.06 - c * 0.08; t.sY = 0.28 + c * 0.2; t.pRY = 0.12 + c * 0.1;
+      t.pY = 0.92 - c * 0.05; t.hX = 0.2; t.hY = -t.sY * 0.6;
       expr = 2;
     }
     const k = clamp(at / (st.animDur || 0.38), 0, 1);
     switch (anim) {
       case 'kick': {
-        rate = 30;
-        const sw = k < 0.12 ? lerp(0.9, 1.1, k / 0.12) : k < 0.4 ? lerp(1.1, -1.5, (k - 0.12) / 0.28) : lerp(-1.5, -0.1, (k - 0.4) / 0.6);
-        t.rhX = sw; t.rkX = k < 0.25 ? 1.3 : Math.max(0.05, 1.3 - (k - 0.25) * 6);
-        t.lsX = 0.6; t.rsX = -0.6; t.lsZ = 0.7; t.rsZ = -0.4;
-        t.sX = k < 0.3 ? -0.18 : 0.2; t.sY = k < 0.3 ? 0.35 : -0.25;
-        t.pY = 0.95 + (k > 0.3 && k < 0.55 ? 0.1 : 0);
-        t.lhX = 0.15; t.lkX = 0.3;
-        t.sq = k > 0.3 && k < 0.5 ? 0.06 : 0;
+        // plant, wind-up with the hips opened, whip through the ball, follow-through with a hop
+        rate = 32;
+        const a = clamp(k / 0.3, 0, 1), b = clamp((k - 0.28) / 0.2, 0, 1), c = clamp((k - 0.5) / 0.5, 0, 1);
+        const sa = a * a * (3 - 2 * a), sb = b * b * (3 - 2 * b), sc = c * c * (3 - 2 * c);
+        t.rhX = k < 0.3 ? 1.05 * sa : k < 0.5 ? lerp(1.05, -1.6, sb) : lerp(-1.6, -0.15, sc);
+        t.rkX = k < 0.3 ? 1.75 * sa : k < 0.5 ? lerp(1.75, 0.06, clamp((k - 0.3) / 0.15, 0, 1)) : lerp(0.06, 0.3, sc);
+        t.rfX = 0.55 * sa; t.rfl = 0;
+        t.lhX = -0.28 * sa; t.lkX = 0.32 + 0.18 * sb; t.lfl = 1;
+        t.pRY = k < 0.5 ? lerp(0.25 * sa, -0.22, sb) : lerp(-0.22, 0, sc);
+        t.sY = k < 0.5 ? lerp(0.45 * sa, -0.42, sb) : lerp(-0.42, -0.1, sc);
+        t.sX = k < 0.5 ? lerp(-0.12 * sa, 0.24, sb) : lerp(0.24, 0.08, sc);
+        t.lsZ = 0.4 + 0.75 * sa; t.lsX = -0.5 * sa + 0.3 * sb; t.leX = -0.5;
+        t.rsZ = -0.3 - 0.45 * sa; t.rsX = lerp(0.55 * sa, -0.55, sb); t.reX = -0.6;
+        t.pY = 0.92 + Math.sin(c * Math.PI) * 0.08;
+        t.hX = 0.3; t.hY = -t.sY * 0.5;
+        t.sq = k > 0.3 && k < 0.48 ? 0.04 : 0;
         expr = 2;
         break;
       }
       case 'bike': {
-        // Bicycle kick hang time: back to goal, lying back in the air, legs cocked, arms out
-        rate = 18;
-        const lean = Math.min(1, at / 0.14);
-        const bob = Math.sin(at * 7) * 0.05;
+        // Bicycle kick hang (aiming): back to goal, body flat in the air and rolled side-on, kicking
+        // leg extended straight up at the ball, the other leg tucked, arms flung out for balance
+        rate = 16;
+        const lean = Math.min(1, at / 0.16);
+        const e = lean * lean * (3 - 2 * lean);
+        const bob = Math.sin(at * 6) * 0.04;
         t.pRY = Math.PI;
-        t.pX = -1.95 * lean + bob; t.pY = 0.95 + 0.4 * lean;
-        t.lhX = -1.5 * lean; t.lkX = 0.7; t.rhX = 0.55 * lean; t.rkX = 0.65;
-        t.lsX = -0.5; t.rsX = -0.5; t.lsZ = 1.4 * lean; t.rsZ = -1.4 * lean; t.leX = -0.3; t.reX = -0.3;
-        t.sX = 0.3 * lean; t.hX = 0.55 * lean;
+        t.pX = -1.38 * e + bob; t.pZ = 0.42 * e; t.pY = 0.95 + 0.3 * e;
+        t.rhX = -2.55 * e; t.rkX = 0.12 + (1 - e) * 0.8; t.rfX = 0.6; t.rfl = 0;
+        t.lhX = -0.35 * e; t.lkX = 1.55 * e; t.lfX = 0.4; t.lfl = 0;
+        t.lsZ = 1.25 * e; t.lsX = 0.55 * e; t.leX = -0.25;
+        t.rsZ = -1.55 * e; t.rsX = -0.75 * e; t.reX = -0.35;
+        t.sX = 0.28 * e; t.sZ = -0.15 * e; t.hX = 0.55 * e; t.hY = -0.25 * e;
+        t.wf = -0.3;
         expr = 2;
         break;
       }
       case 'volley': {
-        // Bicycle kick: turn your back to the target, fall backwards and scissor the legs over the top
-        rate = 26;
-        const a = Math.min(1, k / 0.28), b = clamp((k - 0.22) / 0.36, 0, 1), c = clamp((k - 0.72) / 0.28, 0, 1);
-        const lean = (a * a * (3 - 2 * a)) * (1 - c * 0.55);
+        // Scissor: the kicking leg whips up and over through the ball while the other leg drops,
+        // then the body tips back and down to land
+        rate = 28;
+        const a = Math.min(1, k / 0.22), b = clamp((k - 0.18) / 0.3, 0, 1), c = clamp((k - 0.62) / 0.38, 0, 1);
+        const sa = a * a * (3 - 2 * a), sb = b * b * (3 - 2 * b), sc = c * c * (3 - 2 * c);
+        const lean = sa * (1 - sc * 0.5);
         t.pRY = Math.PI * Math.min(1, k * 3.2);
-        t.pX = -2.05 * lean; t.pY = 0.95 + 0.4 * lean;
-        t.lhX = b < 1e-3 ? lerp(0, -1.5, a) : lerp(-1.5, 0.35, b); t.lkX = 0.7 * (1 - b);
-        t.rhX = b < 1e-3 ? lerp(0.2, 0.55, a) : lerp(0.55, -2.35, b * b * (3 - 2 * b)); t.rkX = 0.15 + 0.5 * (1 - b) * a;
-        t.lsX = -0.5 * lean; t.rsX = -0.5 * lean; t.lsZ = 0.2 + 1.2 * lean; t.rsZ = -0.2 - 1.2 * lean; t.leX = -0.3; t.reX = -0.3;
-        t.sX = 0.3 * lean; t.hX = 0.55 * lean;
+        t.pX = -1.45 * lean; t.pZ = 0.4 * lean; t.pY = 0.95 + 0.32 * lean;
+        // other leg leads up, then drops as the kicking leg scissors past it
+        t.lhX = lerp(-1.6 * sa, 0.45, sb); t.lkX = lerp(0.9, 1.3, sb);
+        t.rhX = lerp(0.3 * sa, -2.9, sb) * (1 - sc * 0.4); t.rkX = lerp(0.9 * sa, 0.05, sb); t.rfX = 0.6; t.rfl = 0; t.lfl = 0;
+        t.lsZ = 0.3 + 1.0 * lean; t.lsX = 0.55 * lean; t.leX = -0.25;
+        t.rsZ = -0.3 - 1.3 * lean; t.rsX = -0.7 * lean; t.reX = -0.35;
+        t.sX = 0.28 * lean; t.sZ = -0.15 * lean; t.hX = 0.5 * lean;
         expr = 2;
         break;
       }
@@ -639,10 +793,12 @@ export class CharacterModel {
         break;
       }
       case 'jump': {
-        // Tucked jump with arms up, ready to trap or volley
-        const air = Math.min(1, (st.y || 0) / 1.2);
-        t.lhX = -0.55 * air; t.rhX = -0.25 * air; t.lkX = 1.1 * air + 0.2; t.rkX = 0.8 * air + 0.2;
-        t.lsZ = 0.9 + air * 0.6; t.rsZ = -0.9 - air * 0.6; t.lsX = -0.4; t.rsX = -0.4; t.sX = -0.12; t.hX = -0.2;
+        // take-off reach, tuck at the top, legs extend again to land
+        const h = Math.min(1, y / 1.4);
+        t.lhX = -0.65 * h; t.rhX = -0.2 * h; t.lkX = 1.25 * h + 0.15; t.rkX = 0.75 * h + 0.2;
+        t.lfX = 0.35 * h; t.rfX = 0.35 * h; t.lfl = 0.2; t.rfl = 0.2;
+        t.lsZ = 0.7 + h * 0.8; t.rsZ = -0.7 - h * 0.8; t.lsX = -0.55; t.rsX = -0.55; t.leX = -0.5; t.reX = -0.5;
+        t.sX = -0.1; t.hX = -0.25;
         expr = 1;
         break;
       }
@@ -701,6 +857,18 @@ export class CharacterModel {
         break;
       default:
     }
+    if (lying) { t.lfl = 0; t.rfl = 0; }
+    // Landing: knees absorb the impact, arms come out for balance
+    if (this.landT > 0 && !air && !lying) {
+      const q = this.landT / 0.3;
+      t.lkX += 0.75 * q; t.rkX += 0.75 * q; t.lhX -= 0.38 * q; t.rhX -= 0.38 * q;
+      t.pY -= 0.13 * q; t.sX += 0.22 * q; t.lsZ += 0.35 * q; t.rsZ -= 0.35 * q;
+    }
+    // Head (and a little of the chest) turn to follow the ball in open play
+    if (Number.isFinite(st.look) && (anim === 'idle' || anim === 'jump') && !st.charging) {
+      const lk = clamp(st.look, -1.4, 1.4);
+      t.hY += lk * 0.62; t.sY += lk * 0.16;
+    }
     if (anim !== 'punch') this.glove.visible = false;
     if (st.stun > 0 && anim !== 'frozen') expr = 3;
 
@@ -709,6 +877,14 @@ export class CharacterModel {
     this.spinY = spin;
     this.applyPose(this.pose);
     this.setExpression(expr);
+    this.headRig.update(dt, Number.isFinite(st.look) ? st.look - this.pose.hY : 0);
+    if (this.tail) {
+      // the ponytail lags behind when running and bounces with the stride
+      const runA = clamp(speed / 10, 0, 1.3);
+      this.tailX = damp(this.tailX || 0, -0.55 * runA - (air ? 0.4 : 0) + Math.sin(this.phase * 2) * 0.12 * runA, 8, dt);
+      this.tailZ = damp(this.tailZ || 0, clamp(this.turn * 0.06, -0.5, 0.5), 6, dt);
+      this.tail.rotation.set(this.tailX, 0, this.tailZ);
+    }
     this.lastAnim = anim;
   }
 
@@ -761,20 +937,33 @@ export class CharacterModel {
   }
 
   applyPose(p) {
-    this.pelvis.position.y = p.pY;
-    this.pelvis.rotation.set(p.pX, p.pRY + this.spinY, p.pZ, 'YXZ');
-    this.spine.rotation.set(p.sX, p.sY, p.sZ);
-    this.head.rotation.set(p.hX, p.hY, p.hZ);
-    this.armL.sh.rotation.set(p.lsX, 0, p.lsZ);
-    this.armL.el.rotation.set(p.leX, 0, p.leZ);
-    this.armR.sh.rotation.set(p.rsX, 0, p.rsZ);
-    this.armR.el.rotation.set(p.reX, 0, p.reZ);
-    this.legL.hip.rotation.set(p.lhX, 0, p.lhZ);
-    this.legL.knee.rotation.x = p.lkX;
-    this.legL.foot.rotation.x = p.lfX;
-    this.legR.hip.rotation.set(p.rhX, 0, p.rhZ);
-    this.legR.knee.rotation.x = p.rkX;
-    this.legR.foot.rotation.x = p.rfX;
+    const B = this.bones;
+    B.pelvis.position.y = p.pY * PK;
+    B.pelvis.rotation.set(p.pX, p.pRY + this.spinY, p.pZ, 'YXZ');
+    // the spine bends over two bones, the head over neck + head
+    B.spine.rotation.set(p.sX * 0.45, p.sY * 0.4, p.sZ * 0.5);
+    B.chest.rotation.set(p.sX * 0.55 - p.br, p.sY * 0.6, p.sZ * 0.5);
+    B.neck.rotation.set(p.hX * 0.4, p.hY * 0.45, p.hZ * 0.4);
+    B.head.rotation.set(p.hX * 0.6, p.hY * 0.55, p.hZ * 0.6);
+    const arm = (a, sX, sZ, eX, eZ, side) => {
+      // the clavicle shrugs when the arm goes above the shoulder, so raised arms don't pinch
+      const lift = Math.max(0, Math.abs(sZ) - 1.0) * 0.24 + Math.max(0, -sX - 1.6) * 0.1;
+      a.clav.rotation.set(Math.min(0, sX) * 0.06, 0, Math.sign(sZ || side) * lift);
+      a.sh.rotation.set(sX, 0, sZ - Math.sign(sZ || side) * lift);
+      a.el.rotation.set(eX, 0, eZ);
+      a.wr.rotation.set(eX * 0.12 + p.wf, 0, 0);
+    };
+    arm(this.armL, p.lsX, p.lsZ, p.leX, p.leZ, 1);
+    arm(this.armR, p.rsX, p.rsZ, p.reX, p.reZ, -1);
+    // feet: authored pitch plus automatic planting (keeps the sole level with the ground)
+    const g = this.groundK ?? 1;
+    const leg = (l, hX, hZ, kX, fX, fl) => {
+      l.hip.rotation.set(hX, 0, hZ);
+      l.knee.rotation.x = kX;
+      l.foot.rotation.set(fX - fl * g * (p.pX + hX + kX), 0, -fl * g * (p.pZ + hZ) * 0.8);
+    };
+    leg(this.legL, p.lhX, p.lhZ, p.lkX, p.lfX, p.lfl);
+    leg(this.legR, p.rhX, p.rhZ, p.rkX, p.rfX, p.rfl);
     const sq = p.sq;
     this.root.scale.set(1 + sq * 0.5, 1 - sq, 1 + sq * 0.5);
   }
@@ -785,7 +974,7 @@ export class CharacterModel {
   }
 
   handWorld(out) {
-    return this.armR.hand.getWorldPosition(out);
+    return this.armR.wr.getWorldPosition(out);
   }
 
   headWorld(out) {
@@ -794,6 +983,6 @@ export class CharacterModel {
 
   dispose() {
     this.root.removeFromParent();
-    this.faceTex.dispose();
+    this.headRig.mouthTex.dispose();
   }
 }

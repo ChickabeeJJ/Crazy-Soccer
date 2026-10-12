@@ -17,8 +17,8 @@ function sanitizeCos(c) {
   c = c && typeof c === 'object' ? c : {};
   const s = (v, d) => (typeof v === 'string' ? v.slice(0, 16) : d);
   return {
-    skin: clamp(c.skin | 0, 0, 5), hair: s(c.hair, 'spiky'), hairColor: clamp(c.hairColor | 0, 0, 8),
-    jersey: s(c.jersey, 'classic'), ball: s(c.ball, 'classic'), goalfx: s(c.goalfx, 'confetti'), number: clamp(c.number | 0, 1, 99),
+    skin: clamp(c.skin | 0, 0, 5), hair: s(c.hair, 'spiky'), hairColor: clamp(c.hairColor | 0, 0, 11), eyeColor: clamp(c.eyeColor | 0, 0, 4),
+    jersey: s(c.jersey, 'classic'), boots: s(c.boots, 'classic'), ball: s(c.ball, 'classic'), goalfx: s(c.goalfx, 'confetti'), number: clamp(c.number | 0, 1, 99),
   };
 }
 

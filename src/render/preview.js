@@ -40,11 +40,13 @@ export class PreviewStudio {
     const st = emote ? { anim: 'emote', animT: 0, emote } : { anim: 'idle', speed: 0 };
     for (let i = 0; i < 24; i++) { if (emote) st.animT = 0.04 * i; m.update(0.04, st); }
     if (shot === 'jersey') m.root.rotation.y = Math.PI * 0.85; // show the back with the number
-    else m.root.rotation.y = shot === 'hair' ? 0.5 : 0.3;
+    else m.root.rotation.y = shot === 'hair' ? 0.5 : shot === 'boots' ? 1.15 : 0.3;
     m.root.updateMatrixWorld(true);
     // Frame whatever the shot is about from its real bounds, so every model fits with a margin
-    const box = new THREE.Box3().setFromObject(shot === 'hair' ? m.head : m.root);
-    this.frame(box, shot === 'hair' ? 0.74 : 0.78, shot === 'hair' ? 0.16 : 0.1, shot === 'hair' ? 0 : 0.08);
+    let box;
+    if (shot === 'boots') { box = new THREE.Box3().setFromObject(m.legL.upper.parent); box.union(new THREE.Box3().setFromObject(m.legR.upper.parent)); }
+    else box = new THREE.Box3().setFromObject(shot === 'hair' ? m.head : m.root);
+    this.frame(box, shot === 'hair' ? 0.74 : shot === 'boots' ? 0.9 : 0.78, shot === 'hair' ? 0.16 : shot === 'boots' ? 0.35 : 0.1, shot === 'hair' ? 0 : shot === 'boots' ? 0 : 0.08);
     this.r.render(this.scene, this.cam);
     const out = this.snapshot();
     m.root.removeFromParent();

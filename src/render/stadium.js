@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { FIELD, TEAMS } from '../config.js';
 import * as TX from './textures.js';
 import { softBeamMaterial } from './beam.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { seeded } from '../util/math.js';
 
 const LINE_COLOR = 0xe9e6ff;
@@ -370,6 +371,7 @@ function addFlags(g, spots) {
     geo.translate(1.6, 0, 0);
     const mat = new THREE.MeshLambertMaterial({ color: team === 2 ? 0xffcf3f : TEAMS[team].color, side: THREE.DoubleSide });
     const flag = new THREE.Mesh(geo, mat);
+    flag.userData.dynamic = true; // cloth is animated: never batched
     flag.position.set(x, y + 5, z);
     flag.rotation.y = Math.atan2(z, -x) * 0 + (i % 2 ? 0.4 : -0.4);
     g.add(flag);
@@ -701,11 +703,18 @@ function buildDesert(root, quality) {
   // Dunes around the arena
   const rnd = seeded(17);
   const duneMat = new THREE.MeshLambertMaterial({ color: 0xe8cd9c });
-  for (let i = 0; i < 26; i++) {
-    const a = rnd() * Math.PI * 2, r = 80 + rnd() * 120;
+  // Keep-out zone: the pitch, the stands and the jumbotrons. No dune may reach into it.
+  const KX = FIELD.wallX + 24, KZ = FIELD.wallZ + 26;
+  const gap = (x, z) => Math.hypot(Math.max(0, Math.abs(x) - KX), Math.max(0, Math.abs(z) - KZ));
+  for (let i = 0, placed = 0; i < 200 && placed < 26; i++) {
+    const a = rnd() * Math.PI * 2, r = 95 + rnd() * 130;
+    const sx = 20 + rnd() * 30, sy = 6 + rnd() * 12, sz = 14 + rnd() * 20;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (gap(x, z) < Math.max(sx, sz) + 4) continue;
+    placed++;
     const d = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), duneMat);
-    d.position.set(Math.cos(a) * r, -0.5, Math.sin(a) * r);
-    d.scale.set(20 + rnd() * 30, 6 + rnd() * 12, 14 + rnd() * 20);
+    d.position.set(x, -0.5, z);
+    d.scale.set(sx, sy, sz);
     d.rotation.y = rnd() * 3;
     g.add(d);
   }
@@ -847,6 +856,46 @@ function buildIndoor(root) {
   return g;
 }
 
+// Merge a group's static meshes (same material, same attribute layout) into single meshes so an
+// arena costs a few dozen draw calls instead of hundreds. Animated, instanced and skinned meshes
+// (flags, crowd) are left alone.
+function bakeStatic(group) {
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const buckets = new Map();
+  group.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || o.userData.dynamic || Array.isArray(o.material)) return;
+    let p = o, hidden = false;
+    while (p && p !== group) { if (!p.visible) hidden = true; p = p.parent; }
+    if (hidden) return;
+    const g = o.geometry;
+    const key = `${o.material.uuid}|${g.attributes.uv ? 1 : 0}|${g.attributes.color ? 1 : 0}|${o.renderOrder}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(o);
+  });
+  const m = new THREE.Matrix4();
+  for (const list of buckets.values()) {
+    if (list.length < 2) continue;
+    const geos = list.map((o) => {
+      let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(name)) g.deleteAttribute(name);
+      if (!g.attributes.normal) g.computeVertexNormals();
+      m.multiplyMatrices(inv, o.matrixWorld);
+      g.applyMatrix4(m);
+      g.morphAttributes = {};
+      return g;
+    });
+    const merged = mergeGeometries(geos, false);
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, list[0].material);
+    mesh.castShadow = list.some((o) => o.castShadow);
+    mesh.receiveShadow = list.some((o) => o.receiveShadow);
+    mesh.renderOrder = list[0].renderOrder;
+    group.add(mesh);
+    for (const o of list) o.removeFromParent();
+  }
+}
+
 export class Stadium {
   constructor(scene, quality) {
     this.scene = scene;
@@ -870,6 +919,8 @@ export class Stadium {
     this.outdoor = buildOutdoor(this.root, quality);
     this.indoor = buildIndoor(this.root);
     this.desert = buildDesert(this.root, quality);
+    // Static batching: every non-moving mesh of an arena is merged into one mesh per material
+    for (const grp of [this.outdoor, this.desert, this.indoor, this.pitchOutdoor, this.pitchIndoor, this.pitchDesert, this.wallsStd, this.wallsDesert]) bakeStatic(grp);
     this.time = 0;
     this.setVariant('grass');
   }
@@ -944,7 +995,9 @@ export class Stadium {
         if (ax > FIELD.halfL - 1 && Math.abs(cam.z) < FIELD.goalW / 2 + 3 && cam.y < FIELD.goalH + 4) near = 1;
       }
       g.fade = (g.fade || 0) + (near - (g.fade || 0)) * Math.min(1, dt * 8);
-      const kNear = keeperSide === g.side && cam && cam.x * g.side > FIELD.halfL - 12 ? 1 : 0;
+      // see-through when the camera is in, behind or right beside this goal (or you keep it)
+      const camNear = cam && cam.x * g.side > FIELD.halfL - 6 && Math.abs(cam.z) < FIELD.goalW / 2 + 6 && cam.y < FIELD.goalH + 6;
+      const kNear = (keeperSide === g.side && cam && cam.x * g.side > FIELD.halfL - 12) || camNear ? 1 : 0;
       g.kfade = (g.kfade || 0) + (kNear - (g.kfade || 0)) * Math.min(1, dt * 6);
       const see = g.kfade > 0.02;
       for (const m of [g.postMat, g.frameMat]) {
