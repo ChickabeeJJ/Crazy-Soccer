@@ -16,6 +16,8 @@ import { CATALOG } from './cosmetics.js';
 import { clamp, len2, wrapAngle } from './util/math.js';
 import * as THREE from 'three';
 
+const AFK_WARN = 45, AFK_KICK = 60; // seconds of inactivity in an online match
+
 const $ = (id) => document.getElementById(id);
 const ROLE_NAMES = ['STRIKER', 'LEFT WING', 'RIGHT WING', 'DEFENDER'];
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -89,6 +91,12 @@ class App {
     const unlock = () => { this.audio.unlock(); if (this.state === 'menu') this.audio.startMusic(); };
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
+    // Activity tracking for the online inactivity kick
+    this.lastActive = performance.now();
+    const active = () => { this.lastActive = performance.now(); };
+    for (const ev of ['keydown', 'pointerdown', 'wheel', 'touchstart']) window.addEventListener(ev, active, { passive: true });
+    // browsers fire synthetic mousemoves when the page changes under a still cursor: only real movement counts
+    window.addEventListener('mousemove', (e) => { if (e.movementX || e.movementY) active(); }, { passive: true });
     SDK.onSettings((s) => { this.audio.setMuted(s.muteAudio); this.ui.setChatEnabled(!s.disableChat); this.renderer.showChat = !s.disableChat; });
     SDK.onAuth(() => { this.ui.refreshProfile(); });
     // CrazyGames invites while the game is already open: join without a page reload
@@ -472,6 +480,21 @@ class App {
     this.stopBgTicker();
   }
 
+  // Live online matches: a player who does nothing for a minute is disconnected (the clock only runs
+  // while the match is being played, not on the results screen or during an ad)
+  checkAfk(s) {
+    const now = performance.now();
+    const v = s.view;
+    const live = !!s.net && s.mode === 'match' && !this.adPlaying && ['kickoff', 'play', 'goal', 'replay'].includes(v.phase) && !this.ui.isOpen('results');
+    if (!live) { this.lastActive = now; this.idleSecs = 0; return false; }
+    this.idleSecs = (now - this.lastActive) / 1000;
+    if (this.idleSecs < AFK_KICK) return false;
+    this.idleSecs = 0;
+    this.leaveToLobby(true);
+    this.ui.globalToast('Disconnected for inactivity', 5000);
+    return true;
+  }
+
   async askLeave() {
     if (this.state !== 'game') return;
     this.input.exitLock();
@@ -799,6 +822,7 @@ class App {
 
   updateGame(dt) {
     const s = this.session;
+    if (this.checkAfk(s)) return;
     const inp = this.input;
     const rig = this.renderer.rig;
     const settings = Save.p.settings;
@@ -873,7 +897,7 @@ class App {
           s.action({ a: 'item', slot: equip, ...aim });
           me.equip = -1;
           this.kickSuppressed = true;
-        } else if (this.canVolley(me, b) && b.y - (me.y || 0) > KICK.bikeMinH && me.cd.kick <= 0) {
+        } else if (this.canBike(s, me, b) && me.cd.kick <= 0) {
           s.action({ a: 'bike' });
           this.bikeAim = { t: 0 };
           this.kickSuppressed = true;
@@ -932,7 +956,9 @@ class App {
       this._lastReplay = this.replayStart;
       rig.replay(dt, { x: frame.b[0], y: frame.b[1], z: frame.b[2] }, progress, side);
     } else if (me) {
-      rig.follow(dt, me.x, me.y || 0, me.z);
+      const keeperSide = me.keeper && inOwnBox(me, 1) ? (me.team === 0 ? -1 : 1) : 0;
+      rig.follow(dt, me.x, me.y || 0, me.z, { keeperSide });
+      this.renderer.keeperSide = keeperSide;
     }
     if (!staging) {
       this.renderer.syncAim(me, rig.yaw, !!(me && me.charging && !frame), me ? me.charge : 0);
@@ -970,8 +996,21 @@ class App {
     if (tr && tr.result && !tr.reported) { tr.reported = true; setTimeout(() => { if (this.session && this.session.training === tr) this.onTrainingDone(tr); }, 700); }
   }
 
+  // Ball high above you: bicycle kick (also intercepts a rival's bicycle kick in progress)
+  canBike(s, me, b) {
+    if (!me || !b || b.owner >= 0 || b.grapple >= 0 || b.phase) return false;
+    if (b.bike >= 0) {
+      const o = s.view.players.find((q) => q && q.id === b.bike);
+      if (b.bike === me.id || !o || o.team === me.team) return false;
+    }
+    if ((me.y || 0) < KICK.bikeAirY) return false; // mid-air only
+    const rel = b.y - (me.y || 0);
+    return rel > KICK.bikeMinH && rel < KICK.volleyReachUp && len2(b.x - me.x, b.z - me.z) < KICK.volleyReachH;
+  }
+
   canVolley(me, b) {
     if (!me || !b || b.owner >= 0 || b.grapple >= 0 || b.phase) return false;
+    if (b.bike >= 0 && b.bike !== me.id) return false; // only a rival's bicycle kick can take it
     const rel = b.y - (me.y || 0);
     return b.y > 1.05 && rel > 0.3 && rel < KICK.volleyReachUp && len2(b.x - me.x, b.z - me.z) < KICK.volleyReachH;
   }
@@ -1091,6 +1130,7 @@ class App {
       }
     }
     const list = [];
+    if (this.idleSecs > AFK_WARN) list.push({ title: 'Inactive', text: `disconnecting in ${Math.max(0, Math.ceil(AFK_KICK - this.idleSecs))}s`, kind: 'warn' });
     if (s.mode !== 'practice') {
       if (v.phase === 'warmup' && !s.isAuthority) list.push({ title: 'Waiting for the host' });
       if (this.session.intermission > 0 && v.phase === 'end') list.push({ title: 'Next match', text: `${Math.ceil(this.session.intermission)}s`, kind: 'good' });

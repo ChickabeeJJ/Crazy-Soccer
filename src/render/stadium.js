@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { FIELD, TEAMS } from '../config.js';
 import * as TX from './textures.js';
+import { softBeamMaterial } from './beam.js';
 import { seeded } from '../util/math.js';
 
 const LINE_COLOR = 0xe9e6ff;
@@ -129,7 +130,7 @@ function buildGoal(group, side, team) {
   strip.position.set(side * (L + D / 2), 0.03, 0);
   g.add(strip);
   group.add(g);
-  return { group: g, netMat, glassMat, frame, baseOpacity: 0.22, flash: 0, side, team };
+  return { group: g, netMat, glassMat, postMat, frameMat, frame, baseOpacity: 0.22, flash: 0, side, team };
 }
 
 function buildWalls(group) {
@@ -238,31 +239,48 @@ function buildStands(g, o, quality) {
   return { body, head, seats, phase: seats.map(() => rnd() * Math.PI * 2), hype: 0 };
 }
 
-// Floodlight heads with a warm glow and a faint light beam towards the pitch
+// Floodlight heads: a deep housing with a grid of round lamps behind visors, a warm halo, and a
+// soft volumetric beam towards the pitch
 function addFloodlights(g, spots, h) {
-  const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff3d6 });
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff6e2 });
+  const rimMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
   const frameMat = new THREE.MeshLambertMaterial({ color: 0x1d1830 });
-  const beamMat = new THREE.MeshBasicMaterial({ color: 0xffe8c0, transparent: true, opacity: 0.045, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+  const visorMat = new THREE.MeshLambertMaterial({ color: 0x2a2440 });
+  const beamMat = softBeamMaterial(0xffe6c0, 0.2, { top: 1, bottom: 0.2 });
   const glowTex = TX.glowTexture();
+  const lampGeo = new THREE.CircleGeometry(0.36, 20);
+  const rimGeo = new THREE.RingGeometry(0.36, 0.44, 20);
+  const visorGeo = new THREE.BoxGeometry(0.98, 0.07, 0.34);
   for (const [x, z] of spots) {
     const head = new THREE.Group();
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.4, 0.6), frameMat);
-    head.add(frame);
-    for (let r = 0; r < 2; r++) for (let k = 0; k < 3; k++) {
-      const lamp = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.9), lampMat);
-      lamp.position.set(-1.35 + k * 1.35, 0.55 - r * 1.1, 0.31);
-      head.add(lamp);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(4.6, 2.9, 0.9), frameMat);
+    back.position.z = -0.2;
+    head.add(back);
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 4; k++) {
+      const lx = -1.62 + k * 1.08, ly = 0.88 - r * 0.88;
+      const lamp = new THREE.Mesh(lampGeo, lampMat);
+      lamp.position.set(lx, ly, 0.27);
+      const rim = new THREE.Mesh(rimGeo, rimMat);
+      rim.position.set(lx, ly, 0.265);
+      const visor = new THREE.Mesh(visorGeo, visorMat);
+      visor.position.set(lx, ly + 0.43, 0.42);
+      visor.rotation.x = 0.35;
+      head.add(lamp, rim, visor);
     }
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffe2b0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.85 }));
-    glow.scale.set(11, 11, 1);
-    glow.position.z = 0.8;
+    // bracket back to the mast
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 2), frameMat);
+    arm.position.set(0, -0.9, -1.4);
+    head.add(arm);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffe2b0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.75 }));
+    glow.scale.set(13, 9, 1);
+    glow.position.z = 1.1;
     head.add(glow);
     head.position.set(x, h, z);
     head.lookAt(0, 0, 0);
     g.add(head);
-    // light beam: open cone from the lamp towards the middle of the pitch
+    // beam: open cone from the lamp towards the middle of the pitch (apex at the lamp)
     const dx = -x * 0.55, dz = -z * 0.55, len = Math.hypot(dx, h, dz);
-    const beam = new THREE.Mesh(new THREE.ConeGeometry(9, len, 24, 1, true), beamMat);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 11, len, 32, 1, true), beamMat);
     beam.position.set(x + dx / 2, h / 2, z + dz / 2);
     beam.lookAt(x, h, z);
     beam.rotateX(Math.PI / 2);
@@ -905,7 +923,8 @@ export class Stadium {
     this.lastScore = score;
   }
 
-  update(dt, cam) {
+  // keeperSide: the goal the local keeper is defending (posts and net turn see-through near it)
+  update(dt, cam, keeperSide = 0) {
     this.time += dt;
     this.animateCrowd(dt);
     if (this.goalT > 0) { this.goalT -= dt; if (this.goalT <= 0 && this.lastScore) drawJumbo(this.lastScore, -1); }
@@ -925,7 +944,14 @@ export class Stadium {
         if (ax > FIELD.halfL - 1 && Math.abs(cam.z) < FIELD.goalW / 2 + 3 && cam.y < FIELD.goalH + 4) near = 1;
       }
       g.fade = (g.fade || 0) + (near - (g.fade || 0)) * Math.min(1, dt * 8);
-      const k = 1 - g.fade * 0.85;
+      const kNear = keeperSide === g.side && cam && cam.x * g.side > FIELD.halfL - 12 ? 1 : 0;
+      g.kfade = (g.kfade || 0) + (kNear - (g.kfade || 0)) * Math.min(1, dt * 6);
+      const see = g.kfade > 0.02;
+      for (const m of [g.postMat, g.frameMat]) {
+        if (m.transparent !== see) { m.transparent = see; m.depthWrite = !see; m.needsUpdate = true; }
+        m.opacity = 1 - g.kfade * 0.75;
+      }
+      const k = (1 - g.fade * 0.85) * (1 - g.kfade * 0.88);
       const showFrame = g.fade < 0.5;
       if (g.frameShown !== showFrame) { g.frameShown = showFrame; for (const m of g.frame) m.visible = showFrame; }
       g.netMat.opacity = (0.75 + pulse * 0.15 + f * 0.25) * k;

@@ -499,7 +499,7 @@ export class GameRenderer {
     }
 
     this.stadium.setScore(view.score);
-    this.stadium.update(dt, this.cam.position);
+    this.stadium.update(dt, this.cam.position, frame ? 0 : this.keeperSide || 0);
     this.vfx.update(dt);
   }
 

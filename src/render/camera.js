@@ -64,6 +64,12 @@ export class CameraRig {
     const sx = -Math.cos(this.yaw) * this.shoulder, sz = Math.sin(this.yaw) * this.shoulder;
     c.set(this.smoothTarget.x - f.x * d + sx, this.smoothTarget.y - f.y * d, this.smoothTarget.z - f.z * d + sz);
     if (c.y < 0.6) c.y = 0.6;
+    // A keeper's camera stays on the pitch side of their own goal line, so the posts and net are
+    // never between the camera and the play
+    if (opts.keeperSide) {
+      const lim = FIELD.halfL - 1.2;
+      if (c.x * opts.keeperSide > lim) c.x = opts.keeperSide * lim;
+    }
     // Don't let the camera end up inside a goal net: rise smoothly over the crossbar instead
     const ax = Math.abs(c.x), hw = FIELD.goalW / 2 + 1.2;
     const inGoal = ax > FIELD.halfL - 0.6 && ax < FIELD.wallX + 8 && Math.abs(c.z) < hw;

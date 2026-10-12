@@ -11,6 +11,21 @@ const ANIM_INDEX = Object.fromEntries(ANIM_CODES.map((a, i) => [a, i]));
 
 let nextBotId = 1000;
 
+// How far a ball will travel from now: runs the ball physics until it hits a post, net or wall,
+// or slows to a crawl, and measures the ground covered
+function flightDistance(b) {
+  const sim = { ...createBall(), x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, curve: b.curve || 0 };
+  const ev = [];
+  let dist = 0;
+  for (let i = 0; i < 150; i++) {
+    const x0 = sim.x, z0 = sim.z;
+    stepBall(sim, 1 / 30, ev);
+    dist += len2(sim.x - x0, sim.z - z0);
+    if (sim.inNet || ev.some((e) => e.e !== 'bounce') || len2(sim.vx, sim.vz) < 3) break;
+  }
+  return dist;
+}
+
 export class World {
   constructor(opts = {}) {
     this.mode = opts.mode || 'match';
@@ -184,7 +199,7 @@ export class World {
     p.vx = p.vy = p.vz = 0;
     p.face = p.team === 0 ? Math.PI / 2 : -Math.PI / 2;
     if (this.mode === 'practice' && !p.isBot) p.face = Math.PI / 2;
-    p.stun = 0; p.anim = 'idle'; p.actT = 0; p.charging = false; p.charge = 0;
+    p.stun = 0; p.knockT = 0; p.anim = 'idle'; p.actT = 0; p.charging = false; p.charge = 0;
     p.fx.jet = 0; p.bikeT = 0;
   }
 
@@ -398,6 +413,9 @@ export class World {
     this.touch(p);
     b.shot = null;
     b.pass = kind === 'pass' || kind === 'lob' ? { from: p.id, team: p.team, t: this.time } : null;
+    // A ball that can knock people over (keeper throw, fireball) only does so over the first
+    // quarter of its flight
+    b.stunZone = b.gkThrow || b.fire ? { x: b.x, z: b.z, r: 0.25 * flightDistance(b) } : null;
     if (volley) this.award(p, 'Volley', 15);
     if (kind === 'shot' || kind === 'lob' || kind === 'flick') this.markShot(p);
     this.emit({ e: 'kick', id: p.id, kind, pw: r2(power), fire: b.fire ? 1 : 0 });
@@ -415,14 +433,29 @@ export class World {
   canVolley(p) {
     const b = this.ball;
     if (b.owner >= 0 || b.grapple >= 0 || b.phase) return false; // shots can only be volleyed once clear of the kicker
+    if (b.bike >= 0 && b.bike !== p.id) return false; // someone else's bicycle kick: only another bicycle kick can take it
     const rel = b.y - (p.y || 0);
     return b.y > 1.05 && rel > 0.3 && rel < KICK.volleyReachUp && len2(b.x - p.x, b.z - p.z) < KICK.volleyReachH;
   }
 
   // Ball high enough above you for a bicycle kick (hang in the air, then scissor it over)
+  // A rival can intercept a bicycle kick in progress with a bicycle kick of their own
   canBike(p) {
-    return this.canVolley(p) && this.ball.bike < 0 && this.ball.y - (p.y || 0) > KICK.bikeMinH;
+    const b = this.ball;
+    if (b.bike >= 0) {
+      const o = this.byId.get(b.bike);
+      if (b.bike === p.id || (o && o.team === p.team)) return false;
+    }
+    if (b.owner >= 0 || b.grapple >= 0 || b.phase) return false;
+    if ((p.y || 0) < KICK.bikeAirY) return false; // jump first: no bicycle kicks from the ground
+    const rel = b.y - (p.y || 0);
+    return rel > KICK.bikeMinH && rel < KICK.volleyReachUp && len2(b.x - p.x, b.z - p.z) < KICK.volleyReachH;
   }
+
+  inStunZone(b) { return !!b.stunZone && len2(b.x - b.stunZone.x, b.z - b.stunZone.z) <= b.stunZone.r; }
+
+  // Mid bicycle kick: can't be tackled, kicked or bowled over (items still knock you out of it)
+  inBike(q) { return this.ball.bike === q.id; }
 
   doAction(p, act) {
     if (!p || p.left) return;
@@ -452,6 +485,12 @@ export class World {
         // Start a bicycle kick: player and ball hang in the air while you aim; the kick fires on
         // release or by itself after KICK.bikeHold
         if (p.cd.kick > 0 || !this.canBike(p)) return;
+        if (b.bike >= 0) {
+          // Intercepted: the rival's own bicycle kick takes the ball off the first kicker
+          const prev = this.byId.get(b.bike);
+          if (prev) { prev.bikeT = 0; prev.cd.kick = 0.4; }
+          this.emit({ e: 'bikesteal', id: p.id, from: b.bike });
+        }
         p.charging = false; p.charge = 0;
         p.bikeT = KICK.bikeHold;
         b.bikeY = Math.max(b.y, KICK.bikeBallY); // ball and player float up together
@@ -484,7 +523,7 @@ export class World {
           // Swing kick: hits any rival in front ("illegal" kick)
           let best = null, bd = 1e9;
           for (const q of this.players) {
-            if (q.team === p.team || q.left || q.stun > 0) continue;
+            if (q.team === p.team || q.left || q.stun > 0 || this.inBike(q)) continue;
             const dx = q.x - p.x, dz = q.z - p.z;
             const d = len2(dx, dz);
             if (d < KICK.hitRange + 0.4 && (dx * dir.x + dz * dir.z) / (d || 1) > 0.45 && d < bd) { best = q; bd = d; }
@@ -611,6 +650,13 @@ export class World {
     if (q.keeper) { this.emit({ e: 'shieldblock', id: q.id }); return false; }
     if (q.immune > 0 && kind !== 'frozen') return false;
     if (this.ball.owner === q.id) this.loseBall(q, kbx * 0.6, kbz * 0.6, 3);
+    if (this.inBike(q)) {
+      // Knocked out of a bicycle kick: the ball drops loose
+      const b = this.ball;
+      b.bike = -1; q.bikeT = 0;
+      b.vx = kbx * 0.3; b.vz = kbz * 0.3; b.vy = 1;
+      b.lastTouch = by ? by.id : b.lastTouch;
+    }
     stunPlayer(q, kind, dur);
     q.vx = kbx; q.vz = kbz;
     if (kind === 'fall' || kind === 'hit') q.vy = 4;
@@ -629,7 +675,8 @@ export class World {
     for (const q of this.players) {
       if (q.team === pr.team || q.left || q.stun > 0) continue;
       if (len2(q.x - b.x, q.z - b.z) < 2.6 && Math.abs(q.y - b.y) < 3) {
-        if (this.hitPlayer(by, q, 'fall', 1.4, ux * 18, uz * 18, 'Knockout')) { q.vy = 6; if (q === owner) freed = true; }
+        const biker = this.inBike(q);
+        if (this.hitPlayer(by, q, 'fall', 1.4, ux * 18, uz * 18, 'Knockout')) { q.vy = 6; if (q === owner) freed = true; if (biker) { b.bike = -1; q.bikeT = 0; } }
       }
     }
     if (freed && b.owner < 0 && b.bike < 0 && !b.held) {
@@ -880,6 +927,7 @@ export class World {
     if (p.chatT > 0) p.chatT -= dt;
     if (p.slipCd > 0) p.slipCd -= dt;
     if (p.stun > 0) p.stun -= dt;
+    if (p.knockT > 0) p.knockT -= dt;
     if (p.actT > 0) {
       p.actT -= dt;
       if (p.actT <= 0) { p.actT = 0; p.anim = (p.anim === 'dive' || p.anim === 'fall' || p.anim === 'slip' || p.anim === 'hit') ? 'getup' : 'idle'; if (p.anim === 'getup') { p.actT = 0.4; p.actDur = 0.4; } }
@@ -902,7 +950,7 @@ export class World {
     p.sprinting = !!s.sp;
     p.stamina = clamp(s.st ?? p.stamina, 0, PLAYER.staminaMax);
     p.charging = !!s.ch;
-    if (s.an && p.stun <= 0) {
+    if (s.an && p.stun <= 0 && !(p.knockT > 0)) {
       const local = ['idle', 'kick', 'pass', 'flick', 'slide', 'recover', 'dive', 'getup', 'spin', 'dodge', 'emote', 'punch', 'throw'];
       if (local.includes(s.an)) {
         if (p.anim !== s.an) { p.anim = s.an; p.animT = 0; }
@@ -922,11 +970,11 @@ export class World {
 
     // Slides & tackles hitting players
     for (const p of this.players) {
-      if (p.anim !== 'slide' || p.left) continue;
+      if (p.anim !== 'slide' || p.left || p.stun > 0 || p.knockT > 0) continue; // a knocked-down player can't tackle
       for (const q of this.players) {
         if (q === p || q.team === p.team || q.left || q.stun > 0) continue;
         if (p.hitSet && p.hitSet.has(q.id)) continue;
-        if (this.isKeeper(q)) continue; // goalkeepers can't be tackled
+        if (this.isKeeper(q) || this.inBike(q)) continue; // goalkeepers and bicycle kickers can't be tackled
         const d = len2(q.x - p.x, q.z - p.z);
         if (d < 1.7 && Math.abs(q.y - p.y) < 1.5) {
           if (p.hitSet) p.hitSet.add(q.id);
@@ -1150,10 +1198,10 @@ export class World {
     if (b.gkThrow && b.owner < 0) {
       // Purely speed based: once the ball has slowed down it can be received normally
       const sp = len2(b.vx, b.vz);
-      if (sp < KICK.gkStunSpeed) b.gkThrow = null;
+      if (sp < KICK.gkStunSpeed || !this.inStunZone(b)) b.gkThrow = null;
       else {
         for (const q of this.players) {
-          if (q.team === b.gkThrow.team || q.stun > 0 || q.left) continue;
+          if (q.team === b.gkThrow.team || q.stun > 0 || q.left || this.inBike(q)) continue;
           if (len2(q.x - b.x, q.z - b.z) < PLAYER.radius + PHYS.ballR + 0.35 && b.y - q.y < 2.8) {
             const ux = b.vx / (sp || 1), uz = b.vz / (sp || 1);
             if (this.hitPlayer(this.byId.get(b.gkThrow.by), q, 'fall', 1.0, ux * 8, uz * 8, 'Bowled Over')) this.emit({ e: 'tackle', id: q.id });
@@ -1164,7 +1212,7 @@ export class World {
     if (b.fire && b.owner < 0) {
       // Fireball knocks down players in its path
       const sp = Math.hypot(b.vx, b.vz);
-      if (sp > 18) {
+      if (sp > 18 && this.inStunZone(b)) {
         for (const q of this.players) {
           if (q.id === b.kicker || q.stun > 0 || q.left) continue;
           if (len2(q.x - b.x, q.z - b.z) < PLAYER.radius + PHYS.ballR + 0.2 && b.y - q.y < 2.6) {

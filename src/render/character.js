@@ -2,20 +2,33 @@
 import * as THREE from 'three';
 import { TEAMS } from '../config.js';
 import { SKIN_TONES, HAIR_COLORS } from '../cosmetics.js';
-import { jerseyTexture, faceTexture, toonGradient } from './textures.js';
+import { jerseyTexture, faceTexture, hairTexture, toonGradient } from './textures.js';
 import { clamp, lerp, damp } from '../util/math.js';
 
 let G = null; // shared geometries
 let GRAD = null;
 let FACE_TEX = null;
+let HAIR_TEX = null;
+const hairMats = new Map();
 const jerseyCache = new Map();
 const matCache = new Map();
 
 function geos() {
   if (G) return G;
   G = {
-    head: new THREE.SphereGeometry(0.62, 28, 20),
-    face: new THREE.SphereGeometry(0.632, 24, 16, Math.PI / 2 - 0.85, 1.7, 0.92, 1.25),
+    head: sculpt(new THREE.SphereGeometry(0.62, 40, 28)),
+    face: sculpt(new THREE.SphereGeometry(0.632, 32, 24, Math.PI / 2 - 0.85, 1.7, 0.92, 1.25)),
+    ear: earGeometry(),
+    nose: noseGeometry(),
+    // Hair shells: one per hairline, hugging the head (see hairShell)
+    shellCrop: hairShell({ thick: 0.045, lift: 0.05, front: 0.4, temple: 0.33 }),
+    shellFade: hairShell({ thick: 0.012, lift: 0, back: -0.5, side: 0.18, burn: 0.05 }),
+    shellFull: hairShell({ thick: 0.055, lift: 0.07, back: -0.52 }),
+    shellBob: hairShell({ thick: 0.07, lift: 0.06, front: 0.24, temple: 0.2, side: -0.62, burn: -0.66, ear: -0.66, back: -0.72, flare: 0.1 }),
+    shellUnder: hairShell({ thick: 0.03, lift: 0, back: -0.5 }),
+    shellCurls: hairShell({ thick: 0.12, lift: 0.1, front: 0.38, back: -0.5 }),
+    tuft: tuftGeometry(),
+    curl: new THREE.IcosahedronGeometry(0.15, 1),
     torso: new THREE.CapsuleGeometry(0.4, 0.34, 8, 20),
     shorts: new THREE.CapsuleGeometry(0.38, 0.12, 6, 16),
     upperArm: new THREE.CapsuleGeometry(0.14, 0.26, 4, 10),
@@ -25,8 +38,6 @@ function geos() {
     shin: new THREE.CapsuleGeometry(0.14, 0.18, 4, 10),
     shoe: roundedBox(0.3, 0.2, 0.5, 0.08),
     hairCap: new THREE.SphereGeometry(0.665, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.52),
-    hairCapShort: new THREE.SphereGeometry(0.665, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.43),
-    spike: new THREE.ConeGeometry(0.2, 0.52, 6),
     bun: new THREE.SphereGeometry(0.24, 12, 10),
     brim: new THREE.BoxGeometry(0.62, 0.06, 0.4),
     pom: new THREE.SphereGeometry(0.16, 10, 8),
@@ -34,41 +45,104 @@ function geos() {
     crownRing: new THREE.CylinderGeometry(0.42, 0.45, 0.22, 16, 1, true),
     crownSpike: new THREE.ConeGeometry(0.09, 0.22, 4),
     glove: new THREE.SphereGeometry(0.34, 14, 10),
-    mohawk: mohawkGeometry(),
-    // Bangs: a band of the head-hugging cap over the forehead
-    bangs: new THREE.SphereGeometry(0.695, 28, 8, Math.PI / 2 - 1.05, 2.1, Math.PI * 0.16, Math.PI * 0.27),
-    bobSides: new THREE.SphereGeometry(0.69, 28, 14, Math.PI / 2 + 0.95, Math.PI * 2 - 1.9, 0, Math.PI * 0.62),
     jetpack: roundedBox(0.55, 0.6, 0.3, 0.1),
     nozzle: new THREE.CylinderGeometry(0.1, 0.14, 0.22, 10),
   };
   GRAD = toonGradient();
   FACE_TEX = faceTexture();
+  HAIR_TEX = hairTexture();
   return G;
 }
 
-// Mohawk crest: one swept-back fin from the forehead to the nape, following the curve of the head
-function mohawkGeometry() {
-  const R0 = 0.58, t0 = 0.95, t1 = -1.75, n = 6;
-  const P = (t, r) => new THREE.Vector2(-Math.sin(t) * r, Math.cos(t) * r);
-  const sh = new THREE.Shape();
-  let p = P(t0, R0);
-  sh.moveTo(p.x, p.y);
-  for (let i = 1; i <= 24; i++) { p = P(t0 + ((t1 - t0) * i) / 24, R0); sh.lineTo(p.x, p.y); }
-  p = P(t1, R0 + 0.12); sh.lineTo(p.x, p.y);
-  for (let i = n - 1; i >= 0; i--) {
-    const u = i / n;
-    const H = 0.5 - 0.26 * u; // tallest at the front, tapering towards the back
-    const a = P(t0 + (t1 - t0) * ((i + 0.62) / n) - 0.06, R0 + 0.08 + H); // tooth tip, swept back
-    const v = P(t0 + (t1 - t0) * (i / n), R0 + 0.08 + H * 0.42); // notch
-    sh.lineTo(a.x, a.y);
-    sh.lineTo(v.x, v.y);
+// Head shape: a slightly narrower, taller skull with a tapered jaw and chin, so the face reads
+// as a face rather than a ball. Applied to the head, the face decal and the hair shells alike.
+function shapeDir(x, y, z, r) {
+  const ny = y / r;
+  const jaw = ny < 0 ? Math.min(1, -ny / 0.95) : 0;
+  const j = jaw * jaw * (3 - 2 * jaw);
+  let sx = 0.94 * (1 - 0.17 * j), sy = 1.04, sz = 0.97 * (1 - 0.05 * j);
+  // chin pushed slightly forward
+  const dz = z > 0 ? 0.035 * j * (z / r) * r : 0;
+  return [x * sx, y * sy, z * sz + dz];
+}
+function sculpt(geo) {
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const r = Math.hypot(x, y, z) || 1;
+    const [a, b, c] = shapeDir(x, y, z, r);
+    p.setXYZ(i, a, b, c);
   }
-  sh.closePath();
-  const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.16, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.035, bevelSegments: 2, curveSegments: 4 });
-  geo.translate(0, 0, -0.08);
-  geo.rotateY(Math.PI / 2);
   geo.computeVertexNormals();
   return geo;
+}
+
+function earGeometry() {
+  const geo = new THREE.SphereGeometry(0.12, 14, 10);
+  geo.scale(0.4, 1, 0.7);
+  return geo;
+}
+
+function noseGeometry() {
+  // small rounded wedge: narrow bridge, wider tip
+  const geo = new THREE.SphereGeometry(0.068, 14, 12);
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const u = (0.068 - y) / 0.136; // 0 top .. 1 bottom
+    p.setXYZ(i, x * (0.55 + 0.6 * u), y * 1.25, z * (0.6 + 0.5 * u));
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// Hair shell: a sphere that hugs the head where there is hair and sinks under the skin elsewhere,
+// so the hairline is smooth (forehead, temples, sideburns, over the ears, nape).
+// Hairline heights are on the unit sphere (y), going round from the forehead (a = 0) to the back (a = PI).
+function hairShell(o = {}) {
+  const front = o.front ?? 0.44, temple = o.temple ?? 0.36, side = o.side ?? 0.1, burn = o.burn ?? -0.22;
+  const ear = o.ear ?? 0.26, back = o.back ?? -0.42, thick = o.thick ?? 0.05, lift = o.lift ?? 0, flare = o.flare || 0;
+  const knots = [[0, front], [0.62, front + 0.02], [0.92, temple], [1.18, side], [1.34, burn], [1.45, burn], [1.56, ear], [1.78, ear], [2.25, back], [Math.PI, back]];
+  const hl = (a) => {
+    for (let k = 1; k < knots.length; k++) if (a <= knots[k][0]) { const [a0, y0] = knots[k - 1], [a1, y1] = knots[k]; return y0 + (y1 - y0) * ((a - a0) / (a1 - a0)); }
+    return back;
+  };
+  const geo = new THREE.SphereGeometry(1, 96, 56);
+  const p = geo.attributes.position;
+  const R = 0.62;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const a = Math.abs(Math.atan2(x, z));
+    const h = hl(a);
+    const e = Math.min(1, Math.max(0, (y - (h - 0.05)) / 0.1));
+    const k = e * e * (3 - 2 * e);
+    const up = Math.max(0, y);
+    const r = R - 0.05 + k * (0.05 + thick + lift * up * up + flare * Math.max(0, -y) * (a > 0.9 ? 1 : 0));
+    const [sx, sy, sz] = shapeDir(x * r, y * r, z * r, r);
+    p.setXYZ(i, sx, sy, sz);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// A single swept tuft of hair: a flattened, slightly curved blade
+function tuftGeometry() {
+  const geo = new THREE.ConeGeometry(0.1, 0.34, 6, 4);
+  geo.translate(0, 0.17, 0);
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i);
+    p.setX(i, p.getX(i) * 1.25);
+    p.setZ(i, p.getZ(i) * 0.6 - y * y * 0.9); // bends backwards towards the tip
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function hairMat(color) {
+  const key = typeof color === 'string' ? color : color.getHexString();
+  if (!hairMats.has(key)) hairMats.set(key, new THREE.MeshToonMaterial({ color, gradientMap: GRAD, map: HAIR_TEX }));
+  return hairMats.get(key);
 }
 
 function roundedBox(w, h, d, r) {
@@ -183,6 +257,13 @@ export class CharacterModel {
     this.faceM.position.set(0, 0.52, 0);
     this.faceM.renderOrder = 1;
     this.head.add(this.faceM);
+    this.ears = [-1, 1].map((sd) => {
+      const e = this.mesh(g.ear, placeholder, this.head, [sd * 0.6, 0.49, -0.04], false);
+      e.rotation.y = sd * 0.3;
+      return e;
+    });
+    this.noseM = this.mesh(g.nose, placeholder, this.head, [0, 0.44, 0.575], false);
+    this.noseM.rotation.x = -0.12;
     this.hair = new THREE.Group();
     this.hair.position.y = 0.52;
     this.head.add(this.hair);
@@ -243,61 +324,102 @@ export class CharacterModel {
     const socks = toon(keeper ? 0xffffff : T.color);
     const shoes = toon(team === 0 ? 0x2b2340 : 0x23304a);
     this.headM.material = skin;
+    for (const e of this.ears) e.material = skin;
+    this.noseM.material = skin;
     this.torsoM.material = shirt;
     this.shortsM.material = shorts;
     for (const a of [this.armL, this.armR]) { a.up.material = shirt; a.fo.material = skin; a.hand.material = skin; }
     for (const l of [this.legL, this.legR]) { l.th.material = shorts; l.shin.material = socks; l.shoe.material = shoes; }
-    this.buildHair(cos.hair || 'spiky', toon(hairC), T);
+    this.buildHair(cos.hair || 'spiky', hairMat(hairC), T);
   }
 
   buildHair(style, mat, T) {
     const h = this.hair;
     while (h.children.length) h.remove(h.children[0]);
     const g = G;
-    const cap = () => { const m = this.mesh(g.hairCapShort, mat, h, [0, 0.02, -0.03]); m.rotation.x = -0.36; return m; };
+    // Head-local point on the hair surface at a direction (yaw a from the front, height y on the unit sphere)
+    const at = (a, y, r = 0.69) => { const c = Math.sqrt(Math.max(0, 1 - y * y)); const [x, yy, z] = shapeDir(Math.sin(a) * c * r, y * r, Math.cos(a) * c * r, r); return new THREE.Vector3(x, yy, z); };
+    // Tufts stand out along the head normal and lean back (sweep) / sideways
+    const tufts = (list, m, scale = 1) => {
+      const up = new THREE.Vector3(0, 1, 0);
+      for (const [a, y, len, sweep, tw] of list) {
+        const pos = at(a, y, 0.64);
+        const t = new THREE.Mesh(g.tuft, m);
+        t.castShadow = this.shadows;
+        t.position.copy(pos);
+        const n = pos.clone().normalize();
+        t.quaternion.setFromUnitVectors(up, n);
+        t.rotateY(Math.PI - a * Math.sign(n.z >= 0 ? 1 : -1) * 0);
+        t.rotateX(-(sweep ?? 0.5));
+        t.rotateY(tw || 0);
+        t.scale.set(scale, (len || 1) * scale, scale);
+        h.add(t);
+      }
+    };
+    const shell = (geo, m, outline = true) => this.mesh(geo, m, h, [0, 0, 0], outline);
     switch (style) {
       case 'bob': {
-        // Rounded bob: full cap, sides down to the jaw (open at the face) and curved bangs
-        const m = this.mesh(g.hairCap, mat, h, [0, 0.03, -0.02]);
-        m.scale.set(1.04, 1.04, 1.04);
-        const sides = this.mesh(g.bobSides, mat, h, [0, 0.0, -0.02]);
-        sides.scale.set(1.06, 1.22, 1.06);
-        const bangs = this.mesh(g.bangs, mat, h, [0, 0.02, 0.01]);
-        bangs.scale.set(1.02, 1.0, 1.04);
+        // Chin-length bob: long sides framing the face, a soft side-swept fringe
+        shell(g.shellBob, mat);
+        tufts([[-0.35, 0.6, 1.1, 1.25, 0.3], [0, 0.66, 1.15, 1.3, 0.2], [0.35, 0.62, 1.0, 1.25, 0.1], [0.62, 0.56, 0.9, 1.2, 0]], mat, 1.05);
         break;
       }
       case 'cap': {
-        const m = this.mesh(g.hairCap, toon(T.color), h, [0, 0.06, 0]);
-        m.scale.set(1.02, 0.95, 1.02);
-        const b = this.mesh(g.brim, toon(T.dark), h, [0, 0.22, -0.66]);
+        shell(g.shellUnder, mat);
+        const m = this.mesh(g.hairCap, toon(T.color), h, [0, 0.08, 0]);
+        m.scale.set(1.0, 0.92, 1.03);
+        const b = this.mesh(g.brim, toon(T.dark), h, [0, 0.24, -0.66]);
         b.rotation.x = 0.15;
         break;
       }
       case 'mohawk': {
-        // Faded (shaved) sides in a darker tone + a tall swept crest down the middle
-        const fade = toon(mat.color.clone().multiplyScalar(0.55));
-        const c = this.mesh(g.hairCapShort, fade, h, [0, 0.02, -0.05], false);
-        c.rotation.x = -0.42;
-        c.scale.set(0.99, 0.99, 0.99);
-        this.mesh(g.mohawk, mat, h, [0, 0.02, 0]);
+        // Skin-fade sides (a thin, darker shell) and a tall swept crest down the middle
+        shell(g.shellFade, hairMat(mat.color.clone().multiplyScalar(0.6)), false);
+        // crest: a ridge of long swept tufts from the hairline to the crown, shorter towards the nape
+        const crest = [];
+        for (let i = 0; i < 9; i++) {
+          const t = -0.62 + i * 0.3; // polar angle from the top: negative = front
+          const len = 1.75 - Math.max(0, t) * 0.45;
+          for (const side of [-0.13, 0, 0.13]) crest.push([t < 0 ? side : Math.PI - side, Math.cos(t), len, t < 0 ? 0.35 : 0.75, 0]);
+        }
+        tufts(crest, mat, 1.12);
         break;
       }
       case 'buns': {
-        cap();
-        for (const s of [-1, 1]) this.mesh(g.bun, mat, h, [s * 0.42, 0.5, -0.05]);
+        shell(g.shellFull, mat);
+        for (const sd of [-1, 1]) {
+          const b = this.mesh(g.bun, mat, h, [sd * 0.4, 0.52, -0.1]);
+          b.scale.set(1, 0.92, 1);
+          const tie = this.mesh(g.crownRing, toon(T.color), h, [sd * 0.33, 0.43, -0.08], false);
+          tie.scale.set(0.42, 0.3, 0.42);
+          tie.rotation.z = -sd * 0.7;
+        }
         break;
       }
       case 'afro': {
-        for (let i = 0; i < 9; i++) {
-          const a = (i / 9) * Math.PI * 2;
-          const b = this.mesh(g.bun, mat, h, [Math.cos(a) * 0.48, 0.32 + Math.sin(i * 2.1) * 0.12, Math.sin(a) * 0.48 - 0.06]);
-          b.scale.setScalar(1.25);
+        // Big curls: a thick base with clusters of curls over the top and sides
+        shell(g.shellCurls, mat);
+        const rnd = (k) => { const v = Math.sin(k * 127.1) * 43758.5; return v - Math.floor(v); };
+        let k = 0;
+        for (let ring = 0; ring < 5; ring++) {
+          const y = 0.95 - ring * 0.26;
+          const n = ring === 0 ? 3 : 7 + ring * 2;
+          for (let i = 0; i < n; i++) {
+            const a = (i / n) * Math.PI * 2 + ring * 0.4;
+            if (Math.cos(a) > 0.55 && y < 0.5) continue; // keep the face clear
+            const p = at(a, Math.min(0.98, y), 0.72 + rnd(++k) * 0.05);
+            const c = new THREE.Mesh(g.curl, mat);
+            c.position.copy(p);
+            c.scale.setScalar(0.9 + rnd(++k) * 0.5);
+            c.rotation.set(rnd(++k) * 3, rnd(++k) * 3, 0);
+            c.castShadow = this.shadows;
+            h.add(c);
+          }
         }
-        const top = this.mesh(g.hairCap, mat, h, [0, 0.12, -0.04]);
-        top.scale.setScalar(1.12);
         break;
       }
       case 'beanie': {
+        shell(g.shellUnder, mat);
         const bm = toon(T.color);
         const m = this.mesh(g.beanie, bm, h, [0, 0.3, -0.02]);
         m.rotation.x = -0.15;
@@ -307,7 +429,7 @@ export class CharacterModel {
         break;
       }
       case 'crown': {
-        cap();
+        shell(g.shellFull, mat);
         const gold = toon(0xffcf3f, { emissive: 0x553300 });
         this.mesh(g.crownRing, gold, h, [0, 0.62, -0.06], false);
         for (let i = 0; i < 6; i++) {
@@ -316,13 +438,19 @@ export class CharacterModel {
         }
         break;
       }
-      default: { // spiky
-        cap();
-        const spots = [[0, 0.66, -0.08, -0.25, 0], [0.3, 0.58, 0.02, -0.15, -0.55], [-0.3, 0.58, 0.02, -0.15, 0.55], [0.16, 0.6, 0.3, 0.55, -0.3], [-0.16, 0.6, 0.3, 0.55, 0.3], [0, 0.6, 0.36, 0.75, 0], [0, 0.45, -0.44, -1.05, 0], [0.36, 0.38, -0.3, -0.75, -0.65], [-0.36, 0.38, -0.3, -0.75, 0.65]];
-        for (const [x, y, z, rx, rz] of spots) {
-          const s = this.mesh(g.spike, mat, h, [x, y, z]);
-          s.rotation.set(rx, 0, rz);
-        }
+      default: { // spiky: short textured crop with messy spiked tufts on top, longer at the front
+        shell(g.shellCrop, mat);
+        const list = [];
+        const rows = [[0.9, 6, 1.0, 0.35], [0.75, 9, 0.95, 0.55], [0.58, 11, 0.8, 0.85]];
+        rows.forEach(([y, n, len, sweep], r) => {
+          for (let i = 0; i < n; i++) {
+            const a = -Math.PI + ((i + (r % 2) * 0.5) / n) * Math.PI * 2;
+            const front = Math.cos(a);
+            if (y < 0.7 && front < -0.4) continue; // the back stays short
+            list.push([a, y, len * (0.85 + 0.35 * Math.max(0, front)), sweep + (front < 0 ? 0.6 : 0), Math.sin(i * 7.3) * 0.4]);
+          }
+        });
+        tufts(list, mat);
       }
     }
   }

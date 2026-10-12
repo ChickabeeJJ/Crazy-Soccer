@@ -47,7 +47,7 @@ New players get a quick, skippable tutorial and a free roll for their first item
 
 - **WASD / Arrow keys**: Move
 - **Mouse**: Aim the camera and crosshair
-- **Left click**: Kick (hold to charge). With the ball in the air above you, it starts a bicycle kick.
+- **Left click**: Kick (hold to charge). In mid-air with the ball above you, it starts a bicycle kick.
 - **Right click / T**: Pass. Goalkeepers in their own box dive with right click.
 - **Q**: Flick the ball up
 - **E**: Slide tackle

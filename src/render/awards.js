@@ -2,6 +2,7 @@
 // each award is revealed in turn and the MVP goes last
 import * as THREE from 'three';
 import { CharacterModel } from './character.js';
+import { softBeamMaterial } from './beam.js';
 import { TEAMS } from '../config.js';
 import { clamp, damp } from '../util/math.js';
 
@@ -116,8 +117,8 @@ export class AwardStage {
       trim.position.set(x, 0.32 + h - 0.05, 0);
       const face = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.08), trimMat);
       face.position.set(x, 0.32 + h * 0.3, 1.36);
-      const beamMat = new THREE.MeshBasicMaterial({ map: beamTexture(), color: 0xfff1c8, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
-      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 1.9, 16, 24, 1, true), beamMat);
+      const beamMat = softBeamMaterial(0xfff1c8, 0, { top: 1, bottom: 0.45 });
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 1.9, 16, 32, 1, true), beamMat);
       beam.position.set(x, 0.32 + h + 8, 0);
       const glowMat = new THREE.MeshBasicMaterial({ map: this.r.glowTex, color: 0xffe9a8, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
       const glow = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 4.2), glowMat);
@@ -239,7 +240,7 @@ export class AwardStage {
       e.model.update(dt, st);
       const s = e.slot;
       const on = e.revealed ? 1 : 0;
-      s.beam.material.opacity = damp(s.beam.material.opacity, on * (e.i === 0 ? 0.55 : 0.38), 6, dt);
+      s.beam.material.opacity = damp(s.beam.material.opacity, on * (e.i === 0 ? 1.4 : 1.0), 6, dt);
       s.glow.material.opacity = damp(s.glow.material.opacity, on * 0.9, 6, dt);
     }
     if (!this.done && t >= this.endAt) this.finish();
@@ -326,14 +327,3 @@ function deckTexture() {
   return t;
 }
 
-function beamTexture() {
-  const c = document.createElement('canvas');
-  c.width = 4; c.height = 128;
-  const g = c.getContext('2d');
-  const gr = g.createLinearGradient(0, 0, 0, 128);
-  gr.addColorStop(0, 'rgba(255,255,255,0.85)');
-  gr.addColorStop(0.6, 'rgba(255,255,255,0.4)');
-  gr.addColorStop(1, 'rgba(255,255,255,0.12)');
-  g.fillStyle = gr; g.fillRect(0, 0, 4, 128);
-  return new THREE.CanvasTexture(c);
-}

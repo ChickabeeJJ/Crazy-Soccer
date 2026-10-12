@@ -38,7 +38,7 @@ export function staminaPowerMul(p) {
 export const BUSY_ANIMS = new Set(['slide', 'dive', 'getup', 'fall', 'slip', 'frozen', 'hit']);
 
 export function canAct(p) {
-  return p.stun <= 0 && !BUSY_ANIMS.has(p.anim);
+  return p.stun <= 0 && !(p.knockT > 0) && !BUSY_ANIMS.has(p.anim);
 }
 
 export function setAnim(p, anim, dur) {
@@ -51,6 +51,8 @@ export function setAnim(p, anim, dur) {
 
 export function stunPlayer(p, kind, dur) {
   p.stun = dur;
+  // knocked down: no actions (tackles included) until fully back on your feet
+  p.knockT = dur + 0.5;
   p.stunKind = kind;
   p.charging = false;
   p.charge = 0;
@@ -95,6 +97,7 @@ export function movePlayer(p, dt, hasBall, frozenPhase, noDrain = false) {
     }
   }
   if (p.stun > 0) { p.stun -= dt; p.bikeT = 0; }
+  if (p.knockT > 0) p.knockT -= dt;
 
   const inp = p.in;
   let wantX = 0, wantZ = 0;
