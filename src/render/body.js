@@ -132,28 +132,28 @@ function buildBody() {
   const { jersey: J, skin: S, shorts: SH, socks: SO, trim: T } = MAT;
   // Jersey torso, loose athletic fit: ribbed collar, broad chest and shoulders, waist, flared hem
   const tor = [
-    [0.86, 0.093, 0.086, 0, T], [0.83, 0.122, 0.106, 0, T], [0.81, 0.15, 0.122, 0, J], [0.775, 0.226, 0.15, -0.005, J], [0.725, 0.266, 0.17, -0.005, J],
-    [0.66, 0.276, 0.184, 0, J], [0.57, 0.27, 0.192, 0.012, J], [0.46, 0.256, 0.186, 0.012, J], [0.34, 0.236, 0.174, 0.006, J], [0.2, 0.222, 0.164, 0, J],
-    [0.08, 0.232, 0.172, 0, J], [-0.02, 0.244, 0.182, 0, J], [-0.07, 0.25, 0.188, 0, J],
+    [0.86, 0.097, 0.089, 0, T], [0.83, 0.127, 0.110, 0, T], [0.81, 0.156, 0.127, 0, J], [0.775, 0.244, 0.162, -0.005, J], [0.725, 0.287, 0.184, -0.005, J],
+    [0.66, 0.298, 0.199, 0, J], [0.57, 0.292, 0.207, 0.012, J], [0.46, 0.276, 0.201, 0.012, J], [0.34, 0.255, 0.188, 0.006, J], [0.2, 0.231, 0.171, 0, J],
+    [0.08, 0.241, 0.179, 0, J], [-0.02, 0.254, 0.189, 0, J], [-0.07, 0.260, 0.196, 0, J],
   ];
   B.tube(tor.map(([h, rx, rz, oz, m]) => ({ x: 0, y: P + h, z: oz, rx, rz, m, v: (h + 0.09) / 0.95 })), 32, torsoWeights, { top: true, bottom: true });
   // Neck
   const nk = [[1.06, 0.078], [0.97, 0.072], [0.88, 0.073], [0.78, 0.08]];
   B.tube(nk.map(([h, r]) => ({ x: 0, y: P + h, z: 0.0, rx: r, rz: r * 0.95, m: S })), 14, torsoWeights, { top: true, bottom: true });
   // Shorts: seat, then a wide leg on each side down to mid-thigh
-  const seat = [[0.14, 0.2, 0.15], [0.03, 0.226, 0.168], [-0.06, 0.246, 0.183], [-0.13, 0.25, 0.178], [-0.2, 0.2, 0.15]];
+  const seat = [[0.14, 0.2, 0.15], [0.03, 0.222, 0.165], [-0.06, 0.234, 0.175], [-0.13, 0.232, 0.168], [-0.2, 0.19, 0.142]];
   B.tube(seat.map(([h, rx, rz]) => ({ x: 0, y: P + h, z: 0, rx, rz, m: SH })), 24, () => ({ pelvis: 1 }), { bottom: true });
   for (const s of [1, -1]) {
     const side = s > 0 ? 'L' : 'R';
     const hx = W[`hip${side}`][0], hy = W[`hip${side}`][1];
-    const sl = [[0.03, 0.165], [-0.08, 0.182], [-0.21, 0.186], [-0.32, 0.19]];
-    B.tube(sl.map(([d, r]) => ({ x: hx + s * 0.016, y: hy + d, z: 0, rx: r, rz: r * 0.97, m: SH })), 20,
+    const sl = [[0.03, 0.163], [-0.08, 0.174], [-0.2, 0.174], [-0.28, 0.172]];
+    B.tube(sl.map(([d, r]) => ({ x: hx + s * 0.008, y: hy + d, z: 0, rx: r, rz: r * 1.04, m: SH })), 20,
       (x, y) => { const d = hy - y; const p = 1 - ss(-0.05, 0.08, d); return { pelvis: p * 0.7, [`hip${side}`]: 1 - p * 0.7 }; }, { top: true });
     // Leg: thigh and knee (skin), ribbed sock from just below the knee down into the boot
     const lg = [[-0.07, 0.112, 0, S], [0.06, 0.128, 0.006, S], [0.2, 0.128, 0.012, S], [0.34, 0.112, 0.012, S], [0.46, 0.094, 0.006, S], [0.55, 0.082, 0.004, S], [0.6, 0.08, -0.004, S],
       [0.625, 0.079, -0.006, SO], [0.63, 0.087, -0.008, SO], [0.7, 0.092, -0.024, SO], [0.8, 0.085, -0.022, SO], [0.92, 0.066, -0.01, SO], [1.02, 0.056, -0.006, SO], [1.1, 0.052, -0.012, SO]];
     const kz = W[`knee${side}`][2];
-    B.tube(lg.map(([d, r, oz, m]) => ({ x: hx, y: hy - d, z: oz + (d > 0.56 ? kz : 0), rx: r * 1.02, rz: r * 1.08, m, v: m === SO ? 1 - (d - 0.625) / 0.475 : d })), 18,
+    B.tube(lg.map(([d, r, oz, m]) => ({ x: hx, y: hy - d, z: oz + (d > 0.56 ? kz : 0), rx: r * 1.12, rz: r * 1.18, m, v: m === SO ? 1 - (d - 0.625) / 0.475 : d })), 18,
       (x, y) => {
         const d = hy - y;
         const knee = ss(0.48, 0.64, d), ankle = ss(0.98, 1.08, d), top = 1 - ss(-0.08, 0.05, d);
@@ -162,7 +162,7 @@ function buildBody() {
     // Arm: loose sleeve with a trimmed cuff, then the bare arm to the wrist
     const sx = W[`sh${side}`][0], sy = W[`sh${side}`][1];
     const ar = [[-0.07, 0.085, J], [0.0, 0.1, J], [0.08, 0.102, J], [0.16, 0.098, J], [0.205, 0.103, T], [0.235, 0.1, S], [0.236, 0.074, S], [0.29, 0.075, S], [0.34, 0.068, S], [0.365, 0.062, S], [0.41, 0.066, S], [0.5, 0.062, S], [0.6, 0.051, S], [0.67, 0.043, S]];
-    B.tube(ar.map(([d, r, m]) => ({ x: sx, y: sy - d, z: 0, rx: r * 1.06, rz: r * 1.1, m, v: d })), 16,
+    B.tube(ar.map(([d, r, m]) => ({ x: sx, y: sy - d, z: 0, rx: r * 1.22, rz: r * 1.26, m, v: d })), 16,
       (x, y) => {
         const d = sy - y;
         const clav = 1 - ss(-0.07, 0.04, d), el = ss(0.29, 0.43, d), wr = ss(0.61, 0.68, d);

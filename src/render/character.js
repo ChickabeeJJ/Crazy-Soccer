@@ -57,14 +57,14 @@ function hairShell(o = {}) {
     for (let k = 1; k < knots.length; k++) if (a <= knots[k][0]) { const [a0, y0] = knots[k - 1], [a1, y1] = knots[k]; return y0 + (y1 - y0) * ((a - a0) / (a1 - a0)); }
     return back;
   };
-  const geo = new THREE.SphereGeometry(1, 60, 36);
+  const geo = new THREE.SphereGeometry(1, 80, 48);
   const p = geo.attributes.position;
   const R = 0.62;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
     const a = Math.abs(Math.atan2(x, z));
     const h = hl(a);
-    const e = Math.min(1, Math.max(0, (y - (h - 0.05)) / 0.1));
+    const e = Math.min(1, Math.max(0, (y - (h - 0.08)) / 0.16)); // soft hairline
     const k = e * e * (3 - 2 * e);
     const up = Math.max(0, y);
     const r = R - 0.05 + k * (0.05 + thick + lift * up * up + flare * Math.max(0, -y) * (a > 0.9 ? 1 : 0));
@@ -77,7 +77,7 @@ function hairShell(o = {}) {
 
 // A single swept tuft of hair: a flattened, slightly curved blade
 function tuftGeometry() {
-  const geo = new THREE.ConeGeometry(0.1, 0.34, 6, 4);
+  const geo = new THREE.ConeGeometry(0.1, 0.34, 10, 6);
   geo.translate(0, 0.17, 0);
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -92,6 +92,10 @@ function tuftGeometry() {
 // Skin uses a softer four-tone ramp so faces don't get a hard dark half
 let SOFT_GRAD = null;
 const skinMats = new Map();
+function softGrad() {
+  if (!SOFT_GRAD) skinMat(0xffffff);
+  return SOFT_GRAD;
+}
 function skinMat(color) {
   if (!SOFT_GRAD) {
     // smooth (linearly filtered) ramp: soft shading on skin, no blotchy bands across the face
@@ -156,13 +160,13 @@ function kitMat(map) {
 const hairMatsDS = new Map();
 function hairMatDS(color) {
   const key = color.getHexString();
-  if (!hairMatsDS.has(key)) hairMatsDS.set(key, new THREE.MeshToonMaterial({ color, gradientMap: GRAD, map: HAIR_TEX, side: THREE.DoubleSide }));
+  if (!hairMatsDS.has(key)) hairMatsDS.set(key, new THREE.MeshToonMaterial({ color, gradientMap: softGrad(), map: HAIR_TEX, side: THREE.DoubleSide }));
   return hairMatsDS.get(key);
 }
 
 function hairMat(color) {
   const key = typeof color === 'string' ? color : color.getHexString();
-  if (!hairMats.has(key)) hairMats.set(key, new THREE.MeshToonMaterial({ color, gradientMap: GRAD, map: HAIR_TEX }));
+  if (!hairMats.has(key)) hairMats.set(key, new THREE.MeshToonMaterial({ color, gradientMap: softGrad(), map: HAIR_TEX }));
   return hairMats.get(key);
 }
 
