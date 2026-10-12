@@ -6,7 +6,7 @@ export function createBall() {
     x: 0, y: PHYS.ballR, z: 0, vx: 0, vy: 0, vz: 0,
     curve: 0, owner: -1, lastTouch: -1, lastTeam: -1, prevTouch: -1, prevTeam: -1, prevT: 0,
     fire: false, inNet: 0, block: -1, blockT: 0, contestT: 0, grapple: -1, grappleT: 0,
-    shot: null, pass: null, spin: 0, kicker: -1, held: false, holdT: 0, gkThrow: null, bike: -1,
+    shot: null, pass: null, spin: 0, kicker: -1, held: false, holdT: 0, gkThrow: null, bike: -1, phase: null,
   };
 }
 
@@ -141,6 +141,8 @@ function collideGoals(b, events, px, py, pz) {
     collideCylinderV(b, gx, -hw, pr, 0, H, events);
     collideCylinderV(b, gx, hw, pr, 0, H, events);
     collideBar(b, gx, H, -hw, hw, pr, events);
+    // Never let the ball balance on the crossbar: roll it off towards the pitch
+    if (Math.abs(b.x - gx) < pr + R && b.y > H && b.y < H + pr + R + 0.1 && Math.abs(b.vy) < 2 && Math.abs(b.z) < hw) b.vx = -s * Math.max(3.5, Math.abs(b.vx));
 
     const backX = gx + s * D;
     if (b.inNet === s) {
@@ -176,7 +178,9 @@ function collideGoals(b, events, px, py, pz) {
       const sz = Math.sign(Math.abs(pz) >= hw ? pz : b.z) || 1;
       b.z = sz * (hw + R); b.vz = sz * Math.abs(b.vz) * 0.35;
     } else if (face === 'top') {
+      // The roof net slopes: a ball landing on top always rolls off the front, back onto the pitch
       b.y = H + R; if (b.vy < 0) b.vy = -b.vy * 0.35;
+      if (Math.abs(b.vy) < 3) b.vx = -s * Math.max(5, Math.abs(b.vx));
     } else if (face === 'back') {
       b.x = s * (L + D + R); b.vx = s * Math.abs(b.vx) * 0.35;
     } else {

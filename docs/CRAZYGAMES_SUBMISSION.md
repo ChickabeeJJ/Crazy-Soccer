@@ -36,6 +36,7 @@ New players get a quick, skippable tutorial and a free roll for their first item
 - 14 chaotic items, from Jetpacks to Bazookas
 - Goalkeepers who can't be tackled, and gloves that move to the next player into the box
 - Ball-flight lines that show exactly where your shot will go
+- A podium award ceremony after every match: MVP, Top Scorer, Playmaker, The Wall and more
 - Tutorial, free practice, shooting challenge and goalkeeper challenge
 - Item Roll, cosmetics, levels and daily rewards
 - Full touch controls for phones and tablets

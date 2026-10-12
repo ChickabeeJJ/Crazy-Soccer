@@ -34,12 +34,41 @@ function geos() {
     crownRing: new THREE.CylinderGeometry(0.42, 0.45, 0.22, 16, 1, true),
     crownSpike: new THREE.ConeGeometry(0.09, 0.22, 4),
     glove: new THREE.SphereGeometry(0.34, 14, 10),
+    mohawk: mohawkGeometry(),
+    // Bangs: a band of the head-hugging cap over the forehead
+    bangs: new THREE.SphereGeometry(0.695, 28, 8, Math.PI / 2 - 1.05, 2.1, Math.PI * 0.16, Math.PI * 0.27),
+    bobSides: new THREE.SphereGeometry(0.69, 28, 14, Math.PI / 2 + 0.95, Math.PI * 2 - 1.9, 0, Math.PI * 0.62),
     jetpack: roundedBox(0.55, 0.6, 0.3, 0.1),
     nozzle: new THREE.CylinderGeometry(0.1, 0.14, 0.22, 10),
   };
   GRAD = toonGradient();
   FACE_TEX = faceTexture();
   return G;
+}
+
+// Mohawk crest: one swept-back fin from the forehead to the nape, following the curve of the head
+function mohawkGeometry() {
+  const R0 = 0.58, t0 = 0.95, t1 = -1.75, n = 6;
+  const P = (t, r) => new THREE.Vector2(-Math.sin(t) * r, Math.cos(t) * r);
+  const sh = new THREE.Shape();
+  let p = P(t0, R0);
+  sh.moveTo(p.x, p.y);
+  for (let i = 1; i <= 24; i++) { p = P(t0 + ((t1 - t0) * i) / 24, R0); sh.lineTo(p.x, p.y); }
+  p = P(t1, R0 + 0.12); sh.lineTo(p.x, p.y);
+  for (let i = n - 1; i >= 0; i--) {
+    const u = i / n;
+    const H = 0.5 - 0.26 * u; // tallest at the front, tapering towards the back
+    const a = P(t0 + (t1 - t0) * ((i + 0.62) / n) - 0.06, R0 + 0.08 + H); // tooth tip, swept back
+    const v = P(t0 + (t1 - t0) * (i / n), R0 + 0.08 + H * 0.42); // notch
+    sh.lineTo(a.x, a.y);
+    sh.lineTo(v.x, v.y);
+  }
+  sh.closePath();
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.16, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.035, bevelSegments: 2, curveSegments: 4 });
+  geo.translate(0, 0, -0.08);
+  geo.rotateY(Math.PI / 2);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 function roundedBox(w, h, d, r) {
@@ -228,11 +257,13 @@ export class CharacterModel {
     const cap = () => { const m = this.mesh(g.hairCapShort, mat, h, [0, 0.02, -0.03]); m.rotation.x = -0.36; return m; };
     switch (style) {
       case 'bob': {
-        const m = this.mesh(g.hairCap, mat, h, [0, -0.05, -0.04]);
-        m.scale.set(1.08, 1.25, 1.08);
-        m.rotation.x = -0.35;
-        const fr = this.mesh(g.bun, mat, h, [0, 0.42, 0.4]);
-        fr.scale.set(1.9, 0.6, 0.8);
+        // Rounded bob: full cap, sides down to the jaw (open at the face) and curved bangs
+        const m = this.mesh(g.hairCap, mat, h, [0, 0.03, -0.02]);
+        m.scale.set(1.04, 1.04, 1.04);
+        const sides = this.mesh(g.bobSides, mat, h, [0, 0.0, -0.02]);
+        sides.scale.set(1.06, 1.22, 1.06);
+        const bangs = this.mesh(g.bangs, mat, h, [0, 0.02, 0.01]);
+        bangs.scale.set(1.02, 1.0, 1.04);
         break;
       }
       case 'cap': {
@@ -243,12 +274,12 @@ export class CharacterModel {
         break;
       }
       case 'mohawk': {
-        cap().scale.set(0.98, 0.7, 0.98);
-        for (let i = 0; i < 5; i++) {
-          const s = this.mesh(g.spike, mat, h, [0, 0.58 - Math.abs(i - 1.5) * 0.06, 0.32 - i * 0.18]);
-          s.rotation.x = -0.3 - i * 0.25;
-          s.scale.set(0.8, 1.3, 1.6);
-        }
+        // Faded (shaved) sides in a darker tone + a tall swept crest down the middle
+        const fade = toon(mat.color.clone().multiplyScalar(0.55));
+        const c = this.mesh(g.hairCapShort, fade, h, [0, 0.02, -0.05], false);
+        c.rotation.x = -0.42;
+        c.scale.set(0.99, 0.99, 0.99);
+        this.mesh(g.mohawk, mat, h, [0, 0.02, 0]);
         break;
       }
       case 'buns': {

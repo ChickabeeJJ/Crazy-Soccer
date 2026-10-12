@@ -199,6 +199,27 @@ function buildStands(g, o, quality) {
     glow.position.set(0, H - 0.35, s * (Z0 - 1.4));
     g.add(glow);
   }
+  // End stands behind both goals: lower, open-air, topped by a jumbotron
+  const X0 = FIELD.wallX + 5, ZL = FIELD.wallZ - 5, et = 4;
+  for (const s of [-1, 1]) {
+    for (let t = 0; t < et; t++) {
+      const step = new THREE.Mesh(new THREE.BoxGeometry(td, th * (t + 1), ZL * 2), standMat);
+      step.position.set(s * (X0 + t * td + td / 2), (th * (t + 1)) / 2, 0);
+      step.receiveShadow = true;
+      g.add(step);
+      for (let z = -ZL + 0.8; z < ZL - 0.8; z += 1.15 + rnd() * 0.4) if (rnd() < o.fill * 0.92) seats.push([s * (X0 + t * td + td * 0.55), th * (t + 1), z + (rnd() - 0.5) * 0.3]);
+    }
+    const H = th * et + 2.5;
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.8, H, ZL * 2 + 1), standMat);
+    back.position.set(s * (X0 + et * td + 0.4), H / 2, 0);
+    back.castShadow = quality.shadows;
+    g.add(back);
+    const team = TEAMS[s < 0 ? 0 : 1];
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.4, ZL * 2), new THREE.MeshBasicMaterial({ color: team.color }));
+    trim.position.set(s * (X0 - 0.08), th - 0.15, 0);
+    g.add(trim);
+    addJumbotron(g, s, X0 + et * td + 1.6, H, trimMat);
+  }
   // Crowd: shirts + heads (two instanced meshes)
   const body = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.27, 0.45, 2, 6), new THREE.MeshLambertMaterial(), seats.length);
   const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshLambertMaterial(), seats.length);
@@ -246,6 +267,229 @@ function addFloodlights(g, spots, h) {
     beam.lookAt(x, h, z);
     beam.rotateX(Math.PI / 2);
     g.add(beam);
+  }
+}
+
+// ---------------------------------------------------------------- set dressing
+// One shared screen texture for every jumbotron: live score, flashes GOAL! after a goal
+const JUMBO = { canvas: null, tex: null, key: '' };
+function jumboTexture() {
+  if (!JUMBO.tex) {
+    JUMBO.canvas = document.createElement('canvas');
+    JUMBO.canvas.width = 1024; JUMBO.canvas.height = 420;
+    JUMBO.tex = new THREE.CanvasTexture(JUMBO.canvas);
+    JUMBO.tex.colorSpace = THREE.SRGBColorSpace;
+    drawJumbo([0, 0], -1);
+  }
+  return JUMBO.tex;
+}
+function drawJumbo(score, goalTeam) {
+  const key = `${score[0]}:${score[1]}:${goalTeam}`;
+  if (JUMBO.key === key || !JUMBO.canvas) return;
+  JUMBO.key = key;
+  const g = JUMBO.canvas.getContext('2d');
+  const W = 1024, Hh = 420;
+  const bg = g.createLinearGradient(0, 0, 0, Hh);
+  bg.addColorStop(0, '#221a40'); bg.addColorStop(1, '#120d24');
+  g.fillStyle = bg; g.fillRect(0, 0, W, Hh);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (goalTeam >= 0) {
+    const col = goalTeam === 0 ? '#ff3b5c' : '#3b8bff';
+    g.fillStyle = col; g.globalAlpha = 0.25; g.fillRect(0, 0, W, Hh); g.globalAlpha = 1;
+    for (let i = -2; i < 12; i++) { g.fillStyle = i % 2 ? col : 'rgba(255,255,255,0.08)'; g.beginPath(); g.moveTo(i * 110, Hh); g.lineTo(i * 110 + 60, Hh); g.lineTo(i * 110 + 180, 0); g.lineTo(i * 110 + 120, 0); g.fill(); }
+    g.font = "230px 'Lilita One', 'Arial Black', sans-serif";
+    g.lineWidth = 18; g.strokeStyle = '#120d24'; g.strokeText('GOAL!', W / 2, Hh / 2 + 10);
+    g.fillStyle = '#fbf6ec'; g.fillText('GOAL!', W / 2, Hh / 2 + 10);
+  } else {
+    g.fillStyle = '#ff3b5c';
+    g.beginPath(); g.moveTo(70, 90); g.lineTo(450, 90); g.lineTo(420, 330); g.lineTo(40, 330); g.fill();
+    g.fillStyle = '#3b8bff';
+    g.beginPath(); g.moveTo(604, 90); g.lineTo(984, 90); g.lineTo(954, 330); g.lineTo(574, 330); g.fill();
+    g.font = "210px 'Lilita One', 'Arial Black', sans-serif";
+    g.fillStyle = '#fbf6ec';
+    g.fillText(String(score[0]), 245, 220); g.fillText(String(score[1]), 779, 220);
+    g.fillRect(482, 200, 60, 18);
+    g.font = "bold 40px 'Roboto Condensed', 'Arial Narrow', sans-serif";
+    g.fillStyle = 'rgba(251,246,236,0.75)';
+    g.fillText('CRAZY SOCCER', W / 2, 46);
+    g.fillStyle = '#ffcf3f'; g.fillRect(W / 2 - 120, 372, 240, 8);
+  }
+  // LED scanlines
+  g.fillStyle = 'rgba(0,0,0,0.18)';
+  for (let y = 0; y < Hh; y += 6) g.fillRect(0, y, W, 2);
+  JUMBO.tex.needsUpdate = true;
+}
+
+function addJumbotron(g, s, x, standH, mat) {
+  const w = 22, h = 9;
+  const y = standH + 3 + h / 2;
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.2, h + 1.2, w + 1.2), new THREE.MeshLambertMaterial({ color: 0x15111f }));
+  frame.position.set(s * x, y, 0);
+  g.add(frame);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: jumboTexture(), fog: false }));
+  screen.position.set(s * (x - 0.62), y, 0);
+  screen.rotation.y = -s * Math.PI / 2;
+  g.add(screen);
+  const lip = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, w + 1.2), new THREE.MeshBasicMaterial({ color: 0xffcf3f }));
+  lip.position.set(s * (x - 0.7), y - h / 2 - 0.6, 0);
+  g.add(lip);
+  for (const z of [-w * 0.32, w * 0.32]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.7, y - h / 2, 0.7), mat);
+    leg.position.set(s * (x + 0.2), (y - h / 2) / 2, z);
+    g.add(leg);
+  }
+}
+
+// Waving flags on poles (team colours); the cloth is animated in Stadium.update
+function addFlags(g, spots) {
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0xd8d4e8 });
+  const flags = [];
+  spots.forEach(([x, y, z, team], i) => {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 6, 6), poleMat);
+    pole.position.set(x, y + 3, z);
+    g.add(pole);
+    const geo = new THREE.PlaneGeometry(3.2, 1.9, 10, 2);
+    geo.translate(1.6, 0, 0);
+    const mat = new THREE.MeshLambertMaterial({ color: team === 2 ? 0xffcf3f : TEAMS[team].color, side: THREE.DoubleSide });
+    const flag = new THREE.Mesh(geo, mat);
+    flag.position.set(x, y + 5, z);
+    flag.rotation.y = Math.atan2(z, -x) * 0 + (i % 2 ? 0.4 : -0.4);
+    g.add(flag);
+    flags.push({ geo, base: Float32Array.from(geo.attributes.position.array), ph: i * 1.7 });
+  });
+  return flags;
+}
+
+function waveFlags(flags, t) {
+  for (const f of flags) {
+    const p = f.geo.attributes.position.array, b = f.base;
+    for (let i = 0; i < p.length; i += 3) {
+      const u = b[i] / 3.2;
+      p[i + 2] = b[i + 2] + Math.sin(t * 5 + b[i] * 1.9 + f.ph) * 0.32 * u;
+      p[i + 1] = b[i + 1] - u * u * 0.25 + Math.sin(t * 3.3 + b[i] * 1.4 + f.ph) * 0.06 * u;
+    }
+    f.geo.attributes.position.needsUpdate = true;
+  }
+}
+
+// Flags along the top of the side stands and the end stands
+function flagSpots(standTop, endTop) {
+  const out = [];
+  const Z = FIELD.wallZ + 5.5 + 5 * 2.1 + 0.4;
+  for (const s of [-1, 1]) for (let k = -3; k <= 3; k++) out.push([k * 14, standTop, s * Z, k === 0 ? 2 : k < 0 ? 0 : 1]);
+  const X = FIELD.wallX + 5 + 4 * 2.1 + 0.4;
+  for (const s of [-1, 1]) for (const z of [-24, 24]) out.push([s * X, endTop, z, s < 0 ? 0 : 1]);
+  return out;
+}
+
+// Slow drifting motes in the low sun (pollen on the cliffs, dust in the canyon)
+function addMotes(g, color, n) {
+  const pos = new Float32Array(n * 3);
+  const rnd = seeded(91);
+  for (let i = 0; i < n; i++) { pos[i * 3] = (rnd() - 0.5) * 150; pos[i * 3 + 1] = 0.5 + rnd() * 22; pos[i * 3 + 2] = (rnd() - 0.5) * 95; }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color, size: 0.35, map: TX.glowTexture(), transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
+  g.add(pts);
+  return pts;
+}
+
+function driftMotes(pts, dt, t) {
+  const p = pts.geometry.attributes.position.array;
+  for (let i = 0; i < p.length; i += 3) {
+    p[i] += (1.2 + Math.sin(t * 0.3 + i) * 0.6) * dt;
+    p[i + 1] += Math.sin(t * 0.8 + i * 0.37) * 0.25 * dt;
+    if (p[i] > 75) p[i] -= 150;
+  }
+  pts.geometry.attributes.position.needsUpdate = true;
+}
+
+// Layered mountain ranges around the cliff island: each layer further out is paler (aerial haze)
+function addMountains(g, rnd) {
+  const layers = [
+    { r: 250, n: 16, h: [40, 80], w: [26, 44], color: 0x6f86c4 },
+    { r: 305, n: 20, h: [60, 120], w: [34, 60], color: 0x95a6d8 },
+    { r: 350, n: 22, h: [80, 150], w: [40, 70], color: 0xb8c2e6 },
+  ];
+  const snow = new THREE.MeshLambertMaterial({ color: 0xf4f2ff, flatShading: true, fog: false });
+  for (const L of layers) {
+    const mat = new THREE.MeshLambertMaterial({ color: L.color, flatShading: true, fog: false });
+    for (let i = 0; i < L.n; i++) {
+      const a = (i / L.n) * Math.PI * 2 + rnd() * 0.25;
+      const h = L.h[0] + rnd() * (L.h[1] - L.h[0]), w = L.w[0] + rnd() * (L.w[1] - L.w[0]);
+      const m = new THREE.Mesh(new THREE.ConeGeometry(w, h, 5 + Math.floor(rnd() * 3), 1), mat);
+      const r = L.r + rnd() * 25;
+      m.position.set(Math.cos(a) * r, -22 + h / 2, Math.sin(a) * r);
+      m.rotation.y = rnd() * 3;
+      m.scale.z = 0.7 + rnd() * 0.5;
+      g.add(m);
+      if (h > 95) {
+        const cap = new THREE.Mesh(new THREE.ConeGeometry(w * 0.28, h * 0.28, m.geometry.parameters.radialSegments, 1), snow);
+        cap.position.set(0, h * 0.36 + 0.5, 0);
+        cap.scale.set(1.04, 1, 1.04);
+        m.add(cap);
+      }
+    }
+  }
+}
+
+// Flat-topped sandstone mesas with banded strata
+function addMesas(g, rnd) {
+  const strata = [0xa4512f, 0xc8693c, 0xb85b34, 0xd98a52];
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2 + rnd() * 0.3;
+    const r = 175 + rnd() * 130;
+    const R = 16 + rnd() * 26, H = 22 + rnd() * 40;
+    const mesa = new THREE.Group();
+    const bands = 3 + Math.floor(rnd() * 2);
+    let y = 0;
+    for (let b = 0; b < bands; b++) {
+      const bh = H / bands;
+      const rr = R * (1 - b * 0.07);
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(rr * 0.97, rr, bh, 7, 1), new THREE.MeshLambertMaterial({ color: strata[(b + i) % strata.length], flatShading: true }));
+      m.position.y = y + bh / 2;
+      mesa.add(m);
+      y += bh;
+    }
+    // scree slope at the base
+    const scree = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.05, R * 1.5, H * 0.3, 7, 1), new THREE.MeshLambertMaterial({ color: 0xd8a06a, flatShading: true }));
+    scree.position.y = H * 0.15;
+    mesa.add(scree);
+    mesa.position.set(Math.cos(a) * r, -1, Math.sin(a) * r);
+    mesa.rotation.y = rnd() * 3;
+    mesa.scale.z = 0.6 + rnd() * 0.6;
+    g.add(mesa);
+  }
+}
+
+// Saguaro cacti dotted between the dunes
+function addCacti(g, rnd, clear) {
+  const mat = new THREE.MeshToonMaterial({ color: 0x4f8f4a });
+  const trunkGeo = new THREE.CapsuleGeometry(0.75, 6, 3, 8);
+  const armGeo = new THREE.CapsuleGeometry(0.5, 2.6, 3, 8);
+  const elbowGeo = new THREE.CapsuleGeometry(0.5, 1.4, 3, 8);
+  for (let i = 0; i < 34; i++) {
+    const a = rnd() * Math.PI * 2, r = 72 + rnd() * 90;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (clear(x, z)) continue;
+    const c = new THREE.Group();
+    const trunk = new THREE.Mesh(trunkGeo, mat);
+    trunk.position.y = 3.6;
+    c.add(trunk);
+    const arms = 1 + Math.floor(rnd() * 2);
+    for (let k = 0; k < arms; k++) {
+      const side = k === 0 ? 1 : -1, hy = 2.6 + rnd() * 2;
+      const el = new THREE.Mesh(elbowGeo, mat);
+      el.rotation.z = Math.PI / 2;
+      el.position.set(side * 1.1, hy, 0);
+      const up = new THREE.Mesh(armGeo, mat);
+      up.position.set(side * 1.9, hy + 1.5, 0);
+      c.add(el, up);
+    }
+    c.position.set(x, 0, z);
+    c.rotation.y = rnd() * 3;
+    c.scale.setScalar(0.8 + rnd() * 0.7);
+    g.add(c);
   }
 }
 
@@ -331,6 +575,7 @@ function buildOutdoor(root, quality) {
     const r = IR - 10 + rnd() * 8;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     if (Math.abs(x) < FIELD.wallX + 4 && Math.abs(z) < FIELD.wallZ + 4) continue;
+    if (Math.abs(x) < FIELD.wallX + 19 && Math.abs(z) < FIELD.wallZ - 2) continue; // end stands
     const tree = new THREE.Group();
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 5, 6), trunkMat);
     trunk.position.y = 2.5;
@@ -358,7 +603,10 @@ function buildOutdoor(root, quality) {
     p.castShadow = quality.shadows;
     g.add(p);
   }
+  addMountains(g, rnd);
   g.userData.crowd = buildStands(g, { stand: 0x4a4466, trim: 0x2a2440, fill: 0.86, seed: 11 }, quality);
+  g.userData.flags = addFlags(g, flagSpots(5 * 1.1 + 5, 4 * 1.1 + 2.5));
+  if (!quality.perf) g.userData.motes = addMotes(g, 0xfff0c0, 260);
   addFloodlights(g, [[-FIELD.wallX - 3.5, -FIELD.wallZ - 3.5], [FIELD.wallX + 3.5, -FIELD.wallZ - 3.5], [-FIELD.wallX - 3.5, FIELD.wallZ + 3.5], [FIELD.wallX + 3.5, FIELD.wallZ + 3.5]], 25.5);
   // Outer floor between wall and plateau edge
   const outer = new THREE.Mesh(new THREE.RingGeometry(Math.hypot(FIELD.wallX, FIELD.wallZ) - 6, IR + 0.5, 48), new THREE.MeshLambertMaterial({ color: 0x4f9a3f }));
@@ -444,8 +692,12 @@ function buildDesert(root, quality) {
     g.add(d);
   }
   // Crystal clusters
-  const crystalMats = [new THREE.MeshToonMaterial({ color: 0x8a6bd8 }), new THREE.MeshToonMaterial({ color: 0xb49cf0 }), new THREE.MeshToonMaterial({ color: 0x6b4fb0 })];
-  const clear = (x, z) => Math.abs(x) < FIELD.wallX + 14 && Math.abs(z) < FIELD.wallZ + 20; // keep the stands area free
+  // Crystals glow from inside as the sun goes down
+  const crystalMats = [0x8a6bd8, 0xb49cf0, 0x6b4fb0].map((c) => new THREE.MeshToonMaterial({ color: c, emissive: 0x6a3cff, emissiveIntensity: 0.45 }));
+  const crystalGlow = new THREE.SpriteMaterial({ map: TX.glowTexture(), color: 0xa070ff, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending });
+  const clear = (x, z) => Math.abs(x) < FIELD.wallX + 20 && Math.abs(z) < FIELD.wallZ + 20; // keep the stands area free
+  addMesas(g, rnd);
+  addCacti(g, rnd, clear);
   for (let i = 0; i < 18; i++) {
     const a = rnd() * Math.PI * 2, r = 70 + rnd() * 60;
     if (clear(Math.cos(a) * r, Math.sin(a) * r)) continue;
@@ -457,6 +709,10 @@ function buildDesert(root, quality) {
       sh.rotation.set((rnd() - 0.5) * 0.7, rnd() * 3, (rnd() - 0.5) * 0.7);
       cl.add(sh);
     }
+    const glow = new THREE.Sprite(crystalGlow);
+    glow.position.y = 6;
+    glow.scale.set(26, 26, 1);
+    cl.add(glow);
     cl.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
     g.add(cl);
   }
@@ -483,6 +739,8 @@ function buildDesert(root, quality) {
     g.add(p);
   }
   g.userData.crowd = buildStands(g, { stand: 0xb07a4e, trim: 0x6b3f22, fill: 0.82, seed: 23 }, quality);
+  g.userData.flags = addFlags(g, flagSpots(5 * 1.1 + 5, 4 * 1.1 + 2.5));
+  if (!quality.perf) g.userData.motes = addMotes(g, 0xffc890, 220);
   addFloodlights(g, [[-FIELD.wallX - 3.5, -FIELD.wallZ - 3.5], [FIELD.wallX + 3.5, -FIELD.wallZ - 3.5], [-FIELD.wallX - 3.5, FIELD.wallZ + 3.5], [FIELD.wallX + 3.5, FIELD.wallZ + 3.5]], 23);
   return g;
 }
@@ -615,6 +873,10 @@ export class Stadium {
   flashGoal(side) {
     const g = this.goals.find((x) => x.side === side);
     if (g) g.flash = 1.6;
+    // side +1 is the blue end, so a goal there was scored by red
+    this.goalTeam = side > 0 ? 0 : 1;
+    this.goalT = 4;
+    drawJumbo(this.lastScore || [0, 0], this.goalTeam);
     for (const grp of [this.outdoor, this.desert]) if (grp.userData.crowd) grp.userData.crowd.hype = 4;
   }
 
@@ -636,9 +898,22 @@ export class Stadium {
     c.dirty = c.hype > 0;
   }
 
+  // Jumbotrons: the live score, or GOAL! for a few seconds after a goal
+  setScore(score) {
+    if (!score) return;
+    drawJumbo(score, this.goalT > 0 ? this.goalTeam : -1);
+    this.lastScore = score;
+  }
+
   update(dt, cam) {
     this.time += dt;
     this.animateCrowd(dt);
+    if (this.goalT > 0) { this.goalT -= dt; if (this.goalT <= 0 && this.lastScore) drawJumbo(this.lastScore, -1); }
+    const grp = this.variant === 'desert' ? this.desert : this.variant === 'grass' ? this.outdoor : null;
+    if (grp) {
+      if (grp.userData.flags) waveFlags(grp.userData.flags, this.time);
+      if (grp.userData.motes) driftMotes(grp.userData.motes, dt, this.time);
+    }
     for (const g of this.goals) {
       if (g.flash > 0) g.flash -= dt;
       const f = Math.max(0, g.flash);

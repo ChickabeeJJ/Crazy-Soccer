@@ -557,13 +557,14 @@ export class Session {
         cb.vx = lerp(cb.vx, ghost.vx, 0.3); cb.vy = lerp(cb.vy, ghost.vy, 0.3); cb.vz = lerp(cb.vz, ghost.vz, 0.3);
       }
       // Predict our own pickup
-      if (me && this.view.phase === 'play' && me.stun <= 0 && canAct(me) && srvOwner < 0 && sb[9] < 0) {
+      if (me && this.view.phase === 'play' && me.stun <= 0 && canAct(me) && srvOwner < 0 && sb[9] < 0 && !sb[13]) {
         const d = len2(cb.x - me.x, cb.z - me.z);
         const spd = Math.hypot(cb.vx, cb.vy, cb.vz);
         if (d < PLAYER.pickupReach * 0.9 && cb.y < 1.4 && spd < 22 && this.ownKickT <= -0.1) this.predOwnT = 0.45;
       }
     }
     cb.fire = !!sb[7];
+    cb.phase = sb[13] ? 1 : null;
     cb.grapple = sb[9];
     cb.held = !!sb[10] && cb.owner === srvOwner;
     cb.holdT = sb[11] || 0;
@@ -601,7 +602,7 @@ export class Session {
     const mine = cb.owner === this.localId || this.predOwnT > 0;
     const near = len2(cb.x - p.x, cb.z - p.z) < KICK.hitRange && cb.y < 2.6 + p.y && (cb.owner < 0 || mine);
     const rel = cb.y - (p.y || 0);
-    const volleyable = cb.owner < 0 && cb.y > 1.05 && rel > 0.3 && rel < KICK.volleyReachUp && len2(cb.x - p.x, cb.z - p.z) < KICK.volleyReachH;
+    const volleyable = cb.owner < 0 && !cb.phase && cb.y > 1.05 && rel > 0.3 && rel < KICK.volleyReachUp && len2(cb.x - p.x, cb.z - p.z) < KICK.volleyReachH;
     const launch = (kind, fire) => {
       const k = kickVelocity(p, act, v.players, fire);
       if (mine) { cb.x = p.x + Math.sin(p.face) * PLAYER.dribbleDist; cb.z = p.z + Math.cos(p.face) * PLAYER.dribbleDist; cb.y = cb.held ? p.y + 1.35 : PHYS.ballR + p.y; cb.held = false; }

@@ -5,6 +5,7 @@ import { CharacterModel } from './character.js';
 import { BallMesh } from './ballmesh.js';
 import { VFX } from './vfx.js';
 import { CameraRig } from './camera.js';
+import { AwardStage } from './awards.js';
 import * as TX from './textures.js';
 import { TEAMS, ITEMS, PHYS, FIELD, QUICK_CHAT } from '../config.js';
 import { clamp, len2, lerp } from '../util/math.js';
@@ -109,6 +110,7 @@ export class GameRenderer {
     this.showChat = true;
     this.showNames = true;
     this.menuChar = null;
+    this.awards = new AwardStage(this);
     this.resize();
   }
 
@@ -373,6 +375,8 @@ export class GameRenderer {
     if (frame) { [bx, by, bz] = frame.b; bfire = !!frame.b[4]; }
     const prev = this.ball.root.position.clone();
     this.ball.root.position.set(bx, by, bz);
+    this.ball.setGhost(!frame && !!b.phase);
+    if (!frame && b.phase && Math.random() < 0.6) this.vfx.trail(bx, by, bz, 0xffffff, 0.9);
     const vx = (bx - prev.x) / Math.max(dt, 0.001), vz = (bz - prev.z) / Math.max(dt, 0.001);
     if (Math.abs(vx) < 80 && Math.abs(vz) < 80) this.ball.roll(vx, vz, dt);
     const bspeed = Math.hypot(vx, (by - prev.y) / Math.max(dt, 0.001), vz);
@@ -494,6 +498,7 @@ export class GameRenderer {
       pos.needsUpdate = true;
     }
 
+    this.stadium.setScore(view.score);
     this.stadium.update(dt, this.cam.position);
     this.vfx.update(dt);
   }
@@ -690,7 +695,20 @@ export class GameRenderer {
 
   resetMenuEmote() { this.menuEmoteT = 0; }
 
+  // The award stage replaces the match on screen: hide every player, the ball and the props
+  setWorldVisible(on) {
+    for (const c of this.chars.values()) {
+      for (const o of [c.own, c.tag, c.bubble, c.bang, c.stars, c.shield, c.ice]) o.visible = false;
+      for (const o of [c.model.root, c.ring, c.blob]) o.visible = on;
+    }
+    for (const o of [this.ball.root, this.ballShadow]) o.visible = on;
+    for (const map of [this.boxes, this.puddles, this.projs, this.walls, this.targets]) for (const m of map.values()) m.visible = on;
+    for (const g of this.grapples) g.line.visible = on;
+    if (!on) { this.marker.visible = false; this.carrierMarker.visible = false; this.aimPivot.visible = false; this.chargeSprite.visible = false; this.syncTrajectory(null); this.syncOtherAim(null); }
+  }
+
   clearWorld() {
+    this.awards.stop();
     if (this.menuChar) this.menuChar.root.visible = false; // the lobby hero must never appear in a match
     for (const id of [...this.chars.keys()]) this.removeChar(id);
     for (const map of [this.boxes, this.puddles, this.projs, this.walls, this.targets]) { for (const m of map.values()) m.removeFromParent(); map.clear(); }

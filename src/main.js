@@ -2,6 +2,7 @@ import './ui/style.css';
 import { SDK } from './sdk.js';
 import { Save } from './save.js';
 import { GameRenderer } from './render/renderer.js';
+import { pickAwards } from './render/awards.js';
 import { Input } from './input.js';
 import { Audio } from './audio.js';
 import { UI } from './ui/ui.js';
@@ -12,7 +13,7 @@ import { Training, TRAINING_INFO } from './game/training.js';
 import { Net, randomCode, roomPeerId, prewarmNet } from './net/net.js';
 import { GAME_VERSION, TEAMS, QUICK_CHAT, ITEMS, MATCH, PLAYER, KICK, FIELD } from './config.js';
 import { CATALOG } from './cosmetics.js';
-import { clamp, len2 } from './util/math.js';
+import { clamp, len2, wrapAngle } from './util/math.js';
 import * as THREE from 'three';
 
 const $ = (id) => document.getElementById(id);
@@ -723,8 +724,10 @@ class App {
     this.pendingResults = { coins, xp, outcome, doubled: false };
     this.ui.announce(outcome === 'win' ? 'VICTORY!' : outcome === 'lose' ? 'FULL TIME' : 'DRAW', `${ev.score[0]} – ${ev.score[1]}`);
     if (outcome === 'win') SDK.happytime();
-    setTimeout(() => {
+    const results = () => {
       if (this.session !== s || this.state !== 'game') return;
+      document.body.classList.remove('awards');
+      this.renderer.awards.hideCards();
       this.input.exitLock();
       this.ui.showResults({
         outcome, score: ev.score, mvp: mvpRow ? mvpRow.name : '', stats: row, coins, xp,
@@ -735,7 +738,24 @@ class App {
       this.ui.refreshProfile();
       SDK.gameplayStop();
       if (s.net) this.midgameAd();
-    }, 2600);
+    };
+    // Award stage first: the standout players on the podium, then the results card
+    setTimeout(() => {
+      if (this.session !== s || this.state !== 'game') return;
+      const picks = pickAwards(ev.stats || [], ev.mvp);
+      if (!picks.length || !picks[0]) { results(); return; }
+      this.input.exitLock();
+      document.body.classList.add('awards');
+      const entries = picks.map(({ row, awards }) => {
+        const p = s.playerById(row.id);
+        return { id: row.id, name: row.name, team: row.team, cos: p && p.cos ? p.cos : this.cos(), awards };
+      });
+      this.renderer.awards.start(entries, {
+        onReveal: (i, mvp) => { if (mvp) { this.audio.cheer(1.4); this.audio.goalHorn(); } else this.audio.cheer(0.5); },
+        onDone: results,
+        score: ev.score,
+      });
+    }, 2400);
   }
 
   showHint(html, secs = 5) {
@@ -786,7 +806,7 @@ class App {
     const touch = SDK.isMobile;
     if (inp.wasPressed('unlock') && inp.locked) inp.exitLock();
     const active = !this.ui.anyModal() && (inp.locked || touch || this.lockFailed) && !this.adPlaying;
-    this.ui.clickToPlay(!touch && !this.lockFailed && !inp.locked && !this.ui.anyModal() && !this.wheelOpen);
+    this.ui.clickToPlay(!touch && !this.lockFailed && !inp.locked && !this.ui.anyModal() && !this.wheelOpen && !this.renderer.awards.active);
 
     // Camera
     if (active || inp.dragging) {
@@ -795,6 +815,14 @@ class App {
       rig.pitch += inp.mdy * k * (settings.invertY ? -1 : 1);
       rig.setPitchLimits();
       rig.dist = clamp(rig.dist + inp.wheel * 0.8, 5, 15);
+    }
+    // Goalkeepers in their box always look out at the pitch: the camera can't swing round behind the
+    // goal, so the posts and net never block the view
+    if (me && me.keeper && inOwnBox(me, 1) && s.view.phase !== 'replay') {
+      const fwdYaw = me.team === 0 ? Math.PI / 2 : -Math.PI / 2;
+      const d = wrapAngle(rig.yaw - fwdYaw);
+      const lim = 1.1;
+      if (Math.abs(d) > lim) rig.yaw = fwdYaw + Math.sign(d) * lim;
     }
     // Movement
     let fwd = 0, right = 0, sprint = false;
@@ -892,8 +920,12 @@ class App {
     let kickerTeam = -1;
     if (ball && ball.lastTeam !== undefined && s.isAuthority) kickerTeam = ball.lastTeam;
     else if (ball && ball.owner < 0) { const k = s.playerById(this.lastKicker); kickerTeam = k ? k.team : -1; }
-    this.renderer.syncWorld(v, s.localId, dt, { replay: frame, replaySpeed: 0.9, kickerTeam });
-    if (frame) {
+    const staging = this.renderer.awards.active;
+    if (staging) this.renderer.awards.update(dt);
+    else this.renderer.syncWorld(v, s.localId, dt, { replay: frame, replaySpeed: 0.9, kickerTeam });
+    if (staging) {
+      // the award stage drives the camera
+    } else if (frame) {
       const lg = s.world ? s.world.lastGoal : null;
       const side = lg ? (lg.team === 0 ? 1 : -1) : (frame.b[0] > 0 ? 1 : -1);
       if (progress < 0.02) rig.replayStyle = (rig.replayStyle || 0) + (this._lastReplay !== this.replayStart ? 1 : 0);
@@ -902,8 +934,10 @@ class App {
     } else if (me) {
       rig.follow(dt, me.x, me.y || 0, me.z);
     }
-    this.renderer.syncAim(me, rig.yaw, !!(me && me.charging && !frame), me ? me.charge : 0);
-    this.updateTrajectory(s, me, frame, shotAim, settings.autoCurve ? right : 0);
+    if (!staging) {
+      this.renderer.syncAim(me, rig.yaw, !!(me && me.charging && !frame), me ? me.charge : 0);
+      this.updateTrajectory(s, me, frame, shotAim, settings.autoCurve ? right : 0);
+    }
 
     // HUD
     const hasBall = s.hasBall();
@@ -937,7 +971,7 @@ class App {
   }
 
   canVolley(me, b) {
-    if (!me || !b || b.owner >= 0 || b.grapple >= 0) return false;
+    if (!me || !b || b.owner >= 0 || b.grapple >= 0 || b.phase) return false;
     const rel = b.y - (me.y || 0);
     return b.y > 1.05 && rel > 0.3 && rel < KICK.volleyReachUp && len2(b.x - me.x, b.z - me.z) < KICK.volleyReachH;
   }

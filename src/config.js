@@ -73,6 +73,7 @@ export const KICK = {
   diveCooldown: 1.6,
   dribbleCooldown: 1.5,
   jumpSpeed: 12.5,
+  phaseR: 7, // a fresh shot passes through outfield players within this distance of where it was kicked
   gkStunSpeed: 15, // a keeper's throw/punt only bowls rivals over while the ball is this fast
   bikeHold: 0.9, // bicycle kick: max seconds you hang in the air aiming (release Kick to shoot sooner)
   bikeBallY: 3.8, // the ball floats up to at least this height during the hang (player hangs ~1.9 m below it)

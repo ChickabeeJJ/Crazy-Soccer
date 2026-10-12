@@ -80,11 +80,19 @@ export class BallMesh {
     this.axis = new THREE.Vector3();
   }
 
+  // Shot phasing: the ball goes slightly see-through while it passes through players
+  setGhost(on) {
+    if (this.ghost === on) return;
+    this.ghost = on;
+    for (const o of this.root.children) { o.material.transparent = on; o.material.opacity = on ? 0.5 : 1; o.material.needsUpdate = true; }
+  }
+
   setSkin(id) {
     if (id === this.skin) return;
     this.skin = id;
     this.mesh.material.dispose();
     this.mesh.material = makeBallMaterial(id);
+    if (this.ghost) { this.ghost = false; this.setGhost(true); }
   }
 
   // Roll the ball according to its velocity

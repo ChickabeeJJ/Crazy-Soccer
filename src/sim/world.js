@@ -333,6 +333,7 @@ export class World {
     b.pass = null;
     b.gkThrow = null;
     b.bike = -1;
+    b.phase = null;
     b.owner = p.id;
     // A keeper in the box catches the ball in their hands (max KICK.keeperHold seconds)
     b.held = !!(p.keeper && this.inOwnBox(p, 0.6));
@@ -392,6 +393,8 @@ export class World {
     b.inNet = 0;
     b._netEv = false;
     b.kicker = p.id;
+    // Shot phasing: nobody can block a shot point-blank; it passes through outfield players near the kicker
+    b.phase = (kind === 'shot' || kind === 'lob') && Math.hypot(vx, vz) > 14 ? { x: b.x, z: b.z } : null;
     this.touch(p);
     b.shot = null;
     b.pass = kind === 'pass' || kind === 'lob' ? { from: p.id, team: p.team, t: this.time } : null;
@@ -411,7 +414,7 @@ export class World {
   // A free ball in the air close to you can be volleyed (jumping raises your reach)
   canVolley(p) {
     const b = this.ball;
-    if (b.owner >= 0 || b.grapple >= 0) return false;
+    if (b.owner >= 0 || b.grapple >= 0 || b.phase) return false; // shots can only be volleyed once clear of the kicker
     const rel = b.y - (p.y || 0);
     return b.y > 1.05 && rel > 0.3 && rel < KICK.volleyReachUp && len2(b.x - p.x, b.z - p.z) < KICK.volleyReachH;
   }
@@ -966,10 +969,13 @@ export class World {
     }
     if (b.grapple >= 0 || b.bike >= 0) return;
 
+    // Shot phasing ends once the ball is clear of the kicker's zone (or has slowed right down)
+    if (b.phase && (len2(b.x - b.phase.x, b.z - b.phase.z) > KICK.phaseR || len2(b.vx, b.vz) < 12)) b.phase = null;
     // Free ball: pickups, deflections, keeper catches
     let best = null, bestD = 1e9;
     for (const p of this.players) {
       if (p.left || p.stun > 0 || p.anim === 'frozen' || p.anim === 'getup') continue;
+      if (b.phase && !this.keeperInBox(p)) continue; // passes straight through outfield players
       if (b.block === p.id) continue;
       if (b.gkThrow && b.gkThrow.team !== p.team && len2(b.vx, b.vz) >= KICK.gkStunSpeed) continue; // too fast to control: they get bowled over instead
       const dx = b.x - p.x, dz = b.z - p.z;
@@ -978,9 +984,10 @@ export class World {
       const diving = p.anim === 'dive';
       const keeper = this.keeperInBox(p) && (this.mode !== 'practice' || !p.isBot);
       const airborne = p.y > 0.25 && p.fx.jet <= 0;
-      const reach = diving ? 2.4 : p.anim === 'slide' ? 1.95 : airborne ? 1.8 : PLAYER.pickupReach;
-      const maxH = diving ? 3.6 : keeper ? 2.9 : airborne ? 2.2 : 1.55;
-      const maxSpeed = diving ? 80 : keeper ? 34 : p.anim === 'slide' ? 30 : airborne ? 30 : 25;
+      // Keepers get a big catch box and hold on to anything but a supercharged ball
+      const reach = diving ? 3.0 : keeper ? 2.5 : p.anim === 'slide' ? 1.95 : airborne ? 1.8 : PLAYER.pickupReach;
+      const maxH = diving ? 3.9 : keeper ? 3.4 : airborne ? 2.2 : 1.55;
+      const maxSpeed = diving || keeper ? 90 : p.anim === 'slide' ? 30 : airborne ? 30 : 27;
       if (d < reach && rel < maxH && rel > -0.8) {
         if (speed < maxSpeed && !(b.fire && (diving || keeper) && speed > 20)) {
           if (d < bestD) { best = p; bestD = d; }
@@ -1267,7 +1274,7 @@ export class World {
       sc: this.score,
       ot: this.overtime ? 1 : this.lastChance ? 2 : 0,
       mp: this.map,
-      b: [r2(b.x), r2(b.y), r2(b.z), r2(b.vx), r2(b.vy), r2(b.vz), b.owner, b.fire ? 1 : 0, r2(b.spin % 100), b.grapple, b.held ? 1 : 0, r2(b.holdT || 0), b.bike ?? -1],
+      b: [r2(b.x), r2(b.y), r2(b.z), r2(b.vx), r2(b.vy), r2(b.vz), b.owner, b.fire ? 1 : 0, r2(b.spin % 100), b.grapple, b.held ? 1 : 0, r2(b.holdT || 0), b.bike ?? -1, b.phase ? 1 : 0],
       p: this.players.map((p) => [
         p.id, r2(p.x), r2(p.y), r2(p.z), r2(p.vx), r2(p.vz), r2(p.face),
         ANIM_INDEX[p.anim] ?? 0, r2(p.animT), r2(p.stamina), r2(p.charge),
