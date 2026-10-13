@@ -560,14 +560,15 @@ export class World {
         if (this.keeperInBox(p)) {
           if (p.cd.dive > 0) return;
           p.cd.dive = KICK.diveCooldown;
-          // Dive toward the ball if it's roughly ahead, else in move direction
+          // A clear directional input wins; otherwise dive toward the ball.
+          // This makes deliberate near-post and cross-goal saves more predictable.
           let dx = b.x - p.x, dz = b.z - p.z;
           let dl = len2(dx, dz);
-          if (ml > 0.2 && (dl > 12 || dl < 0.5)) { dx = mx; dz = mz; dl = ml; }
+          if (ml > 0.2) { dx = mx; dz = mz; dl = ml; }
           if (dl < 0.01) { dx = Math.sin(p.face); dz = Math.cos(p.face); dl = 1; }
           p.slideX = dx / dl; p.slideZ = dz / dl;
           p.face = Math.atan2(p.slideX, p.slideZ);
-          p.vy = 6;
+          p.vy = 7.2;
           setAnim(p, 'dive', KICK.diveTime);
           this.emit({ e: 'dive', id: p.id });
           return;
@@ -1082,8 +1083,8 @@ export class World {
       const keeper = this.keeperInBox(p) && (this.mode !== 'practice' || !p.isBot);
       const airborne = p.y > 0.25 && p.fx.jet <= 0;
       // Keepers get a big catch box and hold on to anything but a supercharged ball
-      const reach = diving ? 3.0 : keeper ? 2.5 : p.anim === 'slide' ? 1.95 : airborne ? 1.8 : PLAYER.pickupReach;
-      const maxH = diving ? 3.9 : keeper ? 3.4 : airborne ? 2.2 : 1.55;
+      const reach = diving ? 3.8 : keeper ? 2.7 : p.anim === 'slide' ? 1.95 : airborne ? 1.8 : PLAYER.pickupReach;
+      const maxH = diving ? 4.6 : keeper ? 3.6 : airborne ? 2.2 : 1.55;
       const maxSpeed = diving || keeper ? 90 : p.anim === 'slide' ? 30 : airborne ? 30 : 27;
       if (d < reach && rel < maxH && rel > -0.8) {
         if (speed < maxSpeed && !(b.fire && (diving || keeper) && speed > 20)) {
