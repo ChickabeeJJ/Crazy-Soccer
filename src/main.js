@@ -167,6 +167,8 @@ class App {
 
   // ================================================================== menu
   showMenu(page) {
+    // Close any chat/emote wheel before leaving gameplay for the menu.
+    this.ui.closeWheel();
     this.state = 'menu';
     this.ui.screen('menu', true);
     this.ui.setPage(page || this.ui.page || 'play');
