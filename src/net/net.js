@@ -313,9 +313,15 @@ export class Net {
     this.cpeer = null;
   }
 
-  close() {
+  // Retire an ended host room: reject new joins immediately, but let the final
+  // score/events drain over existing data channels before disconnecting everyone.
+  retire() {
     if (this.closed) return;
     this.closed = true;
+    setTimeout(() => this.finishClose(), 300);
+  }
+
+  finishClose() {
     try {
       if (this.hostConn) { this.hostConn.send({ t: 'bye' }); this.hostConn.close(); }
     } catch (e) { /* ignore */ }
@@ -323,5 +329,11 @@ export class Net {
     this.conns.clear();
     this.hostConn = null;
     setTimeout(() => this.destroyPeer(), 200);
+  }
+
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.finishClose();
   }
 }
