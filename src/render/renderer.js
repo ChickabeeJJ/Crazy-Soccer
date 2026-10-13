@@ -6,6 +6,7 @@ import { BallMesh } from './ballmesh.js';
 import { VFX } from './vfx.js';
 import { CameraRig } from './camera.js';
 import { AwardStage } from './awards.js';
+import { MenuCrew } from './menucrew.js';
 import * as TX from './textures.js';
 import { TEAMS, ITEMS, PHYS, FIELD, QUICK_CHAT } from '../config.js';
 import { clamp, len2, lerp, wrapAngle } from '../util/math.js';
@@ -299,6 +300,7 @@ export class GameRenderer {
   syncWorld(view, localId, dt, opts = {}) {
     this.time += dt;
     if (this.menuChar) this.menuChar.root.visible = false;
+    if (this.crew) this.crew.setVisible(false);
     const frame = opts.replay;
     const ballOwner = frame ? -2 : view.ball.owner;
     const seen = new Set();
@@ -726,6 +728,7 @@ export class GameRenderer {
   clearWorld() {
     this.awards.stop();
     if (this.menuChar) this.menuChar.root.visible = false; // the lobby hero must never appear in a match
+    if (this.crew) this.crew.setVisible(false);
     for (const id of [...this.chars.keys()]) this.removeChar(id);
     for (const map of [this.boxes, this.puddles, this.projs, this.walls, this.targets]) { for (const m of map.values()) m.removeFromParent(); map.clear(); }
     for (const g of this.grapples) g.line.removeFromParent();
@@ -746,6 +749,7 @@ export class GameRenderer {
       this.marker.visible = false; this.carrierMarker.visible = false; this.aimPivot.visible = false; this.chargeSprite.visible = false;
       // Elliptical path that stays inside the arena (never clips through the hills outside)
       this.rig.orbit(dt, 0, 0, 0, 40, 17, 0.045, 0, 22);
+      this.updateCrew(dt);
       this.rig.shift = undefined;
       this.stadium.update(dt, this.cam.position);
       this.vfx.update(dt);
@@ -764,8 +768,18 @@ export class GameRenderer {
     this.aimPivot.visible = false;
     this.chargeSprite.visible = false;
     this.rig.showcase(dt, ch.position.x, ch.position.z, ch.rotation.y, 0, shift);
+    this.updateCrew(dt, ch);
     this.stadium.update(dt, this.cam.position);
     this.vfx.update(dt);
+  }
+
+  // Teammates warming up in the background of every menu page
+  updateCrew(dt, hero) {
+    if (!this.crew) this.crew = new MenuCrew(this.scene, this.quality);
+    if (hero) this.crewAnchor = { x: hero.position.x, z: hero.position.z, yaw: hero.rotation.y };
+    const a = this.crewAnchor || { x: -30, z: 0, yaw: Math.PI / 2 + 0.5 };
+    this.crew.setVisible(true);
+    this.crew.update(dt, a, a.yaw);
   }
 
   render() {
