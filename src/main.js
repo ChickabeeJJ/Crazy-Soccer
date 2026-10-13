@@ -929,7 +929,8 @@ class App {
   // One curve action for both manual and auto curve: lateral mouse movement bends the shot.
   // Movement keys never affect curve strength.
   shotCurve() {
-    return clamp(this.curveAmt || 0, -1, 1);
+    // Reverse the old left/right curve response while keeping the meter and preview aligned.
+    return -clamp(this.curveAmt || 0, -1, 1);
   }
 
   updateGame(dt) {
