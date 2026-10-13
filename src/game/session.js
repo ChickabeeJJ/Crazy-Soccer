@@ -137,6 +137,9 @@ export class Session {
   bindHostNet() {
     const net = this.net;
     net.on('hello', (peerId, msg) => {
+      // A finished room must not accept newcomers; Quick Match should keep searching.
+      // The host can still start a rematch, which replaces the world and clears this state.
+      if (!this.world || this.world.phase === 'end' || this.ended) return { t: 'reject', why: 'ended' };
       if (msg.ver !== GAME_VERSION) return { t: 'reject', why: 'version' };
       if (this.world.humans().length >= MAX_HUMANS) return { t: 'full', why: 'full' };
       const id = this.nextHumanId++;
