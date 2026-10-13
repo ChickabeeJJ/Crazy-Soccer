@@ -392,7 +392,7 @@ class App {
     const net = new Net();
     this.net = net;
     let res;
-    try { res = await withTimeout(net.joinPrivate(code, this.hello()), 12000); } catch (e) { res = { ok: false, why: 'timeout' }; }
+    try { res = await withTimeout(net.joinPrivate(code, this.hello()), 32000); } catch (e) { res = { ok: false, why: 'timeout' }; }
     if (!res.ok) {
       net.close();
       const why = { unavailable: 'Room not found.', full: 'That room is full.', version: 'Room is on a different game version.', timeout: 'Room not found or it has closed.' }[res.why] || 'Could not join the room.';
@@ -420,7 +420,7 @@ class App {
       $('searchText').textContent = 'Joining your friend…';
       try {
         await net.ensureClientPeer();
-        const res = await withTimeout(net.tryJoin(roomPeerId('pub', v.slice(4)), this.hello()), 9000);
+        const res = await withTimeout(net.tryJoin(roomPeerId('pub', v.slice(4)), this.hello()), 20000);
         this.ui.modal('searching', false);
         if (res.ok) {
           net.attachHost(res.conn);

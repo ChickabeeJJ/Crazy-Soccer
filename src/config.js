@@ -129,7 +129,7 @@ export const NET = {
   snapshotRate: 20,
   inputRate: 30,
   interpDelay: 0.11,
-  joinTimeout: 10000,
+  joinTimeout: 14000,
   peerTimeout: 7000,
 };
 

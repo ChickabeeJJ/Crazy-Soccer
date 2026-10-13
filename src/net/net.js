@@ -245,7 +245,9 @@ export class Net {
   // Join a specific private room by code.
   async joinPrivate(code, hello) {
     await this.ensureClientPeer();
-    const res = await this.tryJoin(roomPeerId('priv', code), hello);
+    let res = await this.tryJoin(roomPeerId('priv', code), hello);
+    // slow networks / busy devices: a room that didn't answer in time gets one more try
+    if (!res.ok && res.why === 'timeout') res = await this.tryJoin(roomPeerId('priv', code), hello);
     if (res.ok) { this.attachHost(res.conn); this.roomId = res.room; }
     return res;
   }

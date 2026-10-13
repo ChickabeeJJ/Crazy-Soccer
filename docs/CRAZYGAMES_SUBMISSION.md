@@ -79,6 +79,12 @@ The tools in `tools/` render these with the game's own engine (`node tools/make-
 | `art/preview-landscape.mp4` | 1920×1080, 18 s, silent H.264 | Landscape preview video |
 | `art/preview-portrait.mp4` | 1080×1620, 18 s, silent H.264 | Portrait preview video |
 
+## Multiplayer connectivity
+
+Players connect peer to peer (WebRTC). A free signalling server (PeerJS cloud) introduces them, and STUN finds a direct route. That works for most home connections. Players on strict mobile or school networks need a TURN relay, and the free public relay the game falls back to is unreliable.
+
+For reliable cross-network play, create a free TURN account (for example Metered) and put its credentials URL in `NET.turnCredentialsUrl` in `src/config.js`. The game fetches fresh TURN servers from it at startup.
+
 ## Compliance checklist
 
 - **CrazyGames SDK v3**:
