@@ -137,8 +137,7 @@ export class Session {
   bindHostNet() {
     const net = this.net;
     net.on('hello', (peerId, msg) => {
-      // A finished room must not accept newcomers; Quick Match should keep searching.
-      // The host can still start a rematch, which replaces the world and clears this state.
+      // Each match is a disposable server. Full-time rooms never accept re-joins.
       if (!this.world || this.world.phase === 'end' || this.ended) return { t: 'reject', why: 'ended' };
       if (msg.ver !== GAME_VERSION) return { t: 'reject', why: 'version' };
       if (this.world.humans().length >= MAX_HUMANS) return { t: 'full', why: 'full' };
@@ -389,27 +388,13 @@ export class Session {
 
   onHostLost() {
     if (this.destroyed) return;
-    // Host left: continue the match offline against bots with the current score/clock.
-    const last = this.lastSnap;
-    this.role = 'offline';
-    try { this.net.close(); } catch (e) { /* ignore */ }
+    const finished = this.ended || this.view.phase === 'end';
+    const net = this.net;
+    if (net) { try { net.close(); } catch (e) { /* ignore */ } }
+    // The room no longer exists. Keep final results visible, but never recreate its old state.
+    if (finished) return;
     this.net = null;
-    const me = this.localP;
-    const team = me ? me.team : 0;
-    this.world = new World({ mode: this.mode, ...this.rules, map: this.view.map });
-    const w = this.world;
-    const p = w.addPlayer({ id: this.localId, name: this.profile.name, team, cos: this.profile.cos, powers: this.profile.pw });
-    w.start();
-    if (last) {
-      w.score = [...last.sc];
-      w.clock = last.c > 0 ? last.c : 60;
-      if (last.ot === 1) w.overtime = true;
-    }
-    if (me) { p.x = me.x; p.z = me.z; p.face = me.face; p.items = [...me.items]; }
-    this.view.players = w.players;
-    this.view.ball = w.ball;
     this.onEvent({ e: 'hostlost' });
-    this.flushWorldEvents();
   }
 
   stepClient(dt) {
@@ -742,6 +727,8 @@ export class Session {
     if (ev.e === 'goal') this.goalT = now();
     if (ev.e === 'end') { this.ended = true; this.lastEnd = ev; }
     this.onEvent(ev);
+    // Final events have been broadcast by flushWorldEvents; now release the hosted room.
+    if (ev.e === 'end' && this.isAuthority && this.net && this.net.isHost) this.net.close();
   }
 
   replayFrame(progress) {
