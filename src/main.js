@@ -113,7 +113,7 @@ class App {
     // Invites & instant multiplayer
     const invite = SDK.getInviteParam('roomId');
     if (invite) this.joinFromInvite(invite);
-    else if (SDK.isInstantMultiplayer) this.createPrivate();
+    else if (SDK.isInstantMultiplayer) this.quickPlay(-1);
     else this.newPlayerFlow();
   }
 
@@ -161,6 +161,13 @@ class App {
   cos() {
     const e = Save.p.eq;
     return { skin: e.skin, hair: e.hair, hairColor: e.hairColor, eyeColor: e.eyeColor || 0, jersey: e.jersey, boots: e.boots, ball: e.ball, goalfx: e.goalfx, number: e.number };
+  }
+  // Connection chip in the HUD: online with N players, still searching, or bots only
+  netLabel(s) {
+    if (s.mode !== 'match') return null;
+    if (s.net) { const n = s.humanCount(); return { cls: 'on', text: `ONLINE  ${n} PLAYER${n === 1 ? '' : 'S'}` }; }
+    if (this.netStatus === 'search') return { cls: 'wait', text: 'FINDING PLAYERS' };
+    return { cls: 'off', text: 'OFFLINE  BOTS' };
   }
   hello() { return { name: Save.displayName(), cos: this.cos(), team: Save.p.team === 1 ? 1 : 0, pw: Save.activePowers() }; }
 
@@ -986,7 +993,7 @@ class App {
       view: v, localTeam: me ? me.team : 0, practice: s.mode === 'practice', items: me ? me.items : [null, null], equip: me ? me.equip : -1,
       stamina: me ? me.stamina : 100, exhausted: me ? me.exhausted : false, charging: !!(me && me.charging), charge: me ? me.charge : 0,
       ping: s.role === 'client' ? Math.round(s.rtt * 1000) : 0, fps: this.fps, showStats: settings.showStats,
-      statsHeld, session: s, localId: s.localId,
+      statsHeld, session: s, localId: s.localId, net: this.netLabel(s),
     });
     const tr = s.training;
     const th = tr ? tr.hud() : null;

@@ -122,6 +122,9 @@ export const NET = {
     { urls: 'stun:global.stun.twilio.com:3478' },
     { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
   ],
+  // Optional: a URL that returns a JSON array of ICE servers with fresh TURN credentials, fetched at startup.
+  // e.g. Metered: 'https://<your-app>.metered.live/api/v1/turn/credentials?apiKey=<key>'
+  turnCredentialsUrl: '',
   publicRooms: 16,
   snapshotRate: 20,
   inputRate: 30,

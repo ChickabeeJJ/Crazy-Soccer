@@ -283,6 +283,8 @@ export class UI {
     else if (v.ot === 2) t = 'LAST CHANCE';
     else t = fmtTime(v.clock);
     this.setVal('timerText', 'text', t);
+    this.setVal('netTag', 'text', s.net ? s.net.text : '');
+    this.setVal('netTag', 'class', `net-tag ${s.net ? `show ${s.net.cls}` : ''}`);
     this.setVal('timer', 'class', `timer ${v.ot ? 'ot' : ''}`);
 
     // Item slots

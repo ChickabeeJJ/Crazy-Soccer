@@ -328,6 +328,11 @@ body.is-touch .tb-text { font-size: calc(var(--u) * 0.9); }
 .drill-hud span { font-size: calc(var(--u) * 0.68); font-weight: 700; letter-spacing: 0.12em; opacity: 0.8; }
 .role-tag { display: none; font-weight: 700; font-size: calc(var(--u) * 0.75); letter-spacing: 0.1em; color: #fff; background: rgba(20, 16, 30, 0.72); padding: 2px 10px; border-radius: 4px; }
 .role-tag.show { display: block; }
+.net-tag { display: none; font-weight: 700; font-size: calc(var(--u) * 0.62); letter-spacing: 0.12em; white-space: pre; color: #fff; background: rgba(20, 16, 30, 0.6); padding: 2px 10px 2px 22px; position: relative; clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
+.net-tag.show { display: block; }
+.net-tag::before { content: ''; position: absolute; left: 10px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: #9a96a8; }
+.net-tag.on::before { background: #3ddc84; }
+.net-tag.wait::before { background: #ffcf3f; }
 .role-tag.gk { background: #fff; color: var(--ink); box-shadow: 0 0 12px rgba(255, 255, 255, 0.6); }
 .role-tag.bump { animation: bump 0.6s; }
 .ctp-sub { font-size: calc(var(--u) * 0.8); opacity: 0.75; }

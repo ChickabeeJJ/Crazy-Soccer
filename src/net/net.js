@@ -29,7 +29,26 @@ export function randomCode() {
   return s;
 }
 
-function openPeer(id) {
+// Fresh TURN credentials (optional, NET.turnCredentialsUrl): fetched once and added in front of the defaults
+let iceReady = null;
+function loadIce() {
+  if (iceReady) return iceReady;
+  iceReady = (async () => {
+    if (!NET.turnCredentialsUrl) return;
+    try {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 3500);
+      const res = await fetch(NET.turnCredentialsUrl, { signal: ctl.signal });
+      clearTimeout(t);
+      const list = await res.json();
+      if (Array.isArray(list) && list.length) NET.iceServers = [...list, ...NET.iceServers];
+    } catch (e) { /* keep the defaults */ }
+  })();
+  return iceReady;
+}
+
+async function openPeer(id) {
+  await loadIce();
   return new Promise((resolve, reject) => {
     let done = false;
     let peer;
