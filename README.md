@@ -10,7 +10,7 @@ npm run dev        # http://localhost:5173/game.html (game.html is the source pa
 npm run build      # -> dist/ and the playable game at the repo root (index.html, assets/, music/)
 ```
 
-The whole build is ~1 MB in 10 files (CrazyGames limits: 50 MB initial download, 1500 files).
+The whole build is ~5 MB in 18 files (CrazyGames limits: 50 MB initial download, 1500 files).
 
 ## Controls (rebindable in Settings)
 
