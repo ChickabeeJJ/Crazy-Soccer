@@ -1058,11 +1058,12 @@ class App {
       const canDive = me.keeper && inOwnBox(me, 0.6) && !s.hasBall();
       // while a shot is charging, right click is the Curve button (no pass or dive)
       const curving = me.charging && (inp.isDown('curve') || inp.wasPressed('curve'));
-      const dived = !curving && canDive && inp.wasPressed('dive');
+      const touchDive = touch && inp.wasPressed('tackle');
+      const dived = !curving && canDive && (inp.wasPressed('dive') || touchDive);
       if (dived) { s.action({ a: 'dive', ...aim, mx, mz }); this.ui.flashControl('tackle'); }
       if (inp.wasPressed('pass') && equip >= 0) me.equip = -1;
       else if (!dived && !curving) simple('pass', { assist: settings.assistedPasses });
-      simple('lob'); simple('flick'); simple('tackle'); simple('dribble'); simple('request');
+      simple('lob'); simple('flick'); if (!dived) simple('tackle'); simple('dribble'); simple('request');
       if (inp.wasPressed('chat')) this.ui.toggleWheel('chat');
       if (inp.wasPressed('emote')) this.ui.toggleWheel('emote');
       if (inp.wasPressed('lobby')) this.askLeave();
