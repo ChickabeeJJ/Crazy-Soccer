@@ -1,7 +1,7 @@
 // DOM UI: main menu (play / training / shop / inventory), HUD, settings, wheels, results, touch controls.
 import { Save, BIND_LABELS, DEFAULT_BINDS } from '../save.js';
 import { CATALOG, TAB_LABELS, SKIN_TONES, HAIR_COLORS } from '../cosmetics.js';
-import { TEAMS, QUICK_CHAT, ITEMS, ITEM_KINDS, PLAYER, RARITY, RARITY_ORDER, ROLL } from '../config.js';
+import { TEAMS, QUICK_CHAT, ITEMS, ITEM_KINDS, PLAYER, RARITY, RARITY_ORDER, ROLL, PLAYER_CARDS, CARD_ROLL } from '../config.js';
 import { fmtTime, clamp } from '../util/math.js';
 import { itemSvg, previewJersey, previewBall, previewGoalFx, previewEmote, previewHair } from './icons.js';
 import { SDK } from '../sdk.js';
@@ -455,6 +455,7 @@ export class UI {
     const pass = state.item ? 'Focus' : 'Pass';
     const rows = [
       [kick, L('kick'), state.hasBall || state.item || state.nearBall, 'kick'],
+      ['Curve shot', L('curve'), state.hasBall, 'curve'],
       [pass, L('pass'), state.hasBall, 'pass'],
       ['Flick', L('flick'), state.hasBall, 'flick'],
       state.inBox ? ['Dive', L('dive'), true, 'tackle'] : ['Tackle', L('tackle'), !state.hasBall, 'tackle'],
@@ -598,6 +599,55 @@ export class UI {
     $('hud').classList.add('goal');
     clearTimeout(this.gpTimer);
     this.gpTimer = setTimeout(() => { el.classList.remove('show'); $('hud').classList.remove('goal'); }, 3200);
+  }
+
+  // Broadcast-style bar wipe used to connect the goal, replay and restart.
+  goalTransition(label = 'GOAL REPLAY') {
+    const el = $('goalWipe');
+    if (!el) return;
+    $('gwLabel').textContent = label;
+    el.classList.remove('play');
+    void el.offsetWidth;
+    el.classList.add('play');
+    clearTimeout(this.wipeTimer);
+    this.wipeTimer = setTimeout(() => el.classList.remove('play'), 780);
+  }
+
+  // The scoring card and quick emotes appear after the replay during the kickoff window.
+  showPostGoal(goal) {
+    if (!goal) return;
+    const root = $('postGoal');
+    const card = $('pgCard');
+    const team = TEAMS[goal.team] || TEAMS[0];
+    card.style.setProperty('--goal-accent', team.css);
+    card.className = `pg-card team-${goal.team === 1 ? 'blue' : 'red'}`;
+    $('pgTeam').textContent = team.name.toUpperCase();
+    $('pgTag').textContent = goal.own ? 'OWN GOAL' : 'GOAL CARD';
+    $('pgName').textContent = goal.scorer || 'GOAL SCORER';
+    $('pgAssist').textContent = goal.assist ? `ASSIST  ·  ${goal.assist}` : (goal.own ? 'A moment to forget.' : 'THE CROWD GOES WILD');
+    const emotes = Save.p.eq.emotes.filter(Boolean);
+    const icons = { wave: '👋', clap: '👏', bow: '🙇', flex: '💪', cheer: '🙌', dance: '🎵', laugh: '😄', spin: '🌀', robot: '🤖', sit: '😎' };
+    $('postGoalEmotes').innerHTML = emotes.map((id) => {
+      const em = CATALOG.emote.find((x) => x.id === id);
+      return `<button class="pge-btn" data-post-emote="${esc(id)}" title="${esc(em ? em.name : id)}"><span>${icons[id] || '☺'}</span><small>${esc(em ? em.name : id)}</small></button>`;
+    }).join('');
+    $('postGoalEmotes').querySelectorAll('[data-post-emote]').forEach((b) => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.app.sendEmote(b.dataset.postEmote);
+    }));
+    root.classList.remove('show');
+    $('hud').classList.add('post-goal-open');
+    root.setAttribute('aria-hidden', 'false');
+    void root.offsetWidth;
+    root.classList.add('show');
+  }
+
+  hidePostGoal() {
+    const root = $('postGoal');
+    if (!root) return;
+    root.classList.remove('show');
+    $('hud').classList.remove('post-goal-open');
+    root.setAttribute('aria-hidden', 'true');
   }
 
   announce(text, sub = '', hold = false) {
@@ -760,10 +810,12 @@ export class UI {
   renderShop() {
     const p = Save.p;
     const tab = this.shopTab;
-    this.tabs($('shopTabs'), [['roll', 'Item Roll'], ['jersey', 'Jerseys'], ['boots', 'Boots'], ['hair', 'Hairstyles'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes']], tab, (t) => { this.shopTab = t; this.renderShop(); });
+    this.tabs($('shopTabs'), [['roll', 'Item Roll'], ['cards', 'Player Cards'], ['jersey', 'Jerseys'], ['boots', 'Boots'], ['hair', 'Hairstyles'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes']], tab, (t) => { this.shopTab = t; this.renderShop(); });
     const grid = $('shopGrid');
     grid.innerHTML = '';
     grid.classList.toggle('roll-mode', tab === 'roll');
+    grid.classList.toggle('card-shop', tab === 'cards');
+    if (tab === 'cards') { this.renderCardShop(grid); return; }
     if (tab === 'roll') {
       const owned = p.powers.length, total = ITEM_KINDS.length;
       const odds = RARITY_ORDER.map((r) => {
@@ -794,6 +846,64 @@ export class UI {
     for (const it of CATALOG[tab]) if (!it.excl || Save.owns(tab, it.id)) grid.appendChild(this.cosmeticCard(tab, it, true));
   }
 
+  renderCardShop(grid) {
+    const owned = new Set(Save.p.cards || []);
+    const complete = owned.size >= PLAYER_CARDS.length;
+    const cardHtml = (card, reveal = false, result = null) => {
+      const has = owned.has(card.id);
+      const status = result ? (result.isNew ? 'NEW CARD' : `DUPLICATE  +${result.refund} COINS`) : has ? 'COLLECTED' : 'NOT COLLECTED';
+      return `<article class="player-card rarity-${card.rarity} ${has ? 'collected' : ''} ${result && result.isNew ? 'new-card' : ''}" style="--card-accent:${card.accent}">
+        <div class="pcard-sheen"></div><div class="pcard-top"><span>${card.rarity.toUpperCase()}</span><b>${card.rating}</b></div>
+        <div class="pcard-art"><span class="pcard-icon">${card.icon}</span><i>${card.role}</i></div>
+        <div class="pcard-name">${esc(card.name)}</div><div class="pcard-tagline">${esc(card.tagline)}</div>
+        <div class="pcard-foot"><span>${status}</span><b>${card.rating} OVR</b></div>
+      </article>`;
+    };
+    grid.classList.add('card-shop');
+    grid.innerHTML = `<div class="card-shop-head">
+      <div><strong>PLAYER CARD PACKS</strong><span>Collect rare stars, goalkeepers and curve specialists. Cards are cosmetic collectibles.</span></div>
+      <div class="card-pack-actions">
+        <button class="roll-btn" data-card-roll="1" ${complete ? 'disabled' : ''}><b>OPEN PACK</b><span class="rb-cost"><span class="coin"></span>${CARD_ROLL.cost}</span></button>
+        <button class="roll-btn big" data-card-roll="10" ${complete ? 'disabled' : ''}><b>OPEN ×10</b><span class="rb-cost"><span class="coin"></span>${CARD_ROLL.cost10}</span></button>
+      </div>
+      <div class="card-collection-count">${owned.size} / ${PLAYER_CARDS.length} CARDS ${complete ? '· COLLECTION COMPLETE' : ''}</div>
+    </div><div class="player-card-grid">${PLAYER_CARDS.map((c) => cardHtml(c)).join('')}</div>`;
+    grid.querySelectorAll('[data-card-roll]').forEach((b) => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const n = +b.dataset.cardRoll;
+      const results = Save.rollCards(n);
+      if (!results) { this.globalToast(Save.p.coins < (n === 10 ? CARD_ROLL.cost10 : CARD_ROLL.cost) ? 'Not enough coins for this card pack.' : 'You have collected every player card!'); return; }
+      this.app.audio.whoosh();
+      this.refreshProfile();
+      this.showCardRoll(results);
+    }));
+  }
+
+  showCardRoll(results) {
+    this.cardRollN = results.length;
+    this.rollState = null;
+    $('rrHead').textContent = results.length > 1 ? 'PLAYER CARD PACK ×10' : 'PLAYER CARD PACK';
+    $('rrIntro').innerHTML = '';
+    $('rrIntro').classList.remove('show');
+    $('rrStrip').classList.remove('show');
+    $('rrCards').className = `rr-cards player-card-reveal ${results.length > 1 ? 'many' : 'one'}`;
+    $('rrCards').innerHTML = results.map((res) => {
+      const card = PLAYER_CARDS.find((c) => c.id === res.id);
+      if (!card) return '';
+      // Render the card being revealed even before the collection grid refreshes.
+      const label = res.isNew ? 'NEW CARD' : `DUPLICATE · +${res.refund} COINS`;
+      return `<article class="player-card rarity-${card.rarity} ${res.isNew ? 'new-card' : 'duplicate-card'}" style="--card-accent:${card.accent}">
+        <div class="pcard-sheen"></div><div class="pcard-top"><span>${card.rarity.toUpperCase()}</span><b>${card.rating}</b></div>
+        <div class="pcard-art"><span class="pcard-icon">${card.icon}</span><i>${card.role}</i></div>
+        <div class="pcard-name">${esc(card.name)}</div><div class="pcard-tagline">${esc(card.tagline)}</div>
+        <div class="pcard-foot"><span>${label}</span><b>${card.rating} OVR</b></div>
+      </article>`;
+    }).join('');
+    this.rollButtons('done');
+    $('rrDoneBtn').textContent = 'COLLECTION';
+    this.modal('rollReveal', true);
+  }
+
   // 3D mystery cube (same look as the in-game item cubes)
   cubeHtml(cls = '') {
     const face = (f) => `<i class="cf ${f}"><b>?</b></i>`;
@@ -804,6 +914,7 @@ export class UI {
   // (5-rolls spin one after another and collect below). opts.starter = the free first roll.
   showRoll(results, opts = {}) {
     this.lastRollN = results.length;
+    this.cardRollN = null;
     this.rollState = { results, i: 0, starter: !!opts.starter, done: false };
     $('rrHead').textContent = opts.starter ? 'YOUR FIRST ITEM' : results.length > 1 ? 'ITEM ROLL ×5' : 'ITEM ROLL';
     $('rrIntro').innerHTML = '';
@@ -833,7 +944,7 @@ export class UI {
     $('rrStartBtn').classList.toggle('hidden', state !== 'intro');
     $('rrSkipBtn').classList.toggle('hidden', state !== 'spinning');
     const again = $('rrAgainBtn');
-    const showAgain = state === 'done' && !(st && st.starter);
+    const showAgain = state === 'done' && this.cardRollN == null && !(st && st.starter);
     again.classList.toggle('hidden', !showAgain);
     if (showAgain) {
       const cost = this.lastRollN === 5 ? ROLL.cost5 : ROLL.cost;
@@ -1048,9 +1159,8 @@ export class UI {
       ${toggle('invertY', 'Invert Y', 'Flip vertical camera movement')}
       <div class="set-sec">Gameplay</div>
       ${toggle('assistedPasses', 'Assisted Passes', 'Passes auto-target the best teammate')}
-      ${toggle('autoCurve', 'Strafe Curve', 'A / D while charging bends the shot')}
-      ${this.isTouch ? '' : toggle('autoCurveAlways', 'Always Auto Curve', 'Camera swings while charging always bend the shot')}
-      ${this.isTouch ? '' : slider('curveSens', 'Curve Sensitivity', 'How sharply a mouse swipe bends the ball', 0.3, 2.5, 0.05)}
+      <div class="set-row"><div class="lbl"><b>Curve Shots</b><span>Hold Curve while charging; move your view to bend the ball without moving the aim.</span></div></div>
+      ${this.isTouch ? '' : slider('curveSens', 'Curve Sensitivity', 'How quickly the curve meter fills', 0.3, 2.5, 0.05)}
       ${this.isTouch ? toggle('aimAssist', 'Aim Assist', 'Touch: shots near the goal snap inside the frame') : ''}
       <div class="set-sec">Interface</div>
       ${toggle('showControls', 'Show Controls', 'Display the key and button prompts')}
@@ -1060,7 +1170,7 @@ export class UI {
       <div class="set-sec">Mouse</div>
       ${bindRow('unlock')}
       <div class="set-sec" data-sec="keys">Gameplay Keybinds</div>
-      ${['kick', 'curve', 'autoCurve', 'pass', 'flick', 'tackle', 'dive', 'lob', 'request', 'dribble', 'sprint', 'item1', 'item2'].map(bindRow).join('')}
+      ${['kick', 'curve', 'pass', 'flick', 'tackle', 'dive', 'lob', 'request', 'dribble', 'sprint', 'item1', 'item2'].map(bindRow).join('')}
       <div class="set-sec">Movement & UI Keybinds</div>
       ${['forward', 'back', 'left', 'right', 'stats', 'lobby', 'chat', 'emote'].map(bindRow).join('')}
       <div class="set-row"><div class="lbl"><b>Reset all keybinds</b><span>Restore the default controls</span></div><button class="bind-reset" id="resetBinds">Reset</button></div>
@@ -1206,6 +1316,7 @@ export class UI {
     this.setVal('touch', 'class', cls);
     if (this.setVal('tbDribLbl', 'v', hasBall)) this.touchButton('.tb-dribble', hasBall ? 'skill' : 'jump', hasBall ? 'SPIN' : 'JUMP');
     if (this.setVal('tbKickLbl', 'v', item)) this.touchButton('.tb-kick', item ? 'use' : 'kick', item ? 'USE' : 'KICK');
+    if (this.setVal('tbCurveLbl', 'v', true)) this.touchButton('.tb-curve', 'skill', 'CURVE');
     this.setTackleLabel(dive);
   }
 }

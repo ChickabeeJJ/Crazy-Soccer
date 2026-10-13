@@ -23,7 +23,8 @@ export function stepBall(b, dt, events) {
   // Curve (lateral acceleration perpendicular to horizontal velocity)
   const vh = Math.hypot(b.vx, b.vz);
   if (Math.abs(b.curve) > 0.01 && vh > 4) {
-    const qx = -b.vz / vh, qz = b.vx / vh;
+    // Inverted curve direction: the same input now bends the ball the opposite way.
+    const qx = b.vz / vh, qz = -b.vx / vh;
     b.vx += qx * b.curve * dt * PHYS.magnus;
     b.vz += qz * b.curve * dt * PHYS.magnus;
     b.curve *= Math.exp(-0.9 * dt);

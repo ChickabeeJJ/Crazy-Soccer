@@ -1126,3 +1126,88 @@ body.awards #hud, body.awards #touch, body.awards .announce { visibility: hidden
 .tg-chips i { font-style: normal; font-family: var(--f-head); font-weight: 800; font-size: 10px; letter-spacing: 0.1em; padding: 3px 7px; background: rgba(255, 255, 255, 0.08); color: rgba(251, 246, 236, 0.88); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tc) 50%, transparent); }
 .tg-card .md { width: 24px; height: 24px; }
 @media (max-height: 520px) and (min-aspect-ratio: 1/1) { .tg-chips { display: none; } .tg-body { padding: 10px 12px; } .tg-txt { max-width: 66%; } }
+
+
+/* Unified curve meter: the full width represents maximum curve in either direction. */
+.cm-bar { overflow: hidden; }
+.cm-bar i { transition: width 45ms linear; }
+.cm-bar em { display: none; }
+
+/* Goal/replay wipe: compact broadcast bars that sweep across, then clear the pitch. */
+.goal-wipe { position: fixed; inset: 0; z-index: 34; pointer-events: none; overflow: hidden; opacity: 1; }
+.goal-wipe i { position: absolute; left: 0; width: 100%; height: 11vh; min-height: 52px; background: linear-gradient(100deg, #151024, #30234b 42%, #21162f); box-shadow: 0 3px 0 rgba(255,207,63,.95), 0 7px 24px rgba(0,0,0,.22); opacity: 0; }
+.goal-wipe .gw-top { top: 0; transform: translateX(-105%); border-bottom: 2px solid var(--hi); }
+.goal-wipe .gw-bottom { bottom: 0; transform: translateX(105%); border-top: 2px solid var(--hi); }
+.goal-wipe span { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%) skewX(-8deg); padding: 8px 24px; color: #171126; background: var(--hi); font-family: var(--font-title); font-size: clamp(18px, 2.8vw, 34px); letter-spacing: .12em; white-space: nowrap; opacity: 0; box-shadow: 0 5px 0 rgba(17,12,32,.85); }
+.goal-wipe.play .gw-top { animation: goalBarTop .72s cubic-bezier(.72,0,.2,1) both; }
+.goal-wipe.play .gw-bottom { animation: goalBarBottom .72s cubic-bezier(.72,0,.2,1) both; }
+.goal-wipe.play span { animation: goalLabel .72s ease-out both; }
+@keyframes goalBarTop { 0% { opacity: 1; transform: translateX(-105%); } 30%,62% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(105%); } }
+@keyframes goalBarBottom { 0% { opacity: 1; transform: translateX(105%); } 30%,62% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(-105%); } }
+@keyframes goalLabel { 0%,24% { opacity: 0; transform: translate(-50%,-42%) scale(.9) skewX(-8deg); } 36%,60% { opacity: 1; transform: translate(-50%,-50%) scale(1) skewX(-8deg); } 100% { opacity: 0; transform: translate(-50%,-58%) scale(1.04) skewX(-8deg); } }
+
+/* Post-goal scorer card and a quick emote strip (shown after the replay). */
+.post-goal { position: fixed; inset: 0; z-index: 20; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity .22s ease, visibility .22s ease; }
+.post-goal.show { opacity: 1; visibility: visible; }
+#hud.post-goal-open .hud-bc { opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+.pg-card { position: absolute; left: 50%; bottom: calc(var(--u) * 6.2); width: min(310px, 38vw); min-width: 220px; transform: translate(-50%, 18px) rotate(-2deg) scale(.93); overflow: hidden; color: #fff; background: linear-gradient(145deg, #171128 0%, #24203d 55%, #12101c 100%); border: 2px solid var(--goal-accent, var(--hi)); border-radius: 9px; box-shadow: 0 12px 30px rgba(0,0,0,.42), inset 0 0 0 3px rgba(255,255,255,.06); opacity: 0; transition: transform .38s cubic-bezier(.2,1.3,.25,1), opacity .24s ease; }
+.post-goal.show .pg-card { opacity: 1; transform: translate(-50%, 0) rotate(-2deg) scale(1); }
+.pg-card::before { content: ''; position: absolute; right: -25%; top: -45%; width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--goal-accent, var(--hi)) 48%, transparent), transparent 70%); pointer-events: none; }
+.pg-card-top, .pg-card-foot { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; background: rgba(0,0,0,.22); font-family: var(--font-title); letter-spacing: .1em; font-size: 10px; }
+.pg-card-top span { color: var(--goal-accent, var(--hi)); }
+.pg-card-top b { color: rgba(255,255,255,.8); font-size: 10px; }
+.pg-card-main { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 5px; padding: 12px 15px 15px; }
+.pg-ball { display: grid; place-items: center; width: 47px; height: 47px; border: 1px solid color-mix(in srgb, var(--goal-accent, var(--hi)) 76%, white); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, color-mix(in srgb, var(--goal-accent, var(--hi)) 22%, #22203c)); font-size: 24px; box-shadow: 0 0 25px color-mix(in srgb, var(--goal-accent, var(--hi)) 28%, transparent); }
+.pg-card-main strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-title); font-size: clamp(19px, 2.1vw, 27px); letter-spacing: .03em; text-shadow: 0 2px 0 #100b20; }
+.pg-assist { color: #d6d3e5; font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.pg-card-foot { border-top: 1px solid rgba(255,255,255,.1); color: rgba(255,255,255,.52); font-family: var(--font-ui); letter-spacing: .07em; }
+.pg-card-foot b { color: var(--goal-accent, var(--hi)); }
+.post-goal-emotes { position: absolute; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); transform: translate(-50%, 18px); display: flex; align-items: center; justify-content: center; gap: 7px; max-width: calc(100vw - 24px); padding: 8px; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; background: rgba(17,12,32,.88); box-shadow: 0 8px 28px rgba(0,0,0,.28); pointer-events: auto; opacity: 0; transition: transform .34s cubic-bezier(.2,1.2,.2,1), opacity .2s ease; }
+.post-goal.show .post-goal-emotes { opacity: 1; transform: translate(-50%, 0); transition-delay: .07s; }
+.pge-btn { min-width: 58px; max-width: 95px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 7px 4px; border: 1px solid transparent; border-radius: 7px; background: rgba(255,255,255,.06); color: #fff; cursor: pointer; pointer-events: auto; transition: background .15s, transform .15s, border-color .15s; }
+.pge-btn:hover { background: color-mix(in srgb, var(--hi) 20%, rgba(255,255,255,.08)); border-color: var(--hi); transform: translateY(-3px); }
+.pge-btn span { font-size: 20px; line-height: 1.1; }
+.pge-btn small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; text-transform: uppercase; letter-spacing: .04em; }
+
+/* Player card collection and card-pack reveal. Cards are cosmetic, with rarity-driven accents. */
+.shop-grid.card-shop { display: block; overflow-y: auto; padding-bottom: 14px; }
+.card-shop-head { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 18px; margin-bottom: 14px; padding: 14px 16px; color: #fff; background: linear-gradient(105deg, rgba(38,29,66,.98), rgba(19,15,35,.96)); border: 1px solid rgba(255,255,255,.12); border-left: 4px solid var(--hi); }
+.card-shop-head > div:first-child { display: flex; flex-direction: column; gap: 3px; }
+.card-shop-head > div:first-child strong { font-family: var(--font-title); letter-spacing: .07em; font-size: clamp(17px, 2vw, 25px); }
+.card-shop-head > div:first-child span { max-width: 58ch; color: #bcb5d2; font-size: 12px; }
+.card-pack-actions { display: flex; gap: 8px; }
+.card-pack-actions .roll-btn { min-width: 108px; }
+.card-collection-count { grid-column: 1 / -1; color: var(--hi); font-family: var(--font-title); letter-spacing: .1em; font-size: 11px; }
+.player-card-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.player-card { --card-accent: #6fd7ff; position: relative; display: flex; flex-direction: column; min-width: 0; aspect-ratio: .69; overflow: hidden; padding: 10px; border: 1px solid color-mix(in srgb, var(--card-accent) 76%, white); border-radius: 10px; color: #fff; background: radial-gradient(circle at 50% 27%, color-mix(in srgb, var(--card-accent) 28%, transparent), transparent 50%), linear-gradient(155deg, #282241, #161223 72%); box-shadow: inset 0 0 0 3px rgba(255,255,255,.055), 0 5px 12px rgba(0,0,0,.22); isolation: isolate; }
+.player-card::before { content: ''; position: absolute; inset: 4px; border: 1px solid color-mix(in srgb, var(--card-accent) 45%, transparent); border-radius: 6px; pointer-events: none; z-index: -1; }
+.pcard-sheen { position: absolute; inset: -40% -70%; z-index: -1; background: linear-gradient(115deg, transparent 38%, color-mix(in srgb, var(--card-accent) 18%, transparent) 49%, transparent 60%); transform: translateX(-50%) rotate(4deg); transition: transform .35s ease; pointer-events: none; }
+.player-card:hover .pcard-sheen { transform: translateX(36%) rotate(4deg); }
+.pcard-top { display: flex; justify-content: space-between; align-items: center; gap: 4px; color: var(--card-accent); font-family: var(--font-title); letter-spacing: .12em; font-size: clamp(8px, .8vw, 11px); }
+.pcard-top b { display: grid; place-items: center; width: 29px; height: 29px; flex: none; border-radius: 50%; border: 1px solid var(--card-accent); font-size: 14px; color: #fff; background: color-mix(in srgb, var(--card-accent) 22%, #141020); }
+.pcard-art { flex: 1; min-height: 0; display: flex; position: relative; align-items: center; justify-content: center; margin: 6px -2px; border-radius: 5px; background: linear-gradient(145deg, color-mix(in srgb, var(--card-accent) 27%, #26203c), rgba(8,7,16,.62)); }
+.pcard-icon { font-size: clamp(27px, 3.5vw, 48px); color: var(--card-accent); text-shadow: 0 0 22px color-mix(in srgb, var(--card-accent) 65%, transparent); }
+.pcard-art i { position: absolute; bottom: 7px; right: 7px; font-style: normal; font-family: var(--font-title); font-size: 10px; letter-spacing: .12em; color: rgba(255,255,255,.72); }
+.pcard-name { color: #fff; font-family: var(--font-title); font-size: clamp(11px, 1.05vw, 15px); line-height: 1.05; letter-spacing: .025em; }
+.pcard-tagline { min-height: 2.3em; margin-top: 5px; color: #aaa5c0; font-size: clamp(8px, .75vw, 10px); line-height: 1.15; }
+.pcard-foot { display: flex; justify-content: space-between; align-items: center; gap: 3px; border-top: 1px solid rgba(255,255,255,.12); margin-top: 7px; padding-top: 6px; color: var(--card-accent); font-family: var(--font-title); letter-spacing: .035em; font-size: clamp(7px, .65vw, 9px); }
+.pcard-foot span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rarity-uncommon { box-shadow: inset 0 0 0 3px rgba(255,255,255,.055), 0 0 14px color-mix(in srgb, var(--card-accent) 10%, transparent); }
+.rarity-rare { box-shadow: inset 0 0 0 3px rgba(255,255,255,.07), 0 0 19px color-mix(in srgb, var(--card-accent) 21%, transparent); }
+.rarity-epic { background: radial-gradient(circle at 50% 25%, color-mix(in srgb, var(--card-accent) 38%, transparent), transparent 56%), linear-gradient(155deg, #332047, #161223 72%); box-shadow: inset 0 0 0 3px rgba(255,255,255,.08), 0 0 21px color-mix(in srgb, var(--card-accent) 28%, transparent); }
+.rarity-legendary { background: radial-gradient(circle at 50% 25%, color-mix(in srgb, var(--card-accent) 46%, transparent), transparent 58%), linear-gradient(155deg, #4d3a18, #191426 72%); box-shadow: inset 0 0 0 3px rgba(255,255,255,.12), 0 0 25px color-mix(in srgb, var(--card-accent) 32%, transparent); }
+.player-card.collected .pcard-foot span { color: #8ff0ba; }
+.player-card.new-card { animation: cardReveal .55s cubic-bezier(.2,1.2,.2,1) both; }
+.player-card.duplicate-card { filter: saturate(.8); }
+@keyframes cardReveal { from { opacity: 0; transform: translateY(14px) rotateY(16deg) scale(.9); } to { opacity: 1; transform: none; } }
+.player-card-reveal { gap: 10px; align-items: stretch; }
+.player-card-reveal .player-card { width: clamp(130px, 16vw, 190px); flex: 0 1 auto; }
+.player-card-reveal.one .player-card { width: clamp(190px, 24vw, 260px); }
+.player-card-reveal.many .player-card { width: clamp(100px, 12vw, 155px); }
+@media (max-width: 850px) { .player-card-grid { grid-template-columns: repeat(4, minmax(0,1fr)); } .card-shop-head { grid-template-columns: 1fr; } .card-pack-actions { justify-self: start; } }
+@media (max-width: 600px) { .player-card-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; } .card-pack-actions { width: 100%; } .card-pack-actions .roll-btn { flex: 1; min-width: 0; } .post-goal-emotes { gap: 3px; padding: 5px; } .pge-btn { min-width: 44px; padding: 5px 3px 3px; } .pge-btn small { font-size: 8px; } .pg-card { bottom: calc(var(--u) * 7.2); min-width: 200px; width: min(300px, 62vw); } }
+@media (prefers-reduced-motion: reduce) { .goal-wipe.play .gw-top, .goal-wipe.play .gw-bottom, .goal-wipe.play span { animation-duration: .01ms; } .player-card, .pg-card, .post-goal-emotes { transition-duration: .01ms; } }
+
+/* Independent touch curve button: hold while charging and swipe the look zone to bend. */
+.tb-curve { right: calc(var(--tb) * 2.72); bottom: calc(var(--tb) * 1.62); width: calc(var(--tb) * .88); height: calc(var(--tb) * .88); background: rgba(255,207,63,.96); color: #20152a; font-weight: 900; border: 2px solid rgba(255,255,255,.8); }
+.tb-curve .ti { color: #20152a; }

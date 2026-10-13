@@ -148,6 +148,15 @@
         <div id="mercyBar" class="mercy-bar"><span class="mb-tag">MERCY RULE</span><span id="mercyText" class="mb-text"></span></div>
         <div id="goalPop" class="goal-pop"><span class="gp-tag">GOAL!</span><div class="gp-card"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span><span id="gpSq" class="sq red"></span><span id="gpName">Player</span></div><div id="gpAssist" class="gp-assist"></div></div>
       </div>
+      <div id="goalWipe" class="goal-wipe" aria-hidden="true"><i class="gw-top"></i><i class="gw-bottom"></i><span id="gwLabel">GOAL REPLAY</span></div>
+      <div id="postGoal" class="post-goal" aria-hidden="true">
+        <div id="pgCard" class="pg-card">
+          <div class="pg-card-top"><span id="pgTeam">RED</span><b id="pgTag">GOAL CARD</b></div>
+          <div class="pg-card-main"><span class="pg-ball">⚽</span><strong id="pgName">GOAL SCORER</strong><span class="pg-assist" id="pgAssist">THE CROWD GOES WILD</span></div>
+          <div class="pg-card-foot"><span>CRAZY SOCCER</span><b>GOAL MOMENT</b></div>
+        </div>
+        <div id="postGoalEmotes" class="post-goal-emotes" aria-label="Quick emotes"></div>
+      </div>
       <div id="recOverlay" class="rec-overlay"><div class="lb top"></div><div class="lb bottom"></div><div class="rec-frame"><span class="rc tl"></span><span class="rc tr"></span><span class="rc bl"></span><span class="rc br"></span><div class="rec-dot"><i></i>REC</div></div></div>
       <div class="hud-tl">
         <button id="menuHudBtn" class="round-btn" title="Menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>
@@ -321,6 +330,7 @@
         <button class="tb tb-pass ball" data-act="pass"><span>PASS</span></button>
         <button class="tb tb-tackle noball" data-act="tackle"><span>TACKLE</span></button>
         <button class="tb tb-dribble" data-act="dribble"><span>JUMP</span></button>
+        <button class="tb tb-curve ball" data-act="curve"><span>CURVE</span></button>
         <button class="tb tb-lob ball" data-act="lob"><span>LOB</span></button>
         <button class="tb tb-req noball" data-act="request"><span>CALL</span></button>
         <button class="tb tb-flick ball" data-act="flick"><span>FLICK</span></button>
