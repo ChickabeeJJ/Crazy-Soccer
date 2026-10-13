@@ -1041,7 +1041,7 @@ class App {
           this.kickSuppressed = true;
         } else if (this.canVolley(me, b)) {
           // Ball in the air next to you: volley it instantly (no charging mid-air)
-          s.action({ a: 'kick', pw: 0.9, ...shotAim, cv: this.shotCurve(right) });
+          s.action({ a: 'kick', pw: 0.9, ...shotAim, cv: this.shotCurve() });
           this.kickSuppressed = true;
         } else {
           s.action({ a: 'charge', on: true });
@@ -1050,7 +1050,7 @@ class App {
       }
       if (inp.wasReleased('kick')) {
         if (this.kickSuppressed) this.kickSuppressed = false;
-        else if (me.charging) s.action({ a: 'kick', pw: me.charge, ...shotAim, cv: this.shotCurve(right) });
+        else if (me.charging) s.action({ a: 'kick', pw: me.charge, ...shotAim, cv: this.shotCurve() });
         else s.action({ a: 'kick', pw: 0, ...shotAim, cv: 0 });
       }
       const simple = (name, extra = {}) => { if (inp.wasPressed(name)) { s.action({ a: name, ...aim, mx, mz, ...extra }); this.ui.flashControl(name); } };
@@ -1103,9 +1103,9 @@ class App {
     }
     if (!staging) {
       this.renderer.syncAim(me, rig.yaw, !!(me && me.charging && !frame), me ? me.charge : 0);
-      this.updateTrajectory(s, me, frame, shotAim, this.shotCurve(right));
+      this.updateTrajectory(s, me, frame, shotAim, this.shotCurve());
       // Curve meter under the crosshair while bending a shot
-      const cvNow = me && me.charging ? this.shotCurve(right) : 0;
+      const cvNow = me && me.charging ? this.shotCurve() : 0;
       const showCm = !!(me && me.charging && (this.curveMode || Math.abs(cvNow) > 0.05));
       const cm = $('curveMeter');
       cm.classList.toggle('show', showCm);
