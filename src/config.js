@@ -73,6 +73,8 @@ export const KICK = {
   diveCooldown: 1.6,
   dribbleCooldown: 1.5,
   jumpSpeed: 13.3,
+  curveBase: 20, // full curve bends a shot a long way (more with power)
+  curvePow: 28,
   keeperShotMul: 0.72, // goalkeeper shots are weaker than outfield shots
   phaseR: 7, // a fresh shot passes through outfield players within this distance of where it was kicked
   gkStunSpeed: 15, // a keeper's throw/punt only bowls rivals over while the ball is this fast

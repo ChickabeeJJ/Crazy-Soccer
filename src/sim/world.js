@@ -1486,12 +1486,12 @@ export function kickVelocity(p, act, players, fire) {
     const t = dh / speed;
     let vy = ty / t + 0.5 * PHYS.gravity * t * (fire ? 0.6 : 1);
     vy = clamp(vy, -4, speed * 0.85);
-    const curve = clamp(act.cv || 0, -1, 1) * (6 + power * 10);
+    const curve = clamp(act.cv || 0, -1, 1) * (KICK.curveBase + power * KICK.curvePow);
     return { vx: (tx / dh) * speed, vy, vz: (tz / dh) * speed, pw: power, curve };
   }
   const lift = clamp(0.5 + (0.28 - pitch) * 2.2, 0, 1.7);
   let vy = 3.5 + lift * 9 + power * 1.5;
   if (fire) { speed = Math.min(60, speed * 1.32 + 6); vy *= 0.8; }
-  const curve = clamp(act.cv || 0, -1, 1) * (6 + power * 10);
+  const curve = clamp(act.cv || 0, -1, 1) * (KICK.curveBase + power * KICK.curvePow);
   return { vx: dx * speed, vy, vz: dz * speed, pw: power, curve };
 }

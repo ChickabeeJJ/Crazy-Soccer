@@ -929,12 +929,14 @@ class App {
     // the shot; with Auto Curve on, a mouse swipe during the charge bends it while the camera turns
     const charging = !!(me && me.charging);
     if (!charging) this.curveAmt = 0;
-    const curveHold = charging && active && inp.isDown('curve');
-    if (charging && active && !touch) {
-      const cs = 0.0045 * (settings.curveSens || 1);
-      if (curveHold) this.curveAmt = clamp((this.curveAmt || 0) + inp.mdx * cs * 1.6, -1, 1);
-      else if (settings.autoCurve) this.curveAmt = clamp((this.curveAmt || 0) * Math.exp(-dt * 1.2) + inp.mdx * cs, -1, 1);
-    }
+    // Curve (RMB by default): aim locks, drag the mouse sideways to set the bend.
+    // Auto Curve (MMB by default, or always on in Settings): the shot bends with your camera swing.
+    const curveHold = charging && active && !touch && inp.isDown('curve');
+    const autoHold = charging && active && !touch && !curveHold && (inp.isDown('autoCurve') || settings.autoCurveAlways);
+    const cs = 0.0045 * (settings.curveSens || 1);
+    if (curveHold) this.curveAmt = clamp((this.curveAmt || 0) + inp.mdx * cs * 1.6, -1, 1);
+    else if (autoHold) this.curveAmt = clamp((this.curveAmt || 0) * Math.exp(-dt * 0.8) + inp.mdx * cs * 1.2, -1, 1);
+    this.curveMode = curveHold ? 'CURVE' : autoHold ? 'AUTO CURVE' : null;
     // Camera
     if ((active || inp.dragging) && !curveHold) {
       const k = 0.0024 * settings.sens;
@@ -1021,10 +1023,12 @@ class App {
       const simple = (name, extra = {}) => { if (inp.wasPressed(name)) { s.action({ a: name, ...aim, mx, mz, ...extra }); this.ui.flashControl(name); } };
       // Goalkeepers dive with RMB by default (shares the button with Pass, which needs the ball)
       const canDive = me.keeper && inOwnBox(me, 0.6) && !s.hasBall();
-      const dived = canDive && inp.wasPressed('dive');
+      // while a shot is charging, right click is the Curve button (no pass or dive)
+      const curving = me.charging && (inp.isDown('curve') || inp.wasPressed('curve'));
+      const dived = !curving && canDive && inp.wasPressed('dive');
       if (dived) { s.action({ a: 'dive', ...aim, mx, mz }); this.ui.flashControl('tackle'); }
       if (inp.wasPressed('pass') && equip >= 0) me.equip = -1;
-      else if (!dived) simple('pass', { assist: settings.assistedPasses });
+      else if (!dived && !curving) simple('pass', { assist: settings.assistedPasses });
       simple('lob'); simple('flick'); simple('tackle'); simple('dribble'); simple('request');
       if (inp.wasPressed('chat')) this.ui.toggleWheel('chat');
       if (inp.wasPressed('emote')) this.ui.toggleWheel('emote');
@@ -1066,6 +1070,17 @@ class App {
     if (!staging) {
       this.renderer.syncAim(me, rig.yaw, !!(me && me.charging && !frame), me ? me.charge : 0);
       this.updateTrajectory(s, me, frame, shotAim, this.shotCurve(right));
+      // Curve meter under the crosshair while bending a shot
+      const cvNow = me && me.charging ? this.shotCurve(right) : 0;
+      const showCm = !!(me && me.charging && (this.curveMode || Math.abs(cvNow) > 0.05));
+      const cm = $('curveMeter');
+      cm.classList.toggle('show', showCm);
+      if (showCm) {
+        $('cmLabel').textContent = this.curveMode || 'CURVE';
+        const f = $('cmFill');
+        f.style.left = cvNow < 0 ? `${50 + cvNow * 50}%` : '50%';
+        f.style.width = `${Math.abs(cvNow) * 50}%`;
+      }
     }
 
     // HUD

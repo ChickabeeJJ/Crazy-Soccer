@@ -1076,3 +1076,53 @@ body.awards #hud, body.awards #touch, body.awards .announce { visibility: hidden
 
 /* Season Pass: the 3D scene behind is blurred so the showcase stands out */
 .menu[data-page="pass"] .mn-shade { backdrop-filter: blur(9px) saturate(1.1); -webkit-backdrop-filter: blur(9px) saturate(1.1); }
+
+/* Training cards v2: big illustrated art, content stacked on the left */
+.tg-card { padding: 0; justify-content: stretch; align-items: stretch; flex-direction: row; }
+.tg-card::after { right: -8%; top: 50%; width: 70%; transform: translateY(-50%); background: radial-gradient(circle, color-mix(in srgb, var(--tc) 34%, transparent), transparent 66%); }
+.tg-card > .tg-ico { position: absolute; right: 5%; top: 50%; transform: translateY(-54%) rotate(-6deg); width: auto; height: 64%; aspect-ratio: 1; color: var(--tc); opacity: 1; filter: drop-shadow(0 0 18px color-mix(in srgb, var(--tc) 55%, transparent)); transition: transform 0.25s; z-index: 0; }
+.tg-card:hover > .tg-ico { transform: translateY(-58%) rotate(-2deg) scale(1.06); }
+.tg-card.feat > .tg-ico { right: 50%; top: 40%; transform: translate(50%, -50%) rotate(-6deg); height: 46%; width: auto; }
+.tg-card.feat:hover > .tg-ico { transform: translate(50%, -54%) rotate(-2deg) scale(1.05); }
+.tg-card > .tg-ico svg { stroke-width: 2.2; }
+.tg-body { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 18px 18px 16px; }
+.tg-body .tg-tag { position: static; }
+.tg-txt { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 62%; }
+.tg-card.feat .tg-txt { max-width: 100%; }
+.tg-card .tg-t { font-size: calc(var(--u) * 1.55); }
+.tg-card.feat .tg-t { font-size: calc(var(--u) * 2.5); }
+.tg-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.tg-chips i { font-style: normal; font-family: var(--f-head); font-weight: 800; font-size: 10px; letter-spacing: 0.1em; padding: 3px 7px; background: rgba(255, 255, 255, 0.09); color: rgba(251, 246, 236, 0.85); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tc) 45%, transparent); }
+.tg-card { background-image: repeating-linear-gradient(-55deg, color-mix(in srgb, var(--tc) 7%, transparent) 0 14px, transparent 14px 34px), linear-gradient(160deg, rgba(36, 28, 62, 0.94), rgba(17, 12, 32, 0.96)); }
+.tg-card.feat { background-image: repeating-linear-gradient(-55deg, color-mix(in srgb, var(--tc) 8%, transparent) 0 18px, transparent 18px 44px), linear-gradient(160deg, rgba(60, 34, 20, 0.92), rgba(17, 12, 32, 0.96)); }
+.tg-card:hover { background-image: repeating-linear-gradient(-55deg, color-mix(in srgb, var(--tc) 10%, transparent) 0 14px, transparent 14px 34px), linear-gradient(160deg, rgba(48, 38, 82, 0.96), rgba(22, 16, 40, 0.98)); }
+.tg-card .md { width: 24px; height: 24px; }
+@media (max-height: 520px) and (min-aspect-ratio: 1/1) { .tg-chips { display: none; } .tg-body { padding: 10px 12px; } .tg-txt { max-width: 70%; } }
+
+/* Curve meter (under the crosshair while bending a shot) */
+.curve-meter { position: absolute; left: 50%; top: calc(50% + 42px); transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
+.curve-meter.show { display: flex; }
+.curve-meter span { font-family: var(--f-head); font-style: italic; font-weight: 900; font-size: 12px; letter-spacing: 0.14em; color: var(--ink); background: var(--hi); padding: 2px 10px; clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%); }
+.cm-bar { position: relative; width: 170px; height: 8px; background: rgba(17, 12, 32, 0.7); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25); }
+.cm-bar i { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, var(--hi), #ff8a1f); }
+.cm-bar em { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #fff; }
+
+/* Training cards v2: big illustrated art, content stacked on the left */
+.tg-card { padding: 0; justify-content: stretch; align-items: stretch; flex-direction: row; background-image: repeating-linear-gradient(-55deg, color-mix(in srgb, var(--tc) 7%, transparent) 0 14px, transparent 14px 34px), linear-gradient(160deg, rgba(36, 28, 62, 0.95), rgba(17, 12, 32, 0.97)); }
+.tg-card:hover { background-image: repeating-linear-gradient(-55deg, color-mix(in srgb, var(--tc) 11%, transparent) 0 14px, transparent 14px 34px), linear-gradient(160deg, rgba(48, 38, 82, 0.97), rgba(22, 16, 40, 0.98)); }
+.tg-card.feat { background-image: repeating-linear-gradient(-55deg, color-mix(in srgb, var(--tc) 9%, transparent) 0 18px, transparent 18px 44px), linear-gradient(160deg, color-mix(in srgb, var(--tc) 22%, #120d24), rgba(17, 12, 32, 0.97)); }
+.tg-card::after { right: -10%; top: 50%; width: 75%; transform: translateY(-50%); background: radial-gradient(circle, color-mix(in srgb, var(--tc) 36%, transparent), transparent 66%); }
+.tg-card > .tg-ico { position: absolute; right: 6%; top: 50%; transform: translateY(-50%) rotate(-6deg); width: auto; height: 68%; max-width: 46%; aspect-ratio: 1; color: var(--tc); opacity: 1; filter: drop-shadow(0 0 20px color-mix(in srgb, var(--tc) 60%, transparent)); transition: transform 0.25s; z-index: 0; }
+.tg-card:hover > .tg-ico { transform: translateY(-54%) rotate(-2deg) scale(1.07); }
+.tg-card.feat > .tg-ico { right: 50%; top: 38%; transform: translate(50%, -50%) rotate(-6deg); height: 50%; max-width: 70%; }
+.tg-card.feat:hover > .tg-ico { transform: translate(50%, -53%) rotate(-2deg) scale(1.05); }
+.tg-body { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 18px 18px 16px; }
+.tg-body .tg-tag { position: static; }
+.tg-txt { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 58%; }
+.tg-card.feat .tg-txt { max-width: 100%; }
+.tg-card .tg-t { font-size: calc(var(--u) * 1.55); }
+.tg-card.feat .tg-t { font-size: calc(var(--u) * 2.6); }
+.tg-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.tg-chips i { font-style: normal; font-family: var(--f-head); font-weight: 800; font-size: 10px; letter-spacing: 0.1em; padding: 3px 7px; background: rgba(255, 255, 255, 0.08); color: rgba(251, 246, 236, 0.88); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tc) 50%, transparent); }
+.tg-card .md { width: 24px; height: 24px; }
+@media (max-height: 520px) and (min-aspect-ratio: 1/1) { .tg-chips { display: none; } .tg-body { padding: 10px 12px; } .tg-txt { max-width: 66%; } }
