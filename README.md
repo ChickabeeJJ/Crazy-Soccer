@@ -6,8 +6,8 @@ A chaotic 4v4 3D soccer game for [CrazyGames](https://www.crazygames.com) — it
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
-npm run build      # -> dist/ + crazy-soccer-html5.zip (upload this to CrazyGames)
+npm run dev        # http://localhost:5173/game.html (game.html is the source page)
+npm run build      # -> dist/ and the playable game at the repo root (index.html, assets/, music/)
 ```
 
 The whole build is ~1 MB in 10 files (CrazyGames limits: 50 MB initial download, 1500 files).

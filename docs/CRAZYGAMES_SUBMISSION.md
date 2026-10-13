@@ -13,7 +13,7 @@ Everything to paste into the CrazyGames developer portal.
 | Platforms | Desktop and mobile (touch controls appear automatically) |
 | Multiplayer | Yes: real-time online 4v4, invite links and private rooms (bots fill empty spots) |
 | Account / saving | Progress is saved with the CrazyGames Data module (cloud save when logged in) |
-| Build | `crazy-soccer-html5.zip` in the repo root (about 5 MB, 18 files). Upload this file, not GitHub's "Download ZIP" of the repo, which is the source code. `npm run build` regenerates it. |
+| Build | GitHub's green **Code > Download ZIP** of this repository. The repo root holds the finished game (`index.html`, `assets/`, `music/`), about 14 MB in total. `npm run build` refreshes it. |
 
 ## Short description
 
@@ -79,8 +79,8 @@ The tools in `tools/` render these with the game's own engine (`node tools/make-
 | `art/cover-landscape.png` | 1920×1080 | Landscape cover (16:9) |
 | `art/cover-portrait.png` | 800×1200 | Portrait cover (2:3) |
 | `art/cover-square.png` | 800×800 | Square cover (1:1) |
-| `art/preview-landscape.mp4` | 1920×1080, 18 s, silent H.264 | Landscape preview video |
-| `art/preview-portrait.mp4` | 1080×1620, 18 s, silent H.264 | Portrait preview video |
+| `art/preview-landscape.mp4` | 1920×1080, 18 s, silent H.264 | Landscape preview video (not stored in the repo; render with `node tools/make-art.mjs videos`) |
+| `art/preview-portrait.mp4` | 1080×1620, 18 s, silent H.264 | Portrait preview video (not stored in the repo) |
 
 ## Multiplayer connectivity
 
