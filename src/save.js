@@ -1,5 +1,5 @@
 import { SDK } from './sdk.js';
-import { SAVE_KEY, ITEMS, ITEM_KINDS, ROLL, PLAYER_CARDS, CARD_ROLL } from './config.js';
+import { SAVE_KEY, ITEMS, ITEM_KINDS, ROLL } from './config.js';
 import { CATALOG, guestName } from './cosmetics.js';
 import { todayKey } from './util/math.js';
 
@@ -9,7 +9,7 @@ export const DEFAULT_BINDS = {
   left: ['KeyA', 'ArrowLeft'],
   right: ['KeyD', 'ArrowRight'],
   kick: ['Mouse0'],
-  pass: ['KeyT'],
+  pass: ['KeyT', 'Mouse2'],
   flick: ['KeyQ'],
   tackle: ['KeyE'],
   lob: ['KeyF'],
@@ -17,8 +17,8 @@ export const DEFAULT_BINDS = {
   dribble: ['Space'],
   sprint: ['ShiftLeft', 'ShiftRight'],
   curve: ['Mouse2'],
-  // Dedicated keyboard dive input, independent from kick, pass and curve buttons.
-  dive: ['KeyG'],
+  autoCurve: ['Mouse1'],
+  dive: ['Mouse2'],
   item1: ['Digit1'],
   item2: ['Digit2'],
   stats: ['Tab'],
@@ -30,7 +30,7 @@ export const DEFAULT_BINDS = {
 
 export const BIND_LABELS = {
   kick: 'Kick / Activate', pass: 'Pass', flick: 'Flick', tackle: 'Tackle', dive: 'Dive (Goalkeeper)', lob: 'Lob', request: 'Request',
-  dribble: 'Dribble', sprint: 'Sprint', curve: 'Curve (hold while charging)', item1: 'Item 1', item2: 'Item 2', stats: 'Stats', lobby: 'Return to Lobby',
+  dribble: 'Dribble', sprint: 'Sprint', curve: 'Curve (hold while charging)', autoCurve: 'Auto Curve (hold while charging)', item1: 'Item 1', item2: 'Item 2', stats: 'Stats', lobby: 'Return to Lobby',
   chat: 'Quick Chat', emote: 'Emotes', forward: 'Move Forward', back: 'Move Back', left: 'Move Left', right: 'Move Right',
   unlock: 'Unlock Mouse',
 };
@@ -43,7 +43,9 @@ export const DEFAULT_SETTINGS = {
   invertY: false,
   shake: 5,
   assistedPasses: true,
+  autoCurve: true,
   curveSens: 1,
+  autoCurveAlways: false,
   showControls: true,
   showHints: true,
   showStats: false,
@@ -80,7 +82,6 @@ function freshProfile() {
     daily: { last: '', streak: 0 },
     tut: 0,
     powers: [], // new players start with only the item from their free first roll
-    cards: [],
     starterRoll: false,
     pity: 0,
     rolls: 0,
@@ -122,17 +123,8 @@ export const Save = {
         stats: { ...base.stats, ...(data.stats || {}) },
         daily: { ...base.daily, ...(data.daily || {}) },
         best: { ...base.best, ...(data.best || {}) },
-        binds: { ...(data.binds || {}) },
-        cards: Array.isArray(data.cards) ? [...new Set(data.cards)].filter((id) => PLAYER_CARDS.some((c) => c.id === id)) : [],
+        binds: data.binds || {},
       };
-      // Migrate the old shared RMB assignments to avoid pass/curve/dive conflicts on existing saves.
-      for (const action of ['pass', 'dive', 'autoCurve']) {
-        if (Array.isArray(this.p.binds[action])) {
-          this.p.binds[action] = this.p.binds[action].filter((code) => code !== 'Mouse2');
-          if (!this.p.binds[action].length) delete this.p.binds[action];
-        }
-      }
-      delete this.p.binds.autoCurve;
       // Older saves: Barrel Roll was replaced by the Bazooka
       const old = (Array.isArray(data.powers) ? data.powers : []).map((k) => (k === 'barrel' ? 'bazooka' : k));
       this.p.powers = [...new Set(old)].filter((k) => ITEMS[k]);
@@ -147,18 +139,11 @@ export const Save = {
     } else {
       this.p = base;
     }
-    // Remove retired auto-curve settings from migrated profile data.
-    delete this.p.settings.autoCurve;
-    delete this.p.settings.autoCurveAlways;
-    delete this.p.binds.autoCurve;
     return this.p;
   },
 
   get binds() {
-    const binds = { ...DEFAULT_BINDS, ...this.p.binds };
-    // Curve and Auto Curve were consolidated. Ignore legacy duplicate bindings.
-    delete binds.autoCurve;
-    return binds;
+    return { ...DEFAULT_BINDS, ...this.p.binds };
   },
 
   save(now = false) {
@@ -240,31 +225,6 @@ export const Save = {
     return out;
   },
   rollsToPity() { return Math.max(1, ROLL.pity + 1 - (this.p.pity || 0)); },
-
-  // Card packs use the same coin wallet as cosmetics; duplicates refund a few coins.
-  rollCards(n = 1) {
-    if (![1, 10].includes(n) || this.p.cards.length >= PLAYER_CARDS.length) return null;
-    const cost = n === 10 ? CARD_ROLL.cost10 : CARD_ROLL.cost;
-    if (this.p.coins < cost) return null;
-    this.p.coins -= cost;
-    const bins = {};
-    for (const c of PLAYER_CARDS) (bins[c.rarity] = bins[c.rarity] || []).push(c);
-    const pool = PLAYER_CARDS;
-    const w = pool.map((c) => CARD_ROLL.odds[c.rarity] / bins[c.rarity].length);
-    const out = [];
-    for (let i = 0; i < n; i++) {
-      let r = Math.random() * w.reduce((a, b) => a + b, 0);
-      let card = pool[pool.length - 1];
-      for (let j = 0; j < pool.length; j++) { r -= w[j]; if (r <= 0) { card = pool[j]; break; } }
-      const isNew = !this.p.cards.includes(card.id);
-      const refund = isNew ? 0 : CARD_ROLL.duplicateRefund;
-      if (isNew) this.p.cards.push(card.id);
-      else this.p.coins += refund;
-      out.push({ id: card.id, isNew, refund });
-    }
-    this.save(true);
-    return out;
-  },
   powerOn(k) { return this.ownsPower(k) && !this.p.powersOff.includes(k); },
   togglePower(k) {
     if (!this.ownsPower(k)) return false;

@@ -4,43 +4,23 @@ export const GAME_VERSION = '1.5.0';
 export const SAVE_KEY = 'crazysoccer_profile_v1';
 
 export const FIELD = {
-  halfL: 72, // expanded pitch: goal lines at x = ±halfL
-  halfW: 42, // expanded pitch: touch lines at z = ±halfW
-  wallX: 77.5, // keep the play space margin around the touchlines
-  wallZ: 45,
-  wallTop: 42,
-  goalW: 20,
-  goalH: 7,
-  goalD: 5.5,
-  boxL: 18,
-  boxW: 42,
-  smallBoxL: 7,
-  smallBoxW: 28,
-  centerR: 10,
+  halfL: 64, // goal lines at x = ±halfL
+  halfW: 37, // touch lines at z = ±halfW
+  wallX: 69.5, // invisible/physical walls (ball and players stay inside)
+  wallZ: 40,
+  wallTop: 40,
+  goalW: 18.5,
+  goalH: 6.6,
+  goalD: 5,
+  boxL: 16,
+  boxW: 38,
+  smallBoxL: 6,
+  smallBoxW: 26,
+  centerR: 9,
   postR: 0.36,
 };
 
 export const MAPS = ['grass', 'desert'];
-
-// Collectible player-style cards. They are cosmetic collectibles and never change match balance.
-export const PLAYER_CARDS = [
-  { id: 'first-touch', name: 'FIRST TOUCH', role: 'ST', rarity: 'common', rating: 68, icon: '⚽', accent: '#58dc9b', tagline: 'Every legend starts somewhere.' },
-  { id: 'team-engine', name: 'TEAM ENGINE', role: 'CM', rarity: 'common', rating: 70, icon: '⚡', accent: '#6fd7ff', tagline: 'The link that keeps it moving.' },
-  { id: 'crowd-favourite', name: 'CROWD FAVOURITE', role: 'W', rarity: 'common', rating: 71, icon: '★', accent: '#ffd365', tagline: 'Plays for the noise.' },
-  { id: 'golden-gloves', name: 'GOLDEN GLOVES', role: 'GK', rarity: 'uncommon', rating: 78, icon: '🧤', accent: '#72a8ff', tagline: 'The goal is closed.' },
-  { id: 'playmaker', name: 'PLAYMAKER', role: 'CAM', rarity: 'uncommon', rating: 80, icon: '✦', accent: '#74e8dd', tagline: 'One pass changes everything.' },
-  { id: 'curve-master', name: 'CURVE MASTER', role: 'RW', rarity: 'rare', rating: 86, icon: '〰', accent: '#b7a0ff', tagline: 'Bends it around the impossible.' },
-  { id: 'rocket-saver', name: 'ROCKET SAVER', role: 'GK', rarity: 'rare', rating: 87, icon: '🛡', accent: '#73d9ff', tagline: 'Fast hands. Faster reactions.' },
-  { id: 'bicycle-ace', name: 'BICYCLE ACE', role: 'ST', rarity: 'epic', rating: 92, icon: '✧', accent: '#ff8bd2', tagline: 'An impossible finish.' },
-  { id: 'chaos-captain', name: 'CHAOS CAPTAIN', role: 'CF', rarity: 'epic', rating: 94, icon: '⚡', accent: '#ff9868', tagline: 'No plan survives contact.' },
-  { id: 'golden-boot', name: 'GOLDEN BOOT', role: 'ST', rarity: 'legendary', rating: 99, icon: '★', accent: '#ffe06b', tagline: 'Made for the winning moment.' },
-];
-export const CARD_ROLL = {
-  cost: 40,
-  cost10: 360,
-  duplicateRefund: 10,
-  odds: { common: 0.56, uncommon: 0.25, rare: 0.13, epic: 0.055, legendary: 0.005 },
-};
 
 export const PHYS = {
   gravity: 32,
@@ -88,13 +68,13 @@ export const KICK = {
   tackleSpeed: 18,
   tackleTime: 0.55,
   tackleCooldown: 0.9,
-  diveSpeed: 17,
-  diveTime: 0.7,
-  diveCooldown: 1.4,
+  diveSpeed: 13.5,
+  diveTime: 0.62,
+  diveCooldown: 1.6,
   dribbleCooldown: 1.5,
   jumpSpeed: 13.3,
-  curveBase: 45, // 2.25x the previous curve strength
-  curvePow: 63, // 2.25x the power-scaled curve strength
+  curveBase: 20, // full curve bends a shot a long way (more with power)
+  curvePow: 28,
   keeperShotMul: 0.72, // goalkeeper shots are weaker than outfield shots
   phaseR: 7, // a fresh shot passes through outfield players within this distance of where it was kicked
   gkStunSpeed: 15, // a keeper's throw/punt only bowls rivals over while the ball is this fast

@@ -38,11 +38,6 @@ class App {
     this.menuEmote = null;
     this.menuEmoteT = 0;
     this.replayStart = 0;
-    this.curveLockActive = false;
-    this.curveLockYaw = 0;
-    this.curveLockPitch = 0;
-    this.pendingGoalPresentation = false;
-    this.lastGoalPresentation = null;
     this.lockFailed = false;
     this.wheelOpen = false;
     this.pendingResults = null;
@@ -744,10 +739,6 @@ class App {
         const scorer = ev.scorer >= 0 ? s.playerName(ev.scorer) : '';
         const assist = ev.assist >= 0 ? s.playerName(ev.assist) : '';
         const title = s.mode === 'practice' ? 'GOAL!' : ev.own ? 'OWN GOAL!' : 'GOAL!';
-        this.lastGoalPresentation = { team: ev.team, scorer: ev.own ? (scorer ? `Own goal · ${scorer}` : 'Own goal') : (scorer || 'GOAL SCORER'), assist, own: !!ev.own };
-        this.pendingGoalPresentation = true;
-        this.ui.hidePostGoal();
-        this.ui.goalTransition();
         this.ui.announce(title);
         this.ui.goalPopup(ev.own ? `Own goal${scorer ? ` (${scorer})` : ''}` : scorer, ev.team, assist);
         if (ev.scorer === s.localId && !ev.own) { SDK.happytime(); }
@@ -782,17 +773,7 @@ class App {
       case 'overtime': this.ui.announce('OVERTIME', 'Next goal wins!'); break;
       case 'lastchance': this.ui.announce('LAST CHANCE', 'Score now to stay alive!'); break;
       case 'phase':
-        if (ev.ph === 'replay') {
-          this.replayStart = performance.now();
-          this.ui.hidePostGoal();
-          this.ui.goalTransition('REPLAY');
-        } else if (ev.ph === 'kickoff' && this.pendingGoalPresentation && this.lastGoalPresentation) {
-          this.pendingGoalPresentation = false;
-          this.ui.goalTransition();
-          this.ui.showPostGoal(this.lastGoalPresentation);
-        } else if (ev.ph === 'play') {
-          this.ui.hidePostGoal();
-        }
+        if (ev.ph === 'replay') this.replayStart = performance.now();
         break;
       case 'end': this.onMatchEnd(ev); break;
       case 'keeper': {
@@ -926,11 +907,10 @@ class App {
     }
   }
 
-  // One curve action for both manual and auto curve: lateral mouse movement bends the shot.
-  // Movement keys never affect curve strength.
-  shotCurve() {
-    // Curve polarity is inverted in the ball physics, so keep input, meter and preview magnitudes aligned.
-    return clamp(this.curveAmt || 0, -1, 1);
+  // Curve for the next shot: mouse curve plus A/D strafing when Auto Curve is on
+  shotCurve(right) {
+    const auto = Save.p.settings.autoCurve ? right * 0.7 : 0;
+    return clamp((this.curveAmt || 0) + auto, -1, 1);
   }
 
   updateGame(dt) {
@@ -945,31 +925,18 @@ class App {
     const active = !this.ui.anyModal() && (inp.locked || touch || this.lockFailed) && !this.adPlaying;
     this.ui.clickToPlay(!touch && !this.lockFailed && !inp.locked && !this.ui.anyModal() && !this.wheelOpen && !this.renderer.awards.active);
 
-    // Hold Curve while charging to lock the camera's aim at the press position.
-    // Mouse/touch look movement is converted into curve instead of rotating the camera.
-    // There is no separate Auto Curve mode; A/D remain movement only.
+    // Curve: hold the Curve key while charging to lock the aim and drag the mouse sideways to bend
+    // the shot; with Auto Curve on, a mouse swipe during the charge bends it while the camera turns
     const charging = !!(me && me.charging);
-    if (!charging) {
-      this.curveAmt = 0;
-      this.curveLockActive = false;
-    }
-    const curveHold = charging && active && inp.isDown('curve');
-    const cs = 0.006 * (settings.curveSens || 1);
-    if (curveHold) {
-      if (!this.curveLockActive) {
-        this.curveLockActive = true;
-        this.curveLockYaw = rig.yaw;
-        this.curveLockPitch = rig.pitch;
-      }
-      // The same horizontal camera-look delta now drives curve only. No A/D steering.
-      this.curveAmt = clamp((this.curveAmt || 0) + inp.mdx * cs * 2, -1, 1);
-      rig.yaw = this.curveLockYaw;
-      rig.pitch = this.curveLockPitch;
-      rig.setPitchLimits();
-    } else {
-      this.curveLockActive = false;
-    }
-    this.curveMode = curveHold ? 'CURVE SHOT' : null;
+    if (!charging) this.curveAmt = 0;
+    // Curve (RMB by default): aim locks, drag the mouse sideways to set the bend.
+    // Auto Curve (MMB by default, or always on in Settings): the shot bends with your camera swing.
+    const curveHold = charging && active && !touch && inp.isDown('curve');
+    const autoHold = charging && active && !touch && !curveHold && (inp.isDown('autoCurve') || settings.autoCurveAlways);
+    const cs = 0.0045 * (settings.curveSens || 1);
+    if (curveHold) this.curveAmt = clamp((this.curveAmt || 0) + inp.mdx * cs * 1.6, -1, 1);
+    else if (autoHold) this.curveAmt = clamp((this.curveAmt || 0) * Math.exp(-dt * 0.8) + inp.mdx * cs * 1.2, -1, 1);
+    this.curveMode = curveHold ? 'CURVE' : autoHold ? 'AUTO CURVE' : null;
     // Camera
     if ((active || inp.dragging) && !curveHold) {
       const k = 0.0024 * settings.sens;
@@ -1041,7 +1008,7 @@ class App {
           this.kickSuppressed = true;
         } else if (this.canVolley(me, b)) {
           // Ball in the air next to you: volley it instantly (no charging mid-air)
-          s.action({ a: 'kick', pw: 0.9, ...shotAim, cv: this.shotCurve() });
+          s.action({ a: 'kick', pw: 0.9, ...shotAim, cv: this.shotCurve(right) });
           this.kickSuppressed = true;
         } else {
           s.action({ a: 'charge', on: true });
@@ -1050,7 +1017,7 @@ class App {
       }
       if (inp.wasReleased('kick')) {
         if (this.kickSuppressed) this.kickSuppressed = false;
-        else if (me.charging) s.action({ a: 'kick', pw: me.charge, ...shotAim, cv: this.shotCurve() });
+        else if (me.charging) s.action({ a: 'kick', pw: me.charge, ...shotAim, cv: this.shotCurve(right) });
         else s.action({ a: 'kick', pw: 0, ...shotAim, cv: 0 });
       }
       const simple = (name, extra = {}) => { if (inp.wasPressed(name)) { s.action({ a: name, ...aim, mx, mz, ...extra }); this.ui.flashControl(name); } };
@@ -1058,12 +1025,11 @@ class App {
       const canDive = me.keeper && inOwnBox(me, 0.6) && !s.hasBall();
       // while a shot is charging, right click is the Curve button (no pass or dive)
       const curving = me.charging && (inp.isDown('curve') || inp.wasPressed('curve'));
-      const touchDive = touch && inp.wasPressed('tackle');
-      const dived = !curving && canDive && (inp.wasPressed('dive') || touchDive);
+      const dived = !curving && canDive && inp.wasPressed('dive');
       if (dived) { s.action({ a: 'dive', ...aim, mx, mz }); this.ui.flashControl('tackle'); }
       if (inp.wasPressed('pass') && equip >= 0) me.equip = -1;
       else if (!dived && !curving) simple('pass', { assist: settings.assistedPasses });
-      simple('lob'); simple('flick'); if (!dived) simple('tackle'); simple('dribble'); simple('request');
+      simple('lob'); simple('flick'); simple('tackle'); simple('dribble'); simple('request');
       if (inp.wasPressed('chat')) this.ui.toggleWheel('chat');
       if (inp.wasPressed('emote')) this.ui.toggleWheel('emote');
       if (inp.wasPressed('lobby')) this.askLeave();
@@ -1103,19 +1069,17 @@ class App {
     }
     if (!staging) {
       this.renderer.syncAim(me, rig.yaw, !!(me && me.charging && !frame), me ? me.charge : 0);
-      this.updateTrajectory(s, me, frame, shotAim, this.shotCurve());
+      this.updateTrajectory(s, me, frame, shotAim, this.shotCurve(right));
       // Curve meter under the crosshair while bending a shot
-      const cvNow = me && me.charging ? this.shotCurve() : 0;
+      const cvNow = me && me.charging ? this.shotCurve(right) : 0;
       const showCm = !!(me && me.charging && (this.curveMode || Math.abs(cvNow) > 0.05));
       const cm = $('curveMeter');
       cm.classList.toggle('show', showCm);
       if (showCm) {
         $('cmLabel').textContent = this.curveMode || 'CURVE';
         const f = $('cmFill');
-        // Use the whole bar, so a maximum curve reaches the edge instead of stopping halfway.
-        f.style.left = cvNow < 0 ? 'auto' : '0%';
-        f.style.right = cvNow < 0 ? '0%' : 'auto';
-        f.style.width = `${Math.abs(cvNow) * 100}%`;
+        f.style.left = cvNow < 0 ? `${50 + cvNow * 50}%` : '50%';
+        f.style.width = `${Math.abs(cvNow) * 50}%`;
       }
     }
 
