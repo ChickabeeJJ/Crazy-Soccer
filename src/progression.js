@@ -9,7 +9,7 @@ const DAY = 86400000;
 // Seasons are 28 days long, counted from this date. Weekly events run Thursday to Sunday.
 const SEASON_EPOCH = Date.UTC(2026, 9, 1);
 const SEASON_LEN = 28 * DAY;
-export const PASS = { tiers: 30, spPerTier: 300, eliteCost: 1500 };
+export const PASS = { tiers: 30, spPerTier: 300, eliteCost: 3500 };
 
 // Each season has its own exclusive cosmetics (never sold in the shop)
 const SEASONS = [

@@ -9,7 +9,10 @@ import { PreviewStudio } from '../render/preview.js';
 import { Prog, PASS, CALENDAR, fmtLeft } from '../progression.js';
 
 const $ = (id) => document.getElementById(id);
+const MEDALS = { shoot: [300, 700, 1200], keeper: [4, 7, 10] }; // bronze / silver / gold
 const TOKEN_SVG = '<svg viewBox="0 0 24 24"><path d="M12 2l9 5v10l-9 5-9-5V7z" fill="#8a5cf6"/><path d="M12 2l9 5-9 5-9-5z" fill="#b69cff"/><path d="M10 9.5a2.2 2 0 1 1 3 1.8c-.8.4-1 .8-1 1.6M12 15.4v.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>';
+const LOCK_SVG = '<svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" fill="currentColor"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.6"/></svg>';
+const COINS_SVG = '<svg viewBox="0 0 48 48"><ellipse cx="24" cy="36" rx="16" ry="6" fill="#c98a12"/><ellipse cx="24" cy="33" rx="16" ry="6" fill="#ffcf3f"/><ellipse cx="24" cy="27" rx="16" ry="6" fill="#c98a12"/><ellipse cx="24" cy="24" rx="16" ry="6" fill="#ffcf3f"/><ellipse cx="24" cy="18" rx="16" ry="6" fill="#c98a12"/><ellipse cx="24" cy="15" rx="16" ry="6" fill="#ffe07a"/><ellipse cx="24" cy="15" rx="9" ry="3" fill="#ffcf3f"/></svg>';
 const CHEST_SVG = '<svg viewBox="0 0 24 24"><path d="M3 10h18v10H3z" fill="#b8742a"/><path d="M3 10c0-4 4-6 9-6s9 2 9 6z" fill="#d89a3a"/><path d="M3 10h18v2H3z" fill="#ffcf3f"/><path d="M10 11h4v4h-4z" fill="#ffcf3f"/></svg>';
 const TIPS = [
   'Walk into your own box when your team has no keeper to grab the gloves.',
@@ -91,7 +94,7 @@ export class UI {
     click('dailyBtn', () => app.claimDaily());
     click('loginBtn', () => app.login());
     click('seasonChip', () => this.setPage('pass'));
-    click('passElite', () => app.buyElite());
+    click('tgMatch', () => app.startOffline(null, Save.p.team === 1 ? 1 : 0));
     click('passClaimAll', () => app.claimAllPass());
     click('resumeBtn', () => app.resume());
     click('leaveBtn', () => app.leaveToLobby(true));
@@ -238,50 +241,147 @@ export class UI {
   refreshBadges() {
     const pd = Prog.pending();
     $('badgePass').classList.toggle('hidden', !pd.pass);
-    $('badgePlay').classList.toggle('hidden', !(pd.chal || pd.play || pd.ev || pd.cal));
   }
 
+  // Season Pass: season block + selected reward info on the left, a big showcase of the selected
+  // reward, and a strip of tiers (free + elite reward per tier) that scrolls with the wheel or a drag.
   renderPass() {
     const g = Prog.s;
     const si = Prog.seasonInfo();
     const tier = Prog.tier();
     $('passNo').textContent = `SEASON ${si.n}`;
     $('passName').textContent = si.name;
-    $('passEnds').textContent = `ENDS IN ${fmtLeft(si.ends - Date.now())}`;
+    $('passEnds').textContent = `Ends in ${fmtLeft(si.ends - Date.now()).toLowerCase()}`;
     $('passTier').textContent = tier;
     $('passBar').style.width = `${Prog.tierProgress() * 100}%`;
-    $('passSp').textContent = tier >= PASS.tiers ? 'PASS COMPLETE' : `${g.sp % PASS.spPerTier} / ${PASS.spPerTier} XP TO TIER ${tier + 1}`;
-    const el = $('passElite');
-    el.innerHTML = g.elite ? 'ELITE UNLOCKED' : `UNLOCK ELITE <span class="coin"></span>${PASS.eliteCost}`;
-    el.disabled = g.elite;
-    const pd = Prog.pending();
-    $('passClaimAll').disabled = !pd.pass;
+    $('passSp').textContent = tier >= PASS.tiers ? 'SEASON PASS COMPLETE' : `${g.sp % PASS.spPerTier} / ${PASS.spPerTier} XP TO TIER ${tier + 1}`;
+    $('passClaimAll').disabled = !Prog.pending().pass;
+    // default selection: the next exclusive still ahead of you
+    if (!this.bpSel) {
+      let pick = null;
+      for (let t = tier + 1; t <= PASS.tiers && !pick; t++) for (const tr of ['e', 'f']) if (!pick && Prog.reward(t, tr).kind === 'item') pick = { t, tr };
+      this.bpSel = pick || { t: Math.max(1, Math.min(PASS.tiers, tier + 1)), tr: 'f' };
+    }
+    const RAR = (r) => (r.kind === 'item' ? 'legend' : r.kind === 'chest' ? 'epic' : r.kind === 'token' ? 'rare' : r.kind === 'sp' ? 'uncommon' : 'common');
+    const RNAME = { legend: 'EXCLUSIVE', epic: 'EPIC', rare: 'RARE', uncommon: 'UNCOMMON', common: 'COMMON' };
     let html = '';
     for (let t = 1; t <= PASS.tiers; t++) {
-      const cell = (track) => {
-        const r = Prog.reward(t, track);
-        const claimed = g.claimed[track].includes(t);
-        const can = Prog.canClaim(t, track);
-        const locked = t > tier || (track === 'e' && !g.elite);
-        return `<button class="pc ${track} ${claimed ? 'claimed' : ''} ${can ? 'ready' : ''} ${locked ? 'locked' : ''} ${r.kind === 'item' ? 'excl' : ''}" data-tier="${t}" data-track="${track}" ${can ? '' : 'disabled'} title="${Prog.label(r)}">
-          ${this.rewardIcon(r)}<b>${r.kind === 'item' ? 'EXCLUSIVE' : this.rewardShort(r)}</b>${claimed ? '<i class="pc-ok"></i>' : ''}${locked && track === 'e' && !g.elite ? '<i class="pc-lock"></i>' : ''}</button>`;
+      const card = (tr) => {
+        const r = Prog.reward(t, tr);
+        const claimed = g.claimed[tr].includes(t);
+        const can = Prog.canClaim(t, tr);
+        const eliteLocked = tr === 'e' && !g.elite;
+        const sel = this.bpSel.t === t && this.bpSel.tr === tr;
+        return `<button class="bpc ${tr} r-${RAR(r)} ${claimed ? 'claimed' : ''} ${can ? 'ready' : ''} ${t > tier ? 'ahead' : ''} ${sel ? 'sel' : ''}" data-tier="${t}" data-track="${tr}">
+          <span class="bpc-art">${this.rewardIcon(r)}</span>
+          ${r.kind !== 'item' ? `<span class="bpc-n">${this.rewardShort(r)}</span>` : ''}
+          ${eliteLocked ? `<i class="bpc-lock">${LOCK_SVG}</i>` : ''}${claimed ? '<i class="bpc-ok"></i>' : ''}${can ? '<i class="bpc-claim">CLAIM</i>' : ''}
+          <i class="bpc-bar"></i></button>`;
       };
-      html += `<div class="pcol ${t <= tier ? 'reached' : ''} ${t === tier + 1 ? 'next' : ''}"><span class="pcol-n">${t}</span>${cell('f')}${cell('e')}</div>`;
+      html += `<div class="bpt ${t <= tier ? 'reached' : ''} ${t === tier + 1 ? 'next' : ''}"><div class="bpt-cards">${card('f')}${card('e')}</div><span class="bpt-lab">TIER ${t}</span></div>`;
     }
     const tr = $('passTrack');
     const sl = tr.scrollLeft;
     tr.innerHTML = html;
     this.fillPreviews(tr);
-    tr.querySelectorAll('[data-tier]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.claimTier(+b.dataset.tier, b.dataset.track); }));
-    if (!this.passScrolled) { this.passScrolled = true; const col = tr.children[Math.max(0, tier - 2)]; if (col) tr.scrollLeft = col.offsetLeft - 8; } else tr.scrollLeft = sl;
+    tr.querySelectorAll('[data-tier]').forEach((b) => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.bpDragged) return;
+      const t = +b.dataset.tier, k = b.dataset.track;
+      this.app.audio.click();
+      if (Prog.canClaim(t, k)) { this.bpSel = { t, tr: k }; this.app.claimTier(t, k); return; }
+      this.bpSel = { t, tr: k };
+      this.renderPass();
+    }));
+    if (!this.bpInit) {
+      this.bpInit = true;
+      // mouse wheel scrolls sideways; click-and-drag pans the strip
+      tr.addEventListener('wheel', (e) => { e.preventDefault(); tr.scrollLeft += (Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX) * 1.2; }, { passive: false });
+      let down = null;
+      tr.addEventListener('pointerdown', (e) => { down = { x: e.clientX, s: tr.scrollLeft, id: e.pointerId }; this.bpDragged = false; });
+      window.addEventListener('pointermove', (e) => {
+        if (!down) return;
+        const dx = e.clientX - down.x;
+        if (Math.abs(dx) > 6) { this.bpDragged = true; tr.classList.add('dragging'); }
+        if (this.bpDragged) tr.scrollLeft = down.s - dx;
+      });
+      window.addEventListener('pointerup', () => { if (!down) return; down = null; tr.classList.remove('dragging'); setTimeout(() => { this.bpDragged = false; }, 0); });
+      const col = tr.children[Math.max(0, tier - 1)];
+      if (col) tr.scrollLeft = col.offsetLeft - 20;
+    } else tr.scrollLeft = sl;
+
+    // Selected reward: info panel + big showcase
+    const { t: st, tr: sk } = this.bpSel;
+    const r = Prog.reward(st, sk);
+    const rar = RAR(r);
+    const claimed = g.claimed[sk].includes(st);
+    const can = Prog.canClaim(st, sk);
+    const kindName = r.kind === 'item' ? ({ jersey: 'JERSEY', boots: 'BOOTS', ball: 'BALL' }[r.cat] || 'COSMETIC') : r.kind === 'token' ? 'ITEM ROLL' : r.kind === 'sp' ? 'SEASON XP' : r.kind === 'chest' ? 'CHEST' : 'COINS';
+    const blurb = r.kind === 'item' ? 'Season exclusive. Never sold in the shop.' : r.kind === 'token' ? 'A free roll of the Item Roll: no coins needed.' : r.kind === 'chest' ? 'A stash of coins and free item rolls.' : r.kind === 'sp' ? 'A boost towards your next tier.' : 'Spend them in the Shop.';
+    $('bpInfo').innerHTML = `<div class="bpi-name">${Prog.label(r)}</div><div class="bpi-type r-${rar}"><i></i>${kindName}<em>${RNAME[rar]}</em></div><div class="bpi-text">${blurb}</div>`;
+    const status = claimed ? '<span class="bps-tag ok">CLAIMED</span>'
+      : can ? '<button id="bpClaimSel" class="bps-tag claim">CLAIM NOW</button>'
+      : sk === 'e' && !g.elite && st <= tier ? '<span class="bps-tag">ELITE PASS ONLY</span>'
+      : `<span class="bps-tag">UNLOCKS AT <b>TIER ${st}</b>${sk === 'e' ? ' · ELITE' : ''}</span>`;
+    const show = $('bpShow');
+    show.className = `bp-show r-${rar}`;
+    show.innerHTML = `<div class="bps-burst"></div><div class="bps-art">${r.kind === 'item' ? '<span class="bps-pv"></span>' : `<span class="bps-ico">${r.kind === 'coins' ? COINS_SVG : r.kind === 'token' ? TOKEN_SVG : r.kind === 'chest' ? CHEST_SVG : '<b class="bps-xp">XP</b>'}</span>`}</div>${status}${r.kind !== 'item' ? `<div class="bps-amt">${r.kind === 'chest' ? `${r.n} + ${r.tokens} ROLLS` : r.kind === 'token' ? `×${r.n}` : r.n}</div>` : ''}`;
+    if (r.kind === 'item') { const pv = show.querySelector('.bps-pv'); try { pv.appendChild(this.bigPreview(r.cat, r.id)); } catch (e) { /* ignore */ } }
+    const cb = $('bpClaimSel');
+    if (cb) cb.onclick = (e) => { e.stopPropagation(); this.app.claimTier(st, sk); };
+    // Elite pass card
+    const el = $('bpElite');
+    el.innerHTML = g.elite ? '<div class="bpe-on"><i></i>ELITE PASS ACTIVE</div>'
+      : `<div class="bpe-h">ELITE PASS</div><div class="bpe-l"><span>4 SEASON EXCLUSIVES</span><span>+30 BONUS REWARDS</span><span>FREE ROLLS + A 1000 COIN CHEST</span></div><button id="bpBuy" class="bpe-buy">UNLOCK <span class="coin"></span>${PASS.eliteCost}</button>`;
+    const bb = $('bpBuy');
+    if (bb) bb.onclick = (e) => { e.stopPropagation(); this.app.audio.click(); this.app.buyElite(); };
     this.refreshBadges();
   }
 
+  // Large render of a cosmetic for the Season Pass showcase
+  bigPreview(cat, id) {
+    if (!this.bigCache) this.bigCache = new Map();
+    const p = Save.p;
+    const key = `${cat}|${id}|${p.eq.skin}|${p.eq.hair}|${p.eq.hairColor}`;
+    if (!this.bigCache.has(key)) {
+      if (!this.bigStudio) this.bigStudio = new PreviewStudio(640, 640);
+      const st = this.bigStudio;
+      const look = { ...this.app.cos() };
+      const team = this.app.menuTeam === 1 ? 1 : 0;
+      const c = cat === 'ball' ? st.ball(id) : cat === 'boots' ? st.character({ ...look, boots: id }, team, 'boots') : st.character({ ...look, [cat]: id }, team, cat === 'jersey' ? 'jersey' : 'hair');
+      this.bigCache.set(key, c);
+    }
+    const src = this.bigCache.get(key);
+    const c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    c.getContext('2d').drawImage(src, 0, 0);
+    return c;
+  }
+
+
   renderTraining() {
     const p = Save.p;
-    $('bestShoot').textContent = `BEST ${p.best.shoot || 0}`;
-    $('bestKeeper').textContent = `BEST ${p.best.keeper || 0} SAVES`;
+    const best = { shoot: p.best.shoot || 0, keeper: p.best.keeper || 0 };
+    const medalHtml = (k) => MEDALS[k].map((m, i) => `<i class="md m${i} ${best[k] >= m ? 'on' : ''}" title="${['Bronze', 'Silver', 'Gold'][i]}: ${m}${k === 'keeper' ? ' saves' : ' points'}"></i>`).join('');
+    for (const k of ['shoot', 'keeper']) {
+      $(`tgMed_${k}`).innerHTML = medalHtml(k);
+      const next = MEDALS[k].find((m) => best[k] < m);
+      $(`tgBest_${k}`).textContent = `BEST ${best[k]}${k === 'keeper' ? ' SAVES' : ''}${next ? `  ·  NEXT MEDAL ${next}` : '  ·  ALL MEDALS'}`;
+    }
     $('tutTag').textContent = p.tutDone ? 'COMPLETED' : '+100 COINS';
+    $('tgTip').textContent = TIPS[Math.floor(Date.now() / 86400000) % TIPS.length];
+    const st = p.stats;
+    const rate = st.matches ? Math.round((st.wins / st.matches) * 100) : 0;
+    $('tgLevel').textContent = `LEVEL ${p.level}`;
+    $('tgCareer').innerHTML = [['MATCHES', st.matches], ['WINS', st.wins], ['WIN RATE', `${rate}%`], ['GOALS', st.goals], ['ASSISTS', st.assists], ['SAVES', st.saves]]
+      .map(([l, v]) => `<div class="tc"><b>${v}</b><span>${l}</span></div>`).join('');
+    let n = 0;
+    const rows = [['shoot', 'Shooting'], ['keeper', 'Goalkeeping']].map(([k, label]) => {
+      const got = MEDALS[k].filter((m) => best[k] >= m).length; n += got;
+      return `<div class="tm"><span>${label}</span><span class="tg-medals">${medalHtml(k)}</span></div>`;
+    }).join('');
+    $('tgMedals').innerHTML = rows;
+    $('tgMedCount').textContent = `${n} / 6`;
   }
 
   showTrainingResult(r) {

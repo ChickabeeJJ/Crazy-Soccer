@@ -13,7 +13,7 @@ import { Training, TRAINING_INFO } from './game/training.js';
 import { Net, randomCode, roomPeerId, prewarmNet } from './net/net.js';
 import { GAME_VERSION, TEAMS, QUICK_CHAT, ITEMS, MATCH, PLAYER, KICK, FIELD } from './config.js';
 import { CATALOG } from './cosmetics.js';
-import { Prog } from './progression.js';
+import { Prog, PASS } from './progression.js';
 import { clamp, len2, wrapAngle } from './util/math.js';
 import * as THREE from 'three';
 
@@ -221,8 +221,8 @@ class App {
   }
   async buyElite() {
     if (Prog.s.elite) return;
-    if (Save.p.coins < 1500) { this.audio.beep(false); this.ui.globalToast('Not enough coins for the Elite Pass yet'); return; }
-    const ok = await this.ui.confirm('Unlock the Elite Pass?', 'Spend 1500 coins to unlock the Elite track for this season, including every reward you have already reached.');
+    if (Save.p.coins < PASS.eliteCost) { this.audio.beep(false); this.ui.globalToast('Not enough coins for the Elite Pass yet'); return; }
+    const ok = await this.ui.confirm('Unlock the Elite Pass?', `Spend ${PASS.eliteCost} coins to unlock the Elite track for this season, including every reward you have already reached.`);
     if (ok && Prog.buyElite()) { this.audio.goalHorn(); this.ui.globalToast('Elite Pass unlocked!', 3000); }
     this.afterClaim();
   }
@@ -899,7 +899,7 @@ class App {
     const shift = page === 'shop' || page === 'inventory' ? 2.6 : 0;
     // the lobby crowd is only built once nothing heavier (like joining a friend) is going on
     this.renderer.crewAllowed = !this.joining && this.state === 'menu' && !this.ui.isOpen('searching');
-    this.renderer.menuScene(dt, this.cos(), emote, Save.p.eq.ball, this.menuTeam ?? (Save.p.team === 1 ? 1 : 0), shift, page === 'training');
+    this.renderer.menuScene(dt, this.cos(), emote, Save.p.eq.ball, this.menuTeam ?? (Save.p.team === 1 ? 1 : 0), shift, page === 'training' || page === 'pass');
     if (this.state === 'menu' && !this.ui.anyModal()) {
       // Idle character occasionally emotes
       this.menuEmoteT += dt;
