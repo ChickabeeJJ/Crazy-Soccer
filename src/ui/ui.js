@@ -1048,8 +1048,6 @@ export class UI {
       ${toggle('invertY', 'Invert Y', 'Flip vertical camera movement')}
       <div class="set-sec">Gameplay</div>
       ${toggle('assistedPasses', 'Assisted Passes', 'Passes auto-target the best teammate')}
-      ${toggle('autoCurve', 'Strafe Curve', 'A / D while charging bends the shot')}
-      ${this.isTouch ? '' : toggle('autoCurveAlways', 'Always Auto Curve', 'Camera swings while charging always bend the shot')}
       ${this.isTouch ? '' : slider('curveSens', 'Curve Sensitivity', 'How sharply a mouse swipe bends the ball', 0.3, 2.5, 0.05)}
       ${this.isTouch ? toggle('aimAssist', 'Aim Assist', 'Touch: shots near the goal snap inside the frame') : ''}
       <div class="set-sec">Interface</div>
@@ -1060,7 +1058,7 @@ export class UI {
       <div class="set-sec">Mouse</div>
       ${bindRow('unlock')}
       <div class="set-sec" data-sec="keys">Gameplay Keybinds</div>
-      ${['kick', 'curve', 'autoCurve', 'pass', 'flick', 'tackle', 'dive', 'lob', 'request', 'dribble', 'sprint', 'item1', 'item2'].map(bindRow).join('')}
+      ${['kick', 'curve', 'pass', 'flick', 'tackle', 'dive', 'lob', 'request', 'dribble', 'sprint', 'item1', 'item2'].map(bindRow).join('')}
       <div class="set-sec">Movement & UI Keybinds</div>
       ${['forward', 'back', 'left', 'right', 'stats', 'lobby', 'chat', 'emote'].map(bindRow).join('')}
       <div class="set-row"><div class="lbl"><b>Reset all keybinds</b><span>Restore the default controls</span></div><button class="bind-reset" id="resetBinds">Reset</button></div>

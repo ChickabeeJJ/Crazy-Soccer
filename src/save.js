@@ -17,7 +17,6 @@ export const DEFAULT_BINDS = {
   dribble: ['Space'],
   sprint: ['ShiftLeft', 'ShiftRight'],
   curve: ['Mouse2'],
-  autoCurve: ['Mouse1'],
   dive: ['Mouse2'],
   item1: ['Digit1'],
   item2: ['Digit2'],
@@ -30,7 +29,7 @@ export const DEFAULT_BINDS = {
 
 export const BIND_LABELS = {
   kick: 'Kick / Activate', pass: 'Pass', flick: 'Flick', tackle: 'Tackle', dive: 'Dive (Goalkeeper)', lob: 'Lob', request: 'Request',
-  dribble: 'Dribble', sprint: 'Sprint', curve: 'Curve (hold while charging)', autoCurve: 'Auto Curve (hold while charging)', item1: 'Item 1', item2: 'Item 2', stats: 'Stats', lobby: 'Return to Lobby',
+  dribble: 'Dribble', sprint: 'Sprint', curve: 'Curve (hold while charging)', item1: 'Item 1', item2: 'Item 2', stats: 'Stats', lobby: 'Return to Lobby',
   chat: 'Quick Chat', emote: 'Emotes', forward: 'Move Forward', back: 'Move Back', left: 'Move Left', right: 'Move Right',
   unlock: 'Unlock Mouse',
 };
@@ -43,9 +42,7 @@ export const DEFAULT_SETTINGS = {
   invertY: false,
   shake: 5,
   assistedPasses: true,
-  autoCurve: true,
   curveSens: 1,
-  autoCurveAlways: false,
   showControls: true,
   showHints: true,
   showStats: false,
@@ -130,6 +127,10 @@ export const Save = {
       this.p.powers = [...new Set(old)].filter((k) => ITEMS[k]);
       // Saves from before the starter roll already have their items
       this.p.starterRoll = data.starterRoll ?? this.p.powers.length > 0;
+      // Retire Auto Curve controls and options from older saved profiles.
+      delete this.p.settings.autoCurve;
+      delete this.p.settings.autoCurveAlways;
+      delete this.p.binds.autoCurve;
       this.p.powersOff = (Array.isArray(data.powersOff) ? data.powersOff : []).filter((k) => this.p.powers.includes(k));
       // at least 3 items (or all you own, if fewer) stay enabled
       while (this.p.powersOff.length && this.activePowers().length < Math.min(ROLL.minEnabled, this.p.powers.length)) this.p.powersOff.pop();
@@ -143,7 +144,9 @@ export const Save = {
   },
 
   get binds() {
-    return { ...DEFAULT_BINDS, ...this.p.binds };
+    const binds = { ...DEFAULT_BINDS, ...this.p.binds };
+    delete binds.autoCurve;
+    return binds;
   },
 
   save(now = false) {
