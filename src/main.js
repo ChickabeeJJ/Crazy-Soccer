@@ -947,7 +947,7 @@ class App {
 
     // Hold Curve while charging to lock the camera's aim at the press position.
     // Mouse/touch look movement is converted into curve instead of rotating the camera.
-    // "Curve" and "Auto Curve" are now one unified action.
+    // There is no separate Auto Curve mode; A/D remain movement only.
     const charging = !!(me && me.charging);
     if (!charging) {
       this.curveAmt = 0;
