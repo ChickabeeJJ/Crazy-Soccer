@@ -907,10 +907,9 @@ class App {
     }
   }
 
-  // Curve for the next shot: mouse curve plus A/D strafing when Auto Curve is on
-  shotCurve(right) {
-    const auto = Save.p.settings.autoCurve ? right * 0.7 : 0;
-    return clamp((this.curveAmt || 0) + auto, -1, 1);
+  // Curve strength for the next shot comes only from the held Curve control.
+  shotCurve() {
+    return clamp(this.curveAmt || 0, -1, 1);
   }
 
   updateGame(dt) {
@@ -925,18 +924,14 @@ class App {
     const active = !this.ui.anyModal() && (inp.locked || touch || this.lockFailed) && !this.adPlaying;
     this.ui.clickToPlay(!touch && !this.lockFailed && !inp.locked && !this.ui.anyModal() && !this.wheelOpen && !this.renderer.awards.active);
 
-    // Curve: hold the Curve key while charging to lock the aim and drag the mouse sideways to bend
-    // the shot; with Auto Curve on, a mouse swipe during the charge bends it while the camera turns
+    // Hold Curve while charging to lock aim and use horizontal mouse movement to bend the shot.
     const charging = !!(me && me.charging);
     if (!charging) this.curveAmt = 0;
-    // Curve (RMB by default): aim locks, drag the mouse sideways to set the bend.
-    // Auto Curve (MMB by default, or always on in Settings): the shot bends with your camera swing.
+    // Curve control: lock the camera and let horizontal mouse movement set shot bend.
     const curveHold = charging && active && !touch && inp.isDown('curve');
-    const autoHold = charging && active && !touch && !curveHold && (inp.isDown('autoCurve') || settings.autoCurveAlways);
     const cs = 0.0045 * (settings.curveSens || 1);
     if (curveHold) this.curveAmt = clamp((this.curveAmt || 0) + inp.mdx * cs * 1.6, -1, 1);
-    else if (autoHold) this.curveAmt = clamp((this.curveAmt || 0) * Math.exp(-dt * 0.8) + inp.mdx * cs * 1.2, -1, 1);
-    this.curveMode = curveHold ? 'CURVE' : autoHold ? 'AUTO CURVE' : null;
+    this.curveMode = curveHold ? 'CURVE' : null;
     // Camera
     if ((active || inp.dragging) && !curveHold) {
       const k = 0.0024 * settings.sens;
@@ -1008,7 +1003,7 @@ class App {
           this.kickSuppressed = true;
         } else if (this.canVolley(me, b)) {
           // Ball in the air next to you: volley it instantly (no charging mid-air)
-          s.action({ a: 'kick', pw: 0.9, ...shotAim, cv: this.shotCurve(right) });
+          s.action({ a: 'kick', pw: 0.9, ...shotAim, cv: this.shotCurve() });
           this.kickSuppressed = true;
         } else {
           s.action({ a: 'charge', on: true });
@@ -1017,7 +1012,7 @@ class App {
       }
       if (inp.wasReleased('kick')) {
         if (this.kickSuppressed) this.kickSuppressed = false;
-        else if (me.charging) s.action({ a: 'kick', pw: me.charge, ...shotAim, cv: this.shotCurve(right) });
+        else if (me.charging) s.action({ a: 'kick', pw: me.charge, ...shotAim, cv: this.shotCurve() });
         else s.action({ a: 'kick', pw: 0, ...shotAim, cv: 0 });
       }
       const simple = (name, extra = {}) => { if (inp.wasPressed(name)) { s.action({ a: name, ...aim, mx, mz, ...extra }); this.ui.flashControl(name); } };
@@ -1069,9 +1064,9 @@ class App {
     }
     if (!staging) {
       this.renderer.syncAim(me, rig.yaw, !!(me && me.charging && !frame), me ? me.charge : 0);
-      this.updateTrajectory(s, me, frame, shotAim, this.shotCurve(right));
+      this.updateTrajectory(s, me, frame, shotAim, this.shotCurve());
       // Curve meter under the crosshair while bending a shot
-      const cvNow = me && me.charging ? this.shotCurve(right) : 0;
+      const cvNow = me && me.charging ? this.shotCurve() : 0;
       const showCm = !!(me && me.charging && (this.curveMode || Math.abs(cvNow) > 0.05));
       const cm = $('curveMeter');
       cm.classList.toggle('show', showCm);
