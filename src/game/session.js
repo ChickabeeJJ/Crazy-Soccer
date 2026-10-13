@@ -728,7 +728,7 @@ export class Session {
     if (ev.e === 'end') { this.ended = true; this.lastEnd = ev; }
     this.onEvent(ev);
     // Final events have been broadcast by flushWorldEvents; now release the hosted room.
-    if (ev.e === 'end' && this.isAuthority && this.net && this.net.isHost) this.net.close();
+    if (ev.e === 'end' && this.isAuthority && this.net && this.net.isHost) this.net.retire();
   }
 
   replayFrame(progress) {
