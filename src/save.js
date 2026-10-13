@@ -122,9 +122,17 @@ export const Save = {
         stats: { ...base.stats, ...(data.stats || {}) },
         daily: { ...base.daily, ...(data.daily || {}) },
         best: { ...base.best, ...(data.best || {}) },
-        binds: data.binds || {},
+        binds: { ...(data.binds || {}) },
         cards: Array.isArray(data.cards) ? [...new Set(data.cards)].filter((id) => PLAYER_CARDS.some((c) => c.id === id)) : [],
       };
+      // Migrate the old shared RMB assignments to avoid pass/curve/dive conflicts on existing saves.
+      for (const action of ['pass', 'dive', 'autoCurve']) {
+        if (Array.isArray(this.p.binds[action])) {
+          this.p.binds[action] = this.p.binds[action].filter((code) => code !== 'Mouse2');
+          if (!this.p.binds[action].length) delete this.p.binds[action];
+        }
+      }
+      delete this.p.binds.autoCurve;
       // Older saves: Barrel Roll was replaced by the Bazooka
       const old = (Array.isArray(data.powers) ? data.powers : []).map((k) => (k === 'barrel' ? 'bazooka' : k));
       this.p.powers = [...new Set(old)].filter((k) => ITEMS[k]);
