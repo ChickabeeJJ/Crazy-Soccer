@@ -41,6 +41,8 @@ class App {
     this.lockFailed = false;
     this.wheelOpen = false;
     this.pendingResults = null;
+    this.quickMatchPending = false;
+    this.skipJoinKickoffAnnouncement = false;
   }
 
   async boot() {
@@ -336,6 +338,8 @@ class App {
     else if (team === -1) Save.p.team = Math.random() < 0.5 ? 0 : 1;
     Save.save();
     this.endSession();
+    // This first session is provisional while CrazyGames public matchmaking checks for a live room.
+    this.quickMatchPending = true;
     const session = new Session({ mode: 'match', role: 'offline', roomKind: 'pub', profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
     session.startHost({ itemMul: Prog.mods().itemMul });
     this.session = session;
@@ -353,11 +357,16 @@ class App {
     try {
       res = await withTimeout(net.quickPlay(this.hello()), 45000);
     } catch (e) {
-      if (this.searchToken === token) { this.net = null; this.netStatus = 'bots'; }
+      if (this.searchToken === token) {
+        this.net = null;
+        this.netStatus = 'bots';
+        this.quickMatchPending = false;
+      }
       try { net.close(); } catch (e2) { /* ignore */ }
       return;
     }
     if (this.searchToken !== token || this.session !== session || session.destroyed) { net.close(); return; }
+    this.quickMatchPending = false;
     this.searchToken = null;
     const code = `pub-${res.k}`;
     if (res.role === 'host') {
@@ -502,6 +511,9 @@ class App {
 
   enterGame() {
     const s = this.session;
+    // A client joining during an existing kickoff should skip that room's current intro.
+    // Private-room clients in warmup still get the countdown when their host starts the match.
+    this.skipJoinKickoffAnnouncement = !!(s.mode !== 'practice' && s.role === 'client' && s.view.phase === 'kickoff');
     this.state = 'game';
     this.ui.screen('menu', false);
     this.ui.screen('hud', true);
@@ -530,6 +542,8 @@ class App {
 
   endSession() {
     this.searchToken = null;
+    this.quickMatchPending = false;
+    this.skipJoinKickoffAnnouncement = false;
     if (this.session) { this.session.destroy(); this.session = null; }
     if (this.net) { try { this.net.close(); } catch (e) { /* ignore */ } this.net = null; }
     this.stopBgTicker();
@@ -1257,6 +1271,21 @@ class App {
   }
 
   updatePhaseAnnouncements(s, v) {
+    // Quick Match starts a local bot-filled session before it knows whether a live room exists.
+    // Do not announce that provisional kickoff; the session may be replaced by an active match.
+    if (this.quickMatchPending) {
+      this.lastCount = null;
+      this.lastPhase = v.phase;
+      return;
+    }
+    // Joining an existing room mid-kickoff should not replay its countdown or role announcement.
+    if (this.skipJoinKickoffAnnouncement && v.phase === 'kickoff' && s.mode !== 'practice') {
+      this.lastCount = null;
+      this.lastPhase = v.phase;
+      return;
+    }
+    const skippedJoinIntro = this.skipJoinKickoffAnnouncement;
+    this.skipJoinKickoffAnnouncement = false;
     if (v.phase === 'kickoff' && s.mode !== 'practice') {
       const n = Math.ceil(v.phaseT);
       if (n !== this.lastCount && n > 0 && n <= 3) {
@@ -1268,7 +1297,7 @@ class App {
       }
     } else this.lastCount = null;
     if (v.phase !== this.lastPhase) {
-      if (v.phase === 'play' && this.lastPhase === 'kickoff' && s.mode !== 'practice') this.audio.beep(true);
+      if (v.phase === 'play' && this.lastPhase === 'kickoff' && s.mode !== 'practice' && !skippedJoinIntro) this.audio.beep(true);
       this.lastPhase = v.phase;
     }
   }
