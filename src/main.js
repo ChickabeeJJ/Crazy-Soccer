@@ -365,7 +365,7 @@ class App {
       try { net.close(); } catch (e2) { /* ignore */ }
       return;
     }
-    if (this.searchToken !== token || this.session !== session || session.destroyed) { net.close(); return; }
+    if (this.searchToken !== token || this.session !== session || session.destroyed || session.ended || session.view.phase === 'end') { net.close(); return; }
     this.quickMatchPending = false;
     this.searchToken = null;
     const code = `pub-${res.k}`;
@@ -599,26 +599,11 @@ class App {
   playAgain() {
     const s = this.session;
     this.ui.modal('results', false);
-    if (s && !s.isAuthority && s.net && this.rematchReady && !s.destroyed) {
-      // the room already started its rematch: jump straight in
-      this.rematchReady = false;
-      this.pendingResults = null;
-      this.enterGame();
-      return;
-    }
-    if (s && !s.isAuthority && s.net && s.roomKind === 'priv' && !s.destroyed) {
-      // private room: stay together and wait for the host's rematch
-      this.pendingResults = null;
-      this.enterGame();
-      this.ui.globalToast('Waiting for the host to start the next match', 3500);
-      return;
-    }
     this.rematchReady = false;
-    if (s && s.isAuthority) {
-      s.newMatch();
-      this.enterGame();
-      this.midgameAd();
-    } else this.quickPlay(Save.p.team);
+    this.pendingResults = null;
+    // Full time retires the old room; Play Again always creates/joins a fresh match state.
+    this.quickPlay(Save.p.team);
+    if (s && s.isAuthority) this.midgameAd();
   }
 
   midgameAd() {
@@ -800,7 +785,11 @@ class App {
         break;
       }
       case 'target': A.goalHorn(); break;
-      case 'joined': case 'left': case 'hostlost': break; // never reveal who is a real player
+      case 'hostlost':
+        this.leaveToLobby(true);
+        this.ui.globalToast('The match server closed. Join a new match from the lobby.', 4500);
+        break;
+      case 'joined': case 'left': break; // never reveal who is a real player
       case 'newmatch':
         // The room's host started a rematch. Players still looking at their results stay there
         // until they choose Play Again themselves.
@@ -814,6 +803,17 @@ class App {
 
   onMatchEnd(ev) {
     const s = this.session;
+    if (!s) return;
+    if (this.quickMatchPending) {
+      // The provisional bot match can finish before matchmaking completes; cancel the search
+      // so it cannot attach an ended session to a newly claimed room.
+      this.quickMatchPending = false;
+      this.searchToken = null;
+      const pendingNet = this.net;
+      this.net = null;
+      if (pendingNet) { try { pendingNet.close(); } catch (e) { /* ignore */ } }
+    }
+    if (s.roomKind) SDK.leftRoom();
     const me = s.me;
     const myTeam = me ? me.team : 0;
     const row = (ev.stats || []).find((r) => r.id === s.localId) || {};
