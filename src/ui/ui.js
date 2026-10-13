@@ -226,6 +226,12 @@ export class UI {
     $('ptMins').textContent = `${Math.floor(mins)} MIN TODAY`;
     $('ptTrack').innerHTML = pt.map((m) => `<button class="pt ${m.ready ? 'ready' : ''} ${m.claimed ? 'claimed' : ''}" data-pt="${m.i}" ${m.ready ? '' : 'disabled'}>${this.rewardIcon(m)}<b>${this.rewardShort(m)}</b><small>${m.claimed ? 'CLAIMED' : `${m.min} MIN`}</small><i style="width:${clamp(mins / m.min, 0, 1) * 100}%"></i></button>`).join('');
     $('ptTrack').querySelectorAll('[data-pt]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.claimPlaytime(+b.dataset.pt); }));
+    // News ticker along the bottom of the lobby
+    const nx = Prog.nextEvent();
+    const news = [`SEASON ${si.n}: ${si.name}`, ev ? `${ev.name} LIVE NOW: ${ev.desc.toUpperCase()}` : `NEXT EVENT: ${nx.name} IN ${fmtLeft(nx.start - Date.now())}`,
+      'NEW ITEMS: TITAN / BLINK / TIME WARP / SHOCKWAVE / BANANA PEEL', `ELITE PASS EXCLUSIVES: ${Prog.label(Prog.reward(1, 'e'))} / ${Prog.label(Prog.reward(20, 'e'))}`, 'DAILY CHALLENGES RESET AT MIDNIGHT', 'NO REFEREE. NO RULES. JUST GOALS.'];
+    const line = news.map((n) => `<span>${n}</span><i></i>`).join('');
+    $('tickerTrack').innerHTML = line + line;
     this.refreshBadges();
   }
 

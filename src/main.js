@@ -174,7 +174,7 @@ class App {
     this.ui.touchVisible(false);
     this.ui.refreshProfile();
     this.renderer.clearWorld();
-    this.renderer.setVariant('outdoor');
+    this.renderer.setVariant('menu');
     this.audio.stopCrowd();
     if (this.audio.ctx) { this.audio.startMusic(); this.audio.duckMusic(false); }
     SDK.gameplayStop();

@@ -1,18 +1,19 @@
-// Lobby warm-up behind the hero: two teammates passing a ball, one juggling, one jogging laps,
-// and a keeper shuffling on the line. Everything is placed relative to the hero so it always
+// Lobby warm-up behind the hero: two teammates passing a ball, one juggling, and a striker
+// firing shots at a diving keeper (goals set off the crowd). Everything is placed relative to the hero so it always
 // sits in the background of the menu camera.
 import * as THREE from 'three';
 import { CharacterModel } from './character.js';
 import { BallMesh } from './ballmesh.js';
 import { randomCosmetics } from '../cosmetics.js';
-import { PHYS } from '../config.js';
+import { PHYS, FIELD } from '../config.js';
 
 const PASS_T = 1.05; // seconds the ball is in the air between the passers
 const PASS_GAP = 1.1; // pause before the return pass
 const JUGGLE_T = 0.72;
 
 export class MenuCrew {
-  constructor(scene, quality) {
+  constructor(scene, quality, onGoal) {
+    this.onGoal = onGoal;
     this.scene = scene;
     this.group = new THREE.Group();
     scene.add(this.group);
@@ -26,9 +27,9 @@ export class MenuCrew {
     this.passA = mk(0);
     this.passB = mk(1);
     this.juggler = mk(0);
-    this.jogger = mk(1);
+    this.striker = mk(0);
     this.keeper = mk(1, true);
-    this.balls = [new BallMesh('classic', false), new BallMesh('classic', false)];
+    this.balls = [new BallMesh('classic', false), new BallMesh('classic', false), new BallMesh('classic', false)];
     for (const b of this.balls) { b.mesh.castShadow = quality.shadows; this.group.add(b.root); }
     this.t = 0;
     this.prev = new Map();
@@ -83,21 +84,66 @@ export class MenuCrew {
     this.juggler.root.rotation.y = jface;
     this.juggler.update(dt, { anim: 'kick', animT: (jt + JUGGLE_T - 0.14) % JUGGLE_T * 0.62, animDur: 0.5 });
 
-    // --- jogger: slow laps behind everything
-    const C = at(22, 1);
-    const ja = t * 0.42;
-    const jp = new THREE.Vector3(C.x + Math.cos(ja) * 8, 0, C.z + Math.sin(ja) * 5);
-    this.jogger.root.position.copy(jp);
-    this.jogger.root.rotation.y = Math.atan2(-Math.sin(ja) * 8, Math.cos(ja) * 5);
-    this.jogger.update(dt, { anim: 'idle', speed: 3.9 });
-
-    // --- keeper: side-to-side shuffle on the line
-    const K = at(30, 0);
-    const kx = Math.sin(t * 0.8) * 2.2;
-    const kv = Math.cos(t * 0.8) * 1.8;
-    this.keeper.root.position.set(K.x + sx * kx, 0, K.z + sz * kx);
-    this.keeper.root.rotation.y = yaw;
-    this.keeper.update(dt, { anim: 'idle', speed: Math.abs(kv) * 0.7, hasBall: false });
+    // --- shootout at the goal behind the hero: run-up, strike, keeper dive, goal or save
+    const SHOT = 6.5;
+    const st = t % SHOT;
+    const cyc = Math.floor(t / SHOT);
+    const rnd = (k) => { const x = Math.sin(cyc * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); };
+    const gx = -FIELD.halfL, side = rnd(1) < 0.5 ? -1 : 1, saved = rnd(2) < 0.35;
+    const spot = new THREE.Vector3(gx + 17, 0, side * -3);
+    const target = new THREE.Vector3(gx - 1.2, 1.2 + rnd(3) * 2.6, side * (3.2 + rnd(4) * 3.6));
+    const sb = this.balls[2].root;
+    const kp = this.keeper.root.position;
+    const runUp = 1.1, flight = 0.62;
+    // striker
+    const start = new THREE.Vector3(spot.x + 6, 0, spot.z - side * 3.5);
+    if (st < runUp) {
+      const k = st / runUp;
+      this.striker.root.position.lerpVectors(start, spot, k).add(new THREE.Vector3(1.0, 0, 0));
+      this.striker.root.rotation.y = Math.atan2(spot.x - start.x, spot.z - start.z);
+      this.striker.update(dt, { anim: 'idle', speed: 9, sprinting: true });
+    } else if (st < runUp + 0.6) {
+      this.striker.root.position.set(spot.x + 0.9, 0, spot.z);
+      this.striker.root.rotation.y = Math.atan2(target.x - spot.x, target.z - spot.z);
+      this.striker.update(dt, { anim: 'kick', animT: st - runUp + 0.12 });
+    } else {
+      const celebrate = !saved && st > runUp + flight + 0.2 && st < 4.6;
+      this.striker.root.position.set(spot.x + 0.9, 0, spot.z);
+      this.striker.update(dt, celebrate ? { anim: 'cheer', animT: st - runUp - flight } : { anim: 'idle', speed: 0 });
+    }
+    // ball
+    const fly = st - runUp - 0.04;
+    if (fly < 0) { sb.position.set(spot.x, PHYS.ballR, spot.z); }
+    else if (fly < flight) {
+      const k = fly / flight;
+      sb.position.lerpVectors(spot, target, k);
+      sb.position.y = PHYS.ballR + (target.y - PHYS.ballR) * k + Math.sin(k * Math.PI) * 1.2;
+      this.balls[2].mesh.rotation.x += dt * 20;
+      if (saved && k > 0.82) { sb.position.lerpVectors(spot, target, 0.82); sb.position.y = target.y; }
+    } else if (saved) {
+      const k = Math.min(1, (fly - flight) / 0.9);
+      sb.position.set(target.x + 0.9 + k * 6, Math.max(PHYS.ballR, target.y + Math.sin(k * Math.PI) * 2 - k * target.y), target.z - side * k * 5);
+    } else {
+      sb.position.set(gx - 3.4, Math.max(PHYS.ballR, target.y - (fly - flight) * 4), target.z);
+      if (!this.scored || this.scored !== cyc) { this.scored = cyc; if (this.onGoal) this.onGoal(new THREE.Vector3(gx - 2, target.y, target.z)); }
+    }
+    // keeper: set, then dive towards the shot
+    const diveAt = runUp + 0.18;
+    if (st < diveAt) {
+      kp.set(gx + 1.2, 0, Math.sin(t * 2.4) * 0.6);
+      this.keeper.root.rotation.y = Math.PI / 2;
+      this.keeper.update(dt, { anim: 'idle', speed: 1.2 });
+    } else if (st < 3.6) {
+      const k = Math.min(1, (st - diveAt) / 0.5);
+      const reach = saved ? Math.abs(target.z) - 0.6 : Math.abs(target.z) * 0.55;
+      kp.set(gx + 1.2, Math.sin(k * Math.PI) * 0.6, side * reach * k);
+      this.keeper.root.rotation.y = side > 0 ? 0 : Math.PI;
+      this.keeper.update(dt, { anim: 'dive', animT: st - diveAt, animDur: 0.62 });
+    } else {
+      kp.set(gx + 1.2, 0, side * 0.5);
+      this.keeper.root.rotation.y = Math.PI / 2;
+      this.keeper.update(dt, { anim: st < 4.2 ? 'getup' : 'idle', animT: st - 3.6, speed: 0 });
+    }
   }
 
   pose(m, p, look, st, dt) {
@@ -107,7 +153,7 @@ export class MenuCrew {
   }
 
   dispose() {
-    for (const m of [this.passA, this.passB, this.juggler, this.jogger, this.keeper]) m.dispose();
+    for (const m of [this.passA, this.passB, this.juggler, this.striker, this.keeper]) m.dispose();
     this.group.removeFromParent();
   }
 }

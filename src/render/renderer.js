@@ -149,7 +149,11 @@ export class GameRenderer {
   }
 
   setVariant(v) {
+    const menu = v === 'menu';
+    if (menu) v = 'outdoor';
     this.stadium.setVariant(v);
+    this.nightGrade(menu);
+    if (menu) return;
     // Cinematic grades: Canyon at sunset dusk, Cliffside at golden hour (low sun, long shadows, warm haze)
     if (v === 'desert') {
       this.scene.fog.color.set(0xe8a07e); this.scene.fog.near = 100; this.scene.fog.far = 460;
@@ -166,6 +170,38 @@ export class GameRenderer {
       this.hemi.color.set(0xbcd4ff); this.hemi.groundColor.set(0x6a6a3a); this.hemi.intensity = 1.3;
       this.sun.color.set(0xffd6a0); this.sun.intensity = 2.7;
       this.sun.position.set(-62, 30, 42);
+    }
+  }
+
+  // Lobby look: a floodlit night match (deep navy sky, burning horizon, light-tower flares)
+  nightGrade(on) {
+    const grp = this.stadium.outdoor;
+    if (!grp) return;
+    if (!this.skyU) grp.traverse((o) => { const u = o.material && o.material.uniforms; if (u && u.top && u.mid && u.bottom && !this.skyU) this.skyU = { u, top: u.top.value.clone(), mid: u.mid.value.clone(), bottom: u.bottom.value.clone() }; });
+    if (this.skyU) {
+      const { u } = this.skyU;
+      if (on) { u.top.value.set('#05081c'); u.mid.value.set('#2a1d5c'); u.bottom.value.set('#ff6a3a'); }
+      else { u.top.value.copy(this.skyU.top); u.mid.value.copy(this.skyU.mid); u.bottom.value.copy(this.skyU.bottom); }
+    }
+    if (!this.nightFlares) {
+      this.nightFlares = new THREE.Group();
+      for (const [x, z] of [[-60, -38], [60, -38], [-60, 38], [60, 38], [0, -46], [0, 46]]) {
+        const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: '#ffe9c4', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+        f.position.set(x * 1.1, 30, z * 1.1);
+        f.scale.set(9, 9, 1);
+        this.nightFlares.add(f);
+      }
+      this.scene.add(this.nightFlares);
+    }
+    this.nightFlares.visible = on;
+    // daytime clouds don't belong in a night sky
+    if (!this.clouds) { this.clouds = []; grp.traverse((o) => { if (o.isSprite && o.position.length() > 200) this.clouds.push(o); }); }
+    for (const c of this.clouds) c.visible = !on;
+    if (on) {
+      this.scene.fog.color.set(0x1b1640); this.scene.fog.near = 80; this.scene.fog.far = 400;
+      this.hemi.color.set(0x8090e8); this.hemi.groundColor.set(0x3a2230); this.hemi.intensity = 1.05;
+      this.sun.color.set(0xffb36b); this.sun.intensity = 3.0;
+      this.sun.position.set(70, 26, -20);
     }
   }
 
@@ -737,7 +773,7 @@ export class GameRenderer {
     if (!visible) return;
     this.menuChar.setAppearance(cos, team);
     this.menuChar.root.position.set(-30, 0, 0);
-    this.menuChar.root.rotation.y = Math.PI / 2 + 0.5;
+    this.menuChar.root.rotation.y = Math.PI / 2 - 0.45;
     this.menuEmoteT = (this.menuEmoteT || 0) + dt;
     const em = emote || null;
     this.menuChar.update(dt, em ? { anim: 'emote', animT: this.menuEmoteT, emote: em } : { anim: 'idle', speed: 0 });
@@ -807,9 +843,18 @@ export class GameRenderer {
 
   // Teammates warming up in the background of every menu page
   updateCrew(dt, hero) {
-    if (!this.crew) this.crew = new MenuCrew(this.scene, this.quality);
+    if (!this.crew) {
+      this.crew = new MenuCrew(this.scene, this.quality, (p) => {
+        // a lobby goal: net flash, fireworks and the crowd on its feet
+        this.vfx.goal('fireworks', p.x, p.y + 1, p.z, 0xffcf3f);
+        const grp = this.stadium.outdoor;
+        if (grp && grp.userData.crowd) grp.userData.crowd.hype = 3;
+        const g = this.stadium.goals && this.stadium.goals.find((x) => x.side === -1);
+        if (g) g.flash = 1.2;
+      });
+    }
     if (hero) this.crewAnchor = { x: hero.position.x, z: hero.position.z, yaw: hero.rotation.y };
-    const a = this.crewAnchor || { x: -30, z: 0, yaw: Math.PI / 2 + 0.5 };
+    const a = this.crewAnchor || { x: -30, z: 0, yaw: Math.PI / 2 - 0.45 };
     this.crew.setVisible(true);
     this.crew.update(dt, a, a.yaw);
   }
