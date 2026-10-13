@@ -162,13 +162,6 @@ class App {
     const e = Save.p.eq;
     return { skin: e.skin, hair: e.hair, hairColor: e.hairColor, eyeColor: e.eyeColor || 0, jersey: e.jersey, boots: e.boots, ball: e.ball, goalfx: e.goalfx, number: e.number };
   }
-  // Connection chip in the HUD: online with N players, still searching, or bots only
-  netLabel(s) {
-    if (s.mode !== 'match') return null;
-    if (s.net) { const n = s.humanCount(); return { cls: 'on', text: `ONLINE  ${n} PLAYER${n === 1 ? '' : 'S'}` }; }
-    if (this.netStatus === 'search') return { cls: 'wait', text: 'FINDING PLAYERS' };
-    return { cls: 'off', text: 'OFFLINE  BOTS' };
-  }
   hello() { return { name: Save.displayName(), cos: this.cos(), team: Save.p.team === 1 ? 1 : 0, pw: Save.activePowers() }; }
 
   // ================================================================== menu
@@ -336,7 +329,6 @@ class App {
       this.net = net;
       this.netStatus = 'online';
       this.enterGame();
-      this.ui.toast('Joined a live match!');
     }
     SDK.updateRoom({ roomId: code, isJoinable: true, inviteParams: { roomId: code } });
   }
@@ -493,7 +485,7 @@ class App {
   checkAfk(s) {
     const now = performance.now();
     const v = s.view;
-    const live = !!s.net && s.mode === 'match' && !this.adPlaying && ['kickoff', 'play', 'goal', 'replay'].includes(v.phase) && !this.ui.isOpen('results');
+    const live = s.mode === 'match' && !!s.roomKind && !this.adPlaying && ['kickoff', 'play', 'goal', 'replay'].includes(v.phase) && !this.ui.isOpen('results');
     if (!live) { this.lastActive = now; this.idleSecs = 0; return false; }
     this.idleSecs = (now - this.lastActive) / 1000;
     if (this.idleSecs < AFK_KICK) return false;
@@ -538,6 +530,21 @@ class App {
   playAgain() {
     const s = this.session;
     this.ui.modal('results', false);
+    if (s && !s.isAuthority && s.net && this.rematchReady && !s.destroyed) {
+      // the room already started its rematch: jump straight in
+      this.rematchReady = false;
+      this.pendingResults = null;
+      this.enterGame();
+      return;
+    }
+    if (s && !s.isAuthority && s.net && s.roomKind === 'priv' && !s.destroyed) {
+      // private room: stay together and wait for the host's rematch
+      this.pendingResults = null;
+      this.enterGame();
+      this.ui.globalToast('Waiting for the host to start the next match', 3500);
+      return;
+    }
+    this.rematchReady = false;
     if (s && s.isAuthority) {
       s.newMatch();
       this.enterGame();
@@ -724,14 +731,13 @@ class App {
         break;
       }
       case 'target': A.goalHorn(); break;
-      case 'joined': this.ui.toast(`${ev.name} joined`); break;
-      case 'left': this.ui.toast(`${ev.name} left`); break;
-      case 'hostlost': this.ui.globalToast('The host left — continuing against bots.', 4000); break;
+      case 'joined': case 'left': case 'hostlost': break; // never reveal who is a real player
       case 'newmatch':
-        this.ui.modal('results', false);
-        if (this.state !== 'game') this.enterGame();
-        this.pendingResults = null;
+        // The room's host started a rematch. Players still looking at their results stay there
+        // until they choose Play Again themselves.
         this.renderer.clearWorld();
+        if (this.ui.isOpen('results') || this.state !== 'game') { this.rematchReady = true; break; }
+        this.pendingResults = null;
         break;
       default:
     }
@@ -993,7 +999,7 @@ class App {
       view: v, localTeam: me ? me.team : 0, practice: s.mode === 'practice', items: me ? me.items : [null, null], equip: me ? me.equip : -1,
       stamina: me ? me.stamina : 100, exhausted: me ? me.exhausted : false, charging: !!(me && me.charging), charge: me ? me.charge : 0,
       ping: s.role === 'client' ? Math.round(s.rtt * 1000) : 0, fps: this.fps, showStats: settings.showStats,
-      statsHeld, session: s, localId: s.localId, net: this.netLabel(s),
+      statsHeld, session: s, localId: s.localId
     });
     const tr = s.training;
     const th = tr ? tr.hud() : null;

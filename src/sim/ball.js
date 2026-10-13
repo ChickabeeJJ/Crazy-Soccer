@@ -5,7 +5,7 @@ export function createBall() {
   return {
     x: 0, y: PHYS.ballR, z: 0, vx: 0, vy: 0, vz: 0,
     curve: 0, owner: -1, lastTouch: -1, lastTeam: -1, prevTouch: -1, prevTeam: -1, prevT: 0,
-    fire: false, inNet: 0, block: -1, blockT: 0, contestT: 0, grapple: -1, grappleT: 0,
+    fire: false, deflectT: 0, deflectBy: -1, deflectTeam: -1, inNet: 0, block: -1, blockT: 0, contestT: 0, grapple: -1, grappleT: 0,
     shot: null, pass: null, spin: 0, kicker: -1, held: false, holdT: 0, gkThrow: null, bike: -1, phase: null,
   };
 }
@@ -122,12 +122,29 @@ export function crossesGoalMouth(px, py, pz, x, y, z, s) {
 }
 
 // Goal-line bookkeeping shared by free and carried balls.
-export function updateGoalLine(b, px, py, pz) {
+// No own goals: a ball last played by the defending team bounces back off its own goal line.
+// A rival's shot that deflects in off a defender still counts (credited to the shooter).
+export function updateGoalLine(b, px, py, pz, events) {
   const R = PHYS.ballR, L = FIELD.halfL;
   for (const s of [-1, 1]) {
     if (b.inNet === 0) {
       const c = crossesGoalMouth(px, py, pz, b.x, b.y, b.z, s);
-      if (c) { b.inNet = s; b.crossZ = c.z; b.crossY = c.y; }
+      if (c) {
+        const defending = s > 0 ? 1 : 0;
+        if (b.lastTeam === defending) {
+          if (b.deflectT > 0 && b.deflectTeam === 1 - defending && b.deflectBy >= 0) {
+            b.lastTouch = b.deflectBy; b.lastTeam = b.deflectTeam;
+          } else {
+            if (b.owner < 0) {
+              b.x = s * (L - R * 1.05);
+              b.vx = -s * Math.max(4, Math.abs(b.vx) * 0.45);
+              if (events) events.push({ e: 'post', v: 8 });
+            }
+            continue;
+          }
+        }
+        b.inNet = s; b.crossZ = c.z; b.crossY = c.y;
+      }
     } else if (b.inNet === s && s * b.x < L - R) b.inNet = 0;
   }
 }
@@ -135,7 +152,7 @@ export function updateGoalLine(b, px, py, pz) {
 function collideGoals(b, events, px, py, pz) {
   const R = PHYS.ballR;
   const hw = FIELD.goalW / 2, H = FIELD.goalH, D = FIELD.goalD, L = FIELD.halfL, pr = FIELD.postR;
-  updateGoalLine(b, px, py, pz);
+  updateGoalLine(b, px, py, pz, events);
   for (const s of [-1, 1]) {
     const gx = s * L;
     collideCylinderV(b, gx, -hw, pr, 0, H, events);

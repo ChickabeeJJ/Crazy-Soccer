@@ -49,7 +49,7 @@ export function setAnim(p, anim, dur) {
   if (anim !== 'emote') p.emote = '';
 }
 
-export const STUN_EXTRA = 1; // every knockdown/stun lasts one second longer
+export const STUN_EXTRA = 0.7; // every knockdown/stun lasts a bit longer
 export function stunPlayer(p, kind, dur) {
   dur += STUN_EXTRA;
   p.stun = dur;

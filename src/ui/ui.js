@@ -18,7 +18,7 @@ const TIPS = [
   'Unlock new powers in the Shop: mystery cubes only drop powers you own.',
   'Dribble skill (Space with the ball) makes you untouchable for a moment.',
   'Hold the kick button longer for a harder shot.',
-  'Request the ball (R) and your bot teammates will pass to you.',
+  'Request the ball (R) and your teammates will pass to you.',
 ];
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -283,8 +283,6 @@ export class UI {
     else if (v.ot === 2) t = 'LAST CHANCE';
     else t = fmtTime(v.clock);
     this.setVal('timerText', 'text', t);
-    this.setVal('netTag', 'text', s.net ? s.net.text : '');
-    this.setVal('netTag', 'class', `net-tag ${s.net ? `show ${s.net.cls}` : ''}`);
     this.setVal('timer', 'class', `timer ${v.ot ? 'ot' : ''}`);
 
     // Item slots
@@ -483,8 +481,8 @@ export class UI {
     $('doubleBtn').disabled = false;
     if (!this.doubleHtml) this.doubleHtml = $('doubleBtn').innerHTML;
     $('doubleBtn').innerHTML = this.doubleHtml;
-    $('againBtn').textContent = r.online ? (r.isHost ? 'START NOW' : 'READY') : 'PLAY AGAIN';
-    $('againBtn').classList.toggle('hidden', r.online && !r.isHost);
+    $('againBtn').textContent = 'PLAY AGAIN';
+    $('againBtn').classList.remove('hidden');
     this.setResNext('');
     this.modal('results', true);
   }
@@ -501,7 +499,7 @@ export class UI {
     el.innerHTML = `<div style="font-weight:700;opacity:.6">PRIVATE ROOM CODE</div><div class="room-code">${esc(info.code)}</div>
       <div class="room-players">${info.players.map((p) => `<span style="border-color:${TEAMS[p.team].css}">${esc(p.name)}</span>`).join('')}</div>
       <div class="row"><button class="btn btn-sec" id="roomInvite">COPY INVITE LINK</button>${info.isHost ? '<button class="btn btn-play" id="roomStart">START MATCH</button>' : ''}</div>
-      <div style="font-size:12px;opacity:.65">${info.isHost ? 'Warm up while friends join. Empty spots are filled with bots.' : 'Waiting for the host to start…'}</div>`;
+      <div style="font-size:12px;opacity:.65">${info.isHost ? 'Warm up while friends join.' : 'Waiting for the host to start…'}</div>`;
     $('roomInvite').onclick = (e) => { e.stopPropagation(); this.app.audio.click(); this.app.copyInvite(); };
     if (info.isHost) $('roomStart').onclick = (e) => { e.stopPropagation(); this.app.audio.click(); this.app.beginPrivateMatch(); };
     el.classList.add('show');

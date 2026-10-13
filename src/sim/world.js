@@ -307,6 +307,10 @@ export class World {
   touch(p) {
     const b = this.ball;
     if (b.lastTouch !== p.id) {
+      // a rival touching a moving shot: remember the shooter for a moment (deflections still count)
+      if (b.lastTouch >= 0 && b.lastTeam !== p.team && Math.hypot(b.vx, b.vy, b.vz) > 9) {
+        b.deflectBy = b.lastTouch; b.deflectTeam = b.lastTeam; b.deflectT = 0.9;
+      } else if (b.lastTeam !== p.team) b.deflectT = 0;
       if (b.lastTeam === p.team && b.lastTouch >= 0) {
         b.prevTouch = b.lastTouch; b.prevTeam = b.lastTeam; b.prevT = this.time;
       } else if (b.lastTeam !== p.team) {
@@ -872,6 +876,7 @@ export class World {
         if (d < 1.8) { this.giveBall(g, 'grapple'); }
       }
     } else {
+      if (b.deflectT > 0) b.deflectT -= dt;
       stepBall(b, dt, physEvents);
       if (this.walls.length) this.collideWallsCircle(b, PHYS.ballR, true);
     }
@@ -1313,7 +1318,7 @@ export class World {
       sc: this.score,
       ot: this.overtime ? 1 : this.lastChance ? 2 : 0,
       mp: this.map,
-      b: [r2(b.x), r2(b.y), r2(b.z), r2(b.vx), r2(b.vy), r2(b.vz), b.owner, b.fire ? 1 : 0, r2(b.spin % 100), b.grapple, b.held ? 1 : 0, r2(b.holdT || 0), b.bike ?? -1, b.phase ? 1 : 0],
+      b: [r2(b.x), r2(b.y), r2(b.z), r2(b.vx), r2(b.vy), r2(b.vz), b.owner, b.fire ? 1 : 0, r2(b.spin % 100), b.grapple, b.held ? 1 : 0, r2(b.holdT || 0), b.bike ?? -1, b.phase ? 1 : 0, b.lastTeam, b.deflectT > 0 ? b.deflectTeam : -1],
       p: this.players.map((p) => [
         p.id, r2(p.x), r2(p.y), r2(p.z), r2(p.vx), r2(p.vz), r2(p.face),
         ANIM_INDEX[p.anim] ?? 0, r2(p.animT), r2(p.stamina), r2(p.charge),

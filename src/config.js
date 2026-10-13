@@ -4,10 +4,10 @@ export const GAME_VERSION = '1.4.0';
 export const SAVE_KEY = 'crazysoccer_profile_v1';
 
 export const FIELD = {
-  halfL: 58, // goal lines at x = ±halfL
-  halfW: 33, // touch lines at z = ±halfW
-  wallX: 63.5, // invisible/physical walls (ball and players stay inside)
-  wallZ: 36,
+  halfL: 64, // goal lines at x = ±halfL
+  halfW: 37, // touch lines at z = ±halfW
+  wallX: 69.5, // invisible/physical walls (ball and players stay inside)
+  wallZ: 40,
   wallTop: 40,
   goalW: 18.5,
   goalH: 6.6,

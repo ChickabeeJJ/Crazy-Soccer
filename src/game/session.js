@@ -196,16 +196,7 @@ export class Session {
     this.view.map = w.map;
     this.view.targets = this.training ? this.training.targets : null;
 
-    // Intermission (online rooms restart automatically so the room stays together)
-    if (w.phase === 'end' && w.phaseT <= 0 && this.net && this.net.isHost && this.intermission <= 0 && !this._interStarted) {
-      this._interStarted = true;
-      this.intermission = 15;
-      this.net.broadcast({ t: 'inter', s: this.intermission });
-    }
-    if (this.intermission > 0) {
-      this.intermission -= dt;
-      if (this.intermission <= 0) this.newMatch();
-    }
+    // No automatic next match: every player chooses Play Again or Lobby on the results screen
 
     if (this.net && this.net.isHost) {
       this.snapT -= dt;
@@ -520,6 +511,11 @@ export class Session {
     const events = [];
 
     cb.bike = this.bikeLocalT > 0 ? this.localId : (sb[12] ?? -1);
+    // own-goal rule needs to know who played the ball last
+    if (this.ownKickT <= 0 && sb[14] !== undefined) {
+      cb.lastTeam = sb[14];
+      cb.deflectTeam = sb[15] ?? -1; cb.deflectT = cb.deflectTeam >= 0 ? 1 : 0; cb.deflectBy = cb.deflectTeam >= 0 ? 0 : -1;
+    }
     if (srvOwner === this.localId && this.ownKickT <= 0) {
       cb.owner = this.localId;
       this.predOwnT = 0;
@@ -545,7 +541,7 @@ export class Session {
       if (this.ownKickT <= 0) {
         // Server reconciliation: extrapolate server ball to "now" and blend toward it
         const ahead = clamp(now() - this.lastSnapT + this.rtt * 0.5, 0, 0.3);
-        const ghost = { ...createBall(), x: sb[0], y: sb[1], z: sb[2], vx: sb[3], vy: sb[4], vz: sb[5], owner: -1 };
+        const ghost = { ...createBall(), x: sb[0], y: sb[1], z: sb[2], vx: sb[3], vy: sb[4], vz: sb[5], owner: -1, lastTeam: cb.lastTeam, deflectT: cb.deflectT, deflectTeam: cb.deflectTeam, deflectBy: cb.deflectBy };
         let tt = ahead;
         while (tt > 0) { const st = Math.min(1 / 60, tt); stepBall(ghost, st, []); tt -= st; }
         const ex = ghost.x - cb.x, ey = ghost.y - cb.y, ez = ghost.z - cb.z;
@@ -611,7 +607,7 @@ export class Session {
       const k = kickVelocity(p, act, v.players, fire);
       if (mine) { cb.x = p.x + Math.sin(p.face) * PLAYER.dribbleDist; cb.z = p.z + Math.cos(p.face) * PLAYER.dribbleDist; cb.y = cb.held ? p.y + 1.35 : PHYS.ballR + p.y; cb.held = false; }
       cb.owner = -1;
-      cb.vx = k.vx; cb.vy = k.vy; cb.vz = k.vz; cb.curve = k.curve; cb.inNet = 0;
+      cb.vx = k.vx; cb.vy = k.vy; cb.vz = k.vz; cb.curve = k.curve; cb.inNet = 0; cb.lastTeam = p.team; cb.deflectT = 0;
       this.ownKickT = 0.4; this.predOwnT = 0;
       this.handleEvent({ e: 'kick', id: this.localId, kind, pw: k.pw, fire: fire ? 1 : 0, local: 1 });
     };
