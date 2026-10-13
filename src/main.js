@@ -952,7 +952,7 @@ class App {
       this.curveAmt = 0;
       this.curveLockActive = false;
     }
-    const curveHold = charging && active && (inp.isDown('curve') || inp.isDown('autoCurve'));
+    const curveHold = charging && active && inp.isDown('curve');
     const cs = 0.006 * (settings.curveSens || 1);
     if (curveHold) {
       if (!this.curveLockActive) {
