@@ -16,6 +16,7 @@ export const DEFAULT_BINDS = {
   request: ['KeyR'],
   dribble: ['Space'],
   sprint: ['ShiftLeft', 'ShiftRight'],
+  curve: ['KeyX', 'Mouse1'],
   dive: ['Mouse2'],
   item1: ['Digit1'],
   item2: ['Digit2'],
@@ -28,7 +29,7 @@ export const DEFAULT_BINDS = {
 
 export const BIND_LABELS = {
   kick: 'Kick / Activate', pass: 'Pass', flick: 'Flick', tackle: 'Tackle', dive: 'Dive (Goalkeeper)', lob: 'Lob', request: 'Request',
-  dribble: 'Dribble', sprint: 'Sprint', item1: 'Item 1', item2: 'Item 2', stats: 'Stats', lobby: 'Return to Lobby',
+  dribble: 'Dribble', sprint: 'Sprint', curve: 'Curve (hold while charging)', item1: 'Item 1', item2: 'Item 2', stats: 'Stats', lobby: 'Return to Lobby',
   chat: 'Quick Chat', emote: 'Emotes', forward: 'Move Forward', back: 'Move Back', left: 'Move Left', right: 'Move Right',
   unlock: 'Unlock Mouse',
 };
@@ -42,6 +43,7 @@ export const DEFAULT_SETTINGS = {
   shake: 5,
   assistedPasses: true,
   autoCurve: true,
+  curveSens: 1,
   showControls: true,
   showHints: true,
   showStats: false,

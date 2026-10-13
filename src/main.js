@@ -907,6 +907,12 @@ class App {
     }
   }
 
+  // Curve for the next shot: mouse curve plus A/D strafing when Auto Curve is on
+  shotCurve(right) {
+    const auto = Save.p.settings.autoCurve ? right * 0.7 : 0;
+    return clamp((this.curveAmt || 0) + auto, -1, 1);
+  }
+
   updateGame(dt) {
     const s = this.session;
     if (this.checkAfk(s)) return;
@@ -919,8 +925,18 @@ class App {
     const active = !this.ui.anyModal() && (inp.locked || touch || this.lockFailed) && !this.adPlaying;
     this.ui.clickToPlay(!touch && !this.lockFailed && !inp.locked && !this.ui.anyModal() && !this.wheelOpen && !this.renderer.awards.active);
 
+    // Curve: hold the Curve key while charging to lock the aim and drag the mouse sideways to bend
+    // the shot; with Auto Curve on, a mouse swipe during the charge bends it while the camera turns
+    const charging = !!(me && me.charging);
+    if (!charging) this.curveAmt = 0;
+    const curveHold = charging && active && inp.isDown('curve');
+    if (charging && active && !touch) {
+      const cs = 0.0045 * (settings.curveSens || 1);
+      if (curveHold) this.curveAmt = clamp((this.curveAmt || 0) + inp.mdx * cs * 1.6, -1, 1);
+      else if (settings.autoCurve) this.curveAmt = clamp((this.curveAmt || 0) * Math.exp(-dt * 1.2) + inp.mdx * cs, -1, 1);
+    }
     // Camera
-    if (active || inp.dragging) {
+    if ((active || inp.dragging) && !curveHold) {
       const k = 0.0024 * settings.sens;
       rig.yaw -= inp.mdx * k;
       rig.pitch += inp.mdy * k * (settings.invertY ? -1 : 1);
@@ -990,7 +1006,7 @@ class App {
           this.kickSuppressed = true;
         } else if (this.canVolley(me, b)) {
           // Ball in the air next to you: volley it instantly (no charging mid-air)
-          s.action({ a: 'kick', pw: 0.9, ...shotAim, cv: settings.autoCurve ? right : 0 });
+          s.action({ a: 'kick', pw: 0.9, ...shotAim, cv: this.shotCurve(right) });
           this.kickSuppressed = true;
         } else {
           s.action({ a: 'charge', on: true });
@@ -999,7 +1015,7 @@ class App {
       }
       if (inp.wasReleased('kick')) {
         if (this.kickSuppressed) this.kickSuppressed = false;
-        else if (me.charging) s.action({ a: 'kick', pw: me.charge, ...shotAim, cv: settings.autoCurve ? right : 0 });
+        else if (me.charging) s.action({ a: 'kick', pw: me.charge, ...shotAim, cv: this.shotCurve(right) });
         else s.action({ a: 'kick', pw: 0, ...shotAim, cv: 0 });
       }
       const simple = (name, extra = {}) => { if (inp.wasPressed(name)) { s.action({ a: name, ...aim, mx, mz, ...extra }); this.ui.flashControl(name); } };
@@ -1049,7 +1065,7 @@ class App {
     }
     if (!staging) {
       this.renderer.syncAim(me, rig.yaw, !!(me && me.charging && !frame), me ? me.charge : 0);
-      this.updateTrajectory(s, me, frame, shotAim, settings.autoCurve ? right : 0);
+      this.updateTrajectory(s, me, frame, shotAim, this.shotCurve(right));
     }
 
     // HUD

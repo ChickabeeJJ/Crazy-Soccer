@@ -308,10 +308,6 @@ export class World {
   touch(p) {
     const b = this.ball;
     if (b.lastTouch !== p.id) {
-      // a rival touching a moving shot: remember the shooter for a moment (deflections still count)
-      if (b.lastTouch >= 0 && b.lastTeam !== p.team && Math.hypot(b.vx, b.vy, b.vz) > 9) {
-        b.deflectBy = b.lastTouch; b.deflectTeam = b.lastTeam; b.deflectT = 0.9;
-      } else if (b.lastTeam !== p.team) b.deflectT = 0;
       if (b.lastTeam === p.team && b.lastTouch >= 0) {
         b.prevTouch = b.lastTouch; b.prevTeam = b.lastTeam; b.prevT = this.time;
       } else if (b.lastTeam !== p.team) {
@@ -932,7 +928,13 @@ export class World {
     // Goal check
     if (this.phase === 'play' && b.inNet !== 0 && Math.abs(b.x) > FIELD.halfL + PHYS.ballR * 1.2) {
       if (b.owner >= 0) { const o = this.byId.get(b.owner); b.owner = -1; if (o) this.touch(o); }
-      this.scoreGoal(b.inNet > 0 ? 0 : 1);
+      const scoring = b.inNet > 0 ? 0 : 1;
+      if (b.lastTeam === 1 - scoring) {
+        // the defending team touched it last (inside the net or on the line): never an own goal
+        const s = b.inNet;
+        Object.assign(b, { x: s * (FIELD.halfL - 1.2), y: Math.max(PHYS.ballR, Math.min(b.y, 3)), vx: -s * 6, vy: 3, vz: b.vz * 0.3, inNet: 0, owner: -1, held: false });
+        this.emit({ e: 'post', v: 8 });
+      } else this.scoreGoal(scoring);
     }
   }
 
@@ -1472,6 +1474,7 @@ export function kickVelocity(p, act, players, fire) {
   // Shot (a tired player kicks noticeably weaker)
   const power = clamp(act.pw ?? 0, 0, 1);
   let speed = (KICK.minSpeed + (KICK.maxSpeed - KICK.minSpeed) * Math.pow(power, 0.85)) * staminaPowerMul(p);
+  if (p.keeper) speed *= KICK.keeperShotMul; // goalkeepers can't hammer it end to end
   if (Number.isFinite(act.tx) && Number.isFinite(act.ty) && Number.isFinite(act.tz)) {
     // Crosshair aim: send the ball through the aimed point (gravity-compensated)
     if (fire) speed = Math.min(60, speed * 1.32 + 6);

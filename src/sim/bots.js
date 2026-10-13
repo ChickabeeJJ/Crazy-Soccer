@@ -308,6 +308,12 @@ export class BotBrain {
         const reactT = 0.55 - this.skill * 0.25;
         this.moveTo(homeX, clamp(c.z, -FIELD.goalW / 2, FIELD.goalW / 2), true, 1);
         const need = Math.abs(c.z - p.z);
+        // High shot heading for the top of the goal: jump to catch it (one attempt per shot)
+        if (c.y - (p.y || 0) > 2.9 && need < 2.4 && c.t < 0.5 && c.t > 0.18 && (p.y || 0) < 0.05 && w.time - (this.jumpT || -9) > 1.2) {
+          this.jumpT = w.time;
+          if (Math.random() < 0.4 + this.skill * 0.35) w.doAction(p, { a: 'dribble', mx: 0, mz: 0 });
+          return;
+        }
         if (c.t < reactT && need > 1.4 && p.cd.dive <= 0 && w.inOwnBox(p)) {
           const dz = c.z - p.z, dx = (ownX + s * 0.8) - p.x;
           const l = len2(dx, dz) || 1;

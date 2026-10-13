@@ -122,8 +122,7 @@ export function crossesGoalMouth(px, py, pz, x, y, z, s) {
 }
 
 // Goal-line bookkeeping shared by free and carried balls.
-// No own goals: a ball last played by the defending team bounces back off its own goal line.
-// A rival's shot that deflects in off a defender still counts (credited to the shooter).
+// No own goals, ever: a ball last touched by the defending team bounces back off its own goal line.
 export function updateGoalLine(b, px, py, pz, events) {
   const R = PHYS.ballR, L = FIELD.halfL;
   for (const s of [-1, 1]) {
@@ -132,16 +131,12 @@ export function updateGoalLine(b, px, py, pz, events) {
       if (c) {
         const defending = s > 0 ? 1 : 0;
         if (b.lastTeam === defending) {
-          if (b.deflectT > 0 && b.deflectTeam === 1 - defending && b.deflectBy >= 0) {
-            b.lastTouch = b.deflectBy; b.lastTeam = b.deflectTeam;
-          } else {
-            if (b.owner < 0) {
-              b.x = s * (L - R * 1.05);
-              b.vx = -s * Math.max(4, Math.abs(b.vx) * 0.45);
-              if (events) events.push({ e: 'post', v: 8 });
-            }
-            continue;
+          if (b.owner < 0) {
+            b.x = s * (L - R * 1.05);
+            b.vx = -s * Math.max(4, Math.abs(b.vx) * 0.45);
+            if (events) events.push({ e: 'post', v: 8 });
           }
+          continue;
         }
         b.inNet = s; b.crossZ = c.z; b.crossY = c.y;
       }
