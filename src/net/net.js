@@ -112,7 +112,12 @@ export class Net {
 
   // ---------------------------------------------------------------- host
   async host(peerRoomId) {
-    this.peer = await openPeer(peerRoomId);
+    const peer = await openPeer(peerRoomId);
+    if (this.closed) {
+      try { peer.destroy(); } catch (e) { /* ignore */ }
+      throw new Error('closed');
+    }
+    this.peer = peer;
     this.isHost = true;
     this.roomId = peerRoomId;
     this.peer.on('connection', (conn) => this._incoming(conn));
@@ -170,11 +175,17 @@ export class Net {
 
   // -------------------------------------------------------------- client
   async ensureClientPeer() {
+    if (this.closed) throw new Error('closed');
     if (this.cpeer && !this.cpeer.destroyed && !this.cpeer.disconnected) return this.cpeer;
     if (!this._cpeerP) {
       this._cpeerP = (async () => (await takeWarmPeer()) || openPeer(null))();
     }
     try { this.cpeer = await this._cpeerP; } finally { this._cpeerP = null; }
+    if (this.closed) {
+      try { if (this.cpeer) this.cpeer.destroy(); } catch (e) { /* ignore */ }
+      this.cpeer = null;
+      throw new Error('closed');
+    }
     this.cpeer.on('error', (err) => {
       if (err && err.type === 'peer-unavailable') {
         const m = /peer\s+(\S+)/i.exec(err.message || '');
@@ -255,17 +266,18 @@ export class Net {
   // Quick play: walk the public room ids in order. Claiming a free id makes us its host
   // (instant); an id that is already taken belongs to a live host, so we try to join it.
   async quickPlay(hello, onStatus) {
-    const N = NET.publicRooms;
-    // Open the client connection in parallel with the first room claim (no serial waiting)
+    // Room IDs are allocated on demand: full/ended rooms are skipped, and the first
+    // free ID becomes a brand-new match. There is no fixed server-count ceiling.
     const clientReady = this.ensureClientPeer().then(() => true, () => false);
-    for (let k = 1; k <= N; k++) {
+    for (let k = 1; ; k++) {
+      if (this.closed) throw new Error('closed');
       if (onStatus) onStatus(k === 1 ? 'Finding a match…' : `Checking room ${k}…`);
       const rid = roomPeerId('pub', k);
       try {
         if (this.peer) { try { this.peer.destroy(); } catch (e) { /* ignore */ } this.peer = null; }
         await this.host(rid);
         // We own a public room: the spare client connection goes back to the warm pool
-        clientReady.then(() => { if (this.cpeer && !warm) { const c = this.cpeer; this.cpeer = null; warm = Promise.resolve(c); } });
+        clientReady.then(() => { if (!this.closed && this.cpeer && !warm) { const c = this.cpeer; this.cpeer = null; warm = Promise.resolve(c); } });
         return { role: 'host', k };
       } catch (e) {
         this.isHost = false;
@@ -300,6 +312,7 @@ export class Net {
   }
 
   close() {
+    if (this.closed) return;
     this.closed = true;
     try {
       if (this.hostConn) { this.hostConn.send({ t: 'bye' }); this.hostConn.close(); }
