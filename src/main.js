@@ -13,6 +13,7 @@ import { Training, TRAINING_INFO } from './game/training.js';
 import { Net, randomCode, roomPeerId, prewarmNet } from './net/net.js';
 import { GAME_VERSION, TEAMS, QUICK_CHAT, ITEMS, MATCH, PLAYER, KICK, FIELD } from './config.js';
 import { CATALOG } from './cosmetics.js';
+import { Prog } from './progression.js';
 import { clamp, len2, wrapAngle } from './util/math.js';
 import * as THREE from 'three';
 
@@ -182,14 +183,52 @@ class App {
   }
 
   claimDaily() {
-    const r = Save.claimDaily();
-    if (r) { this.audio.coins(); this.ui.globalToast(`Daily reward: +${r} coins! (streak ${Save.p.daily.streak})`); }
+    const r = Prog.claimCalendar();
+    if (r) { this.audio.coins(); this.ui.globalToast(`Login reward: ${Prog.label(r)}`); }
     else this.ui.globalToast('Already claimed today. Come back tomorrow!');
+    this.afterClaim();
+  }
+
+  // ---- Season Pass, challenges, playtime and event rewards
+  afterClaim() {
     this.ui.refreshProfile();
+    if (this.ui.page === 'pass') this.ui.renderPass(); else this.ui.renderPlayPage();
+  }
+  claimChallenge(id) {
+    const r = Prog.claimChallenge(id);
+    if (r) { this.audio.coins(); this.ui.globalToast(`Challenge complete: +${r.sp} Season XP, +${r.coins} coins`); }
+    this.afterClaim();
+  }
+  claimPlaytime(i) {
+    const r = Prog.claimPlaytime(i);
+    if (r) { this.audio.coins(); this.ui.globalToast(`Playtime reward: ${Prog.label(r)}`); }
+    this.afterClaim();
+  }
+  claimEvent() {
+    const r = Prog.claimEvent();
+    if (r) { this.audio.goalHorn(); this.ui.globalToast(`Event exclusive unlocked: ${Prog.label(r)}`, 4000); }
+    this.afterClaim();
+  }
+  claimTier(t, track) {
+    const r = Prog.claimTier(t, track);
+    if (r) { this.audio.coins(); this.ui.globalToast(`Tier ${t}: ${Prog.label(r)}`); }
+    this.afterClaim();
+  }
+  claimAllPass() {
+    const list = Prog.claimAllPass();
+    if (list.length) { this.audio.coins(); this.ui.globalToast(`Claimed ${list.length} reward${list.length === 1 ? '' : 's'}`); }
+    this.afterClaim();
+  }
+  async buyElite() {
+    if (Prog.s.elite) return;
+    if (Save.p.coins < 1500) { this.audio.beep(false); this.ui.globalToast('Not enough coins for the Elite Pass yet'); return; }
+    const ok = await this.ui.confirm('Unlock the Elite Pass?', 'Spend 1500 coins to unlock the Elite track for this season, including every reward you have already reached.');
+    if (ok && Prog.buyElite()) { this.audio.goalHorn(); this.ui.globalToast('Elite Pass unlocked!', 3000); }
+    this.afterClaim();
   }
 
   rollItems(n) {
-    const res = Save.roll(n);
+    const res = n === 1 && Prog.s.tokens > 0 && Prog.useToken() ? Save.roll(1, true) : Save.roll(n);
     if (!res) {
       this.audio.beep(false);
       this.ui.globalToast('Not enough coins. Win matches and claim daily rewards to earn more!');
@@ -212,6 +251,9 @@ class App {
         this.menuEmote = id; this.renderer.resetMenuEmote();
       } else p.eq[cat] = id;
       this.audio.click();
+    } else if (item.excl) {
+      this.ui.globalToast(item.excl === 'event' ? 'Exclusive: earned from a limited-time event' : 'Exclusive: earned from the Season Pass');
+      return;
     } else if (p.coins >= item.price) {
       Save.buy(cat, id);
       if (cat === 'emote') { const free = p.eq.emotes.indexOf(null); if (free >= 0) p.eq.emotes[free] = id; this.menuEmote = id; this.renderer.resetMenuEmote(); }
@@ -234,7 +276,7 @@ class App {
     this.lastTraining = { kind, opts };
     const tr = new Training(kind, { ...opts, labels: (a) => this.input.actionLabel(a), mobile: SDK.isMobile });
     this.session = new Session({ mode: 'practice', role: 'offline', profile: this.hello(), training: tr, onEvent: (e) => this.onGameEvent(e) });
-    this.session.startHost({});
+    this.session.startHost({ itemMul: Prog.mods().itemMul });
     SDK.leftRoom();
     this.enterGame();
   }
@@ -278,7 +320,7 @@ class App {
     if (team === 0 || team === 1) { Save.p.team = team; Save.save(); }
     this.endSession();
     this.session = new Session({ mode: 'match', role: 'offline', profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
-    this.session.startHost({});
+    this.session.startHost({ itemMul: Prog.mods().itemMul });
     this.netStatus = 'bots';
     this.enterGame();
     if (reason) this.ui.globalToast(reason, 4000);
@@ -293,7 +335,7 @@ class App {
     Save.save();
     this.endSession();
     const session = new Session({ mode: 'match', role: 'offline', roomKind: 'pub', profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
-    session.startHost({});
+    session.startHost({ itemMul: Prog.mods().itemMul });
     this.session = session;
     this.netStatus = 'search';
     this.enterGame();
@@ -371,7 +413,7 @@ class App {
       return;
     }
     this.session = new Session({ mode: 'match', role: 'host', net, roomKind: 'priv', roomCode: code, profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
-    this.session.startHost({}, true);
+    this.session.startHost({ itemMul: Prog.mods().itemMul }, true);
     SDK.updateRoom({ roomId: `priv-${code}`, isJoinable: true, inviteParams: { roomId: `priv-${code}` } });
     SDK.showInviteButton({ roomId: `priv-${code}` });
     this.enterGame();
@@ -707,7 +749,7 @@ class App {
           }
         }
         break;
-      case 'item': A.item(ev.k); break;
+      case 'item': A.item(ev.k); if (ev.id === s.localId && s.mode === 'match') this.matchItems = (this.matchItems || 0) + 1; break;
       case 'shatter': if (ev.k === 'ice') A.freeze(); else if (ev.k === 'fist' || ev.k === 'bullet') A.thud(); break;
       case 'boom': A.item('bazooka'); A.thud(); break;
       case 'blast': A.thud(); break;
@@ -749,7 +791,7 @@ class App {
     const myTeam = me ? me.team : 0;
     const row = (ev.stats || []).find((r) => r.id === s.localId) || {};
     const outcome = ev.winner === -1 ? 'draw' : ev.winner === myTeam ? 'win' : 'lose';
-    const coins = 25 + (row.goals || 0) * 10 + (row.assists || 0) * 6 + (row.saves || 0) * 5 + (outcome === 'win' ? 30 : outcome === 'draw' ? 12 : 0);
+    const coins = (25 + (row.goals || 0) * 10 + (row.assists || 0) * 6 + (row.saves || 0) * 5 + (outcome === 'win' ? 30 : outcome === 'draw' ? 12 : 0)) * Prog.mods().coinMul;
     const xp = 60 + (row.goals || 0) * 25 + (row.assists || 0) * 15 + (row.saves || 0) * 12 + (outcome === 'win' ? 40 : 0);
     Save.addCoins(coins);
     const lv = Save.addXp(xp);
@@ -757,6 +799,10 @@ class App {
     st.matches++; if (outcome === 'win') st.wins++;
     st.goals += row.goals || 0; st.assists += row.assists || 0; st.saves += row.saves || 0;
     Save.save(true);
+    const chalBefore = Prog.challenges().filter((c) => c.done).length;
+    const pass = Prog.recordMatch({ ...row, items: this.matchItems || 0, win: outcome === 'win' });
+    this.matchItems = 0;
+    const newChal = Prog.challenges().filter((c) => c.done).length - chalBefore;
     const mvpRow = (ev.stats || []).find((r) => r.id === ev.mvp);
     this.pendingResults = { coins, xp, outcome, doubled: false };
     this.ui.announce(outcome === 'win' ? 'VICTORY!' : outcome === 'lose' ? 'FULL TIME' : 'DRAW', `${ev.score[0]} – ${ev.score[1]}`);
@@ -767,11 +813,13 @@ class App {
       this.renderer.awards.hideCards();
       this.input.exitLock();
       this.ui.showResults({
-        outcome, score: ev.score, mvp: mvpRow ? mvpRow.name : '', stats: row, coins, xp,
+        outcome, score: ev.score, mvp: mvpRow ? mvpRow.name : '', stats: row, coins, xp, sp: pass.sp, tiers: pass.tiers,
         canDouble: SDK.available && !this.adblock, online: !!s.net, isHost: s.isAuthority,
       });
       this.ui.showBanner(true);
       if (lv > 0) this.ui.globalToast(`LEVEL UP! You reached level ${Save.p.level} (+${lv * 50} coins)`, 4000);
+      if (pass.tiers > 0) this.ui.globalToast(`SEASON PASS: tier ${Prog.tier()} reached`, 4000);
+      if (newChal > 0) this.ui.globalToast(`${newChal} daily challenge${newChal === 1 ? '' : 's'} complete. Claim in the lobby!`, 4000);
       this.ui.refreshProfile();
       SDK.gameplayStop();
       if (s.net) this.midgameAd();
@@ -820,6 +868,12 @@ class App {
     try {
       if (this.session && (this.state === 'game')) this.updateGame(dt);
       else this.updateMenu(dt);
+      // Playtime rewards count active time in any match or training session
+      if (this.state === 'game' && this.session && !document.hidden && !this.ui.isOpen('results') && performance.now() - this.lastActive < 30000) Prog.addPlaytime(this.rawDt);
+      if (this.state === 'menu') {
+        this.menuRefreshT = (this.menuRefreshT || 0) - dt;
+        if (this.menuRefreshT <= 0) { this.menuRefreshT = 20; if (this.ui.page === 'play') this.ui.renderPlayPage(); else this.ui.refreshBadges(); }
+      }
       this.renderer.render();
     } catch (e) {
       console.error(e);

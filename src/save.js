@@ -52,7 +52,7 @@ export const DEFAULT_SETTINGS = {
 
 function freshProfile() {
   const owned = {};
-  for (const cat of Object.keys(CATALOG)) owned[cat] = CATALOG[cat].filter((x) => x.price === 0).map((x) => x.id);
+  for (const cat of Object.keys(CATALOG)) owned[cat] = CATALOG[cat].filter((x) => x.price === 0 && !x.excl).map((x) => x.id);
   return {
     v: 1,
     name: guestName(),
@@ -130,7 +130,7 @@ export const Save = {
       // at least 3 items (or all you own, if fewer) stay enabled
       while (this.p.powersOff.length && this.activePowers().length < Math.min(ROLL.minEnabled, this.p.powers.length)) this.p.powersOff.pop();
       for (const cat of Object.keys(CATALOG)) {
-        for (const it of CATALOG[cat]) if (it.price === 0 && !this.p.owned[cat].includes(it.id)) this.p.owned[cat].push(it.id);
+        for (const it of CATALOG[cat]) if (it.price === 0 && !it.excl && !this.p.owned[cat].includes(it.id)) this.p.owned[cat].push(it.id);
       }
     } else {
       this.p = base;
@@ -185,7 +185,7 @@ export const Save = {
 
   buy(cat, id) {
     const item = CATALOG[cat].find((x) => x.id === id);
-    if (!item || this.owns(cat, id) || this.p.coins < item.price) return false;
+    if (!item || item.excl || this.owns(cat, id) || this.p.coins < item.price) return false;
     this.p.coins -= item.price;
     this.p.owned[cat].push(id);
     this.save(true);

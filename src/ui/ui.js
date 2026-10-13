@@ -6,8 +6,11 @@ import { fmtTime, clamp } from '../util/math.js';
 import { itemSvg, previewJersey, previewBall, previewGoalFx, previewEmote, previewHair } from './icons.js';
 import { SDK } from '../sdk.js';
 import { PreviewStudio } from '../render/preview.js';
+import { Prog, PASS, CALENDAR, fmtLeft } from '../progression.js';
 
 const $ = (id) => document.getElementById(id);
+const TOKEN_SVG = '<svg viewBox="0 0 24 24"><path d="M12 2l9 5v10l-9 5-9-5V7z" fill="#8a5cf6"/><path d="M12 2l9 5-9 5-9-5z" fill="#b69cff"/><path d="M10 9.5a2.2 2 0 1 1 3 1.8c-.8.4-1 .8-1 1.6M12 15.4v.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>';
+const CHEST_SVG = '<svg viewBox="0 0 24 24"><path d="M3 10h18v10H3z" fill="#b8742a"/><path d="M3 10c0-4 4-6 9-6s9 2 9 6z" fill="#d89a3a"/><path d="M3 10h18v2H3z" fill="#ffcf3f"/><path d="M10 11h4v4h-4z" fill="#ffcf3f"/></svg>';
 const TIPS = [
   'Walk into your own box when your team has no keeper to grab the gloves.',
   'Keepers lose their gloves the moment they step out of the box.',
@@ -87,7 +90,9 @@ export class UI {
     click('pauseControlsBtn', () => { this.openSettings(); setTimeout(() => { const el = document.querySelector('[data-sec="keys"]'); if (el) el.scrollIntoView(); }, 30); });
     click('dailyBtn', () => app.claimDaily());
     click('loginBtn', () => app.login());
-    click('powerShopBtn', () => { this.shopTab = 'roll'; this.setPage('shop'); });
+    click('seasonChip', () => this.setPage('pass'));
+    click('passElite', () => app.buyElite());
+    click('passClaimAll', () => app.claimAllPass());
     click('resumeBtn', () => app.resume());
     click('leaveBtn', () => app.leaveToLobby(true));
     click('inviteBtn2', () => app.copyInvite());
@@ -131,6 +136,7 @@ export class UI {
     if (page === 'inventory') this.renderInventory();
     if (page === 'training') this.renderTraining();
     if (page === 'play') this.renderPlayPage();
+    if (page === 'pass') this.renderPass();
     this.app.menuEmote = null;
   }
 
@@ -145,29 +151,124 @@ export class UI {
   // Play sheet: choose a side (or ANY), then a mode
   openPlaySheet() { this.modal('playSheet', true); }
 
+  // Small reward icon (coins, free roll, season XP, chest or an exclusive cosmetic preview)
+  rewardIcon(r) {
+    if (!r) return '';
+    if (r.kind === 'coins') return '<span class="rw-ico"><span class="coin"></span></span>';
+    if (r.kind === 'token') return `<span class="rw-ico tok">${TOKEN_SVG}</span>`;
+    if (r.kind === 'sp') return '<span class="rw-ico sp">XP</span>';
+    if (r.kind === 'chest') return `<span class="rw-ico chest">${CHEST_SVG}</span>`;
+    if (r.kind === 'item') return `<span class="rw-ico pvh" data-pv="${r.cat}|${r.id}"></span>`;
+    return '';
+  }
+  fillPreviews(root) {
+    root.querySelectorAll('[data-pv]').forEach((el) => { const [cat, id] = el.dataset.pv.split('|'); try { el.appendChild(this.preview(cat, id)); } catch (e) { /* ignore */ } });
+  }
+  rewardShort(r) {
+    if (r.kind === 'coins' || r.kind === 'chest') return String(r.n);
+    if (r.kind === 'token') return r.n > 1 ? `×${r.n}` : 'ROLL';
+    if (r.kind === 'sp') return String(r.n);
+    return 'EXCL';
+  }
+
   renderPlayPage() {
-    const p = Save.p;
-    // Daily reward track (7-day streak)
-    const avail = Save.dailyAvailable();
-    const streak = p.daily.streak || 0;
-    const y = new Date(Date.now() - 86400000);
-    const yKey = `${y.getFullYear()}-${y.getMonth() + 1}-${y.getDate()}`;
-    const nextDay = avail ? (p.daily.last === yKey ? Math.min(7, streak + 1) : 1) : streak;
+    const g = Prog.s;
+    // Season chip above the play button
+    const si = Prog.seasonInfo();
+    $('scTag').textContent = `SEASON ${si.n}`;
+    $('scName').textContent = si.name;
+    $('scTier').textContent = Prog.tier();
+    $('scBar').style.width = `${Prog.tierProgress() * 100}%`;
+    $('scEnds').textContent = `ENDS IN ${fmtLeft(si.ends - Date.now())}`;
+    // Limited-time event
+    const ev = Prog.event();
+    const evEl = $('evCard');
+    if (ev) {
+      const done = g.ev.prog >= ev.goal.n;
+      const rw = { kind: 'item', cat: ev.reward[0], id: ev.reward[1] };
+      evEl.innerHTML = `<div class="mc-head ev-head"><span><i class="live-dot"></i>LIMITED EVENT</span><em>${fmtLeft(ev.end - Date.now())} LEFT</em></div>
+        <div class="ev-body"><div class="ev-txt"><b>${ev.name}</b><small>${ev.desc}</small>
+        <div class="ev-goal"><span>${ev.goal.label}</span><span class="ev-bar"><i style="width:${(g.ev.prog / ev.goal.n) * 100}%"></i></span><em>${g.ev.prog}/${ev.goal.n}</em></div></div>
+        <div class="ev-rw">${this.rewardIcon(rw)}<small>EXCLUSIVE</small></div></div>
+        ${g.ev.claimed ? '<div class="ev-claimed">REWARD CLAIMED</div>' : done ? '<button id="evClaim" class="btn btn-gold mc-btn">CLAIM EXCLUSIVE</button>' : ''}`;
+      const cb = $('evClaim');
+      if (cb) cb.onclick = (e) => { e.stopPropagation(); this.app.claimEvent(); };
+    } else {
+      const nx = Prog.nextEvent();
+      evEl.innerHTML = `<div class="mc-head"><span>NEXT EVENT</span><em>IN ${fmtLeft(nx.start - Date.now())}</em></div><div class="ev-body"><div class="ev-txt"><b>${nx.name}</b><small>${nx.desc}</small></div></div>`;
+    }
+    this.fillPreviews(evEl);
+    // Login calendar (7 days, cycles)
+    const cs = Prog.calendarState();
     let html = '';
     for (let d = 1; d <= 7; d++) {
-      const done = avail ? d < nextDay : d <= streak;
-      const cur = avail && d === nextDay;
-      html += `<div class="dd ${done ? 'done' : ''} ${cur ? 'cur' : ''}"><span class="coin"></span><b>${40 + d * 20}</b><small>DAY ${d}</small></div>`;
+      const done = cs.avail ? d < cs.next : d <= cs.cur;
+      const cur = cs.avail && d === cs.next;
+      const r = CALENDAR[d - 1];
+      html += `<div class="dd ${done ? 'done' : ''} ${cur ? 'cur' : ''} ${d === 7 ? 'big' : ''}">${this.rewardIcon(r)}<b>${this.rewardShort(r)}</b><small>DAY ${d}</small></div>`;
     }
     $('dailyDays').innerHTML = html;
-    $('dailyStreak').textContent = `Day ${Math.max(1, nextDay)}`;
+    $('dailyStreak').textContent = `DAY ${Math.max(1, cs.avail ? cs.next : cs.cur)}`;
     const btn = $('dailyBtn');
-    btn.disabled = !avail;
-    btn.textContent = avail ? `CLAIM +${40 + nextDay * 20}` : 'COME BACK TOMORROW';
-    // Items strip
-    $('powerStrip').innerHTML = ITEM_KINDS.map((k) => `<span class="ps ${Save.ownsPower(k) ? '' : 'locked'}" style="--rc:${RARITY[ITEMS[k].rarity].color}" title="${esc(ITEMS[k].name)}">${itemSvg(k)}</span>`).join('');
-    $('powerCount').textContent = `${p.powers.length}/${ITEM_KINDS.length}`;
-    $('powerShopBtn').textContent = p.powers.length >= ITEM_KINDS.length ? 'ALL ITEMS OWNED' : 'ROLL FOR ITEMS';
+    btn.disabled = !cs.avail;
+    btn.textContent = cs.avail ? `CLAIM DAY ${cs.next}: ${Prog.label(CALENDAR[cs.next - 1])}` : 'COME BACK TOMORROW';
+    // Daily challenges
+    const tomorrow = new Date(); tomorrow.setHours(24, 0, 0, 0);
+    $('chalReset').textContent = `RESETS ${fmtLeft(tomorrow - Date.now())}`;
+    $('chalList').innerHTML = Prog.challenges().map((c) => `<div class="ch ${c.done ? 'done' : ''} ${c.claimed ? 'claimed' : ''}">
+        <div class="ch-txt"><b>${c.label}</b><span class="ch-bar"><i style="width:${(c.prog / c.target) * 100}%"></i></span></div>
+        ${c.claimed ? '<span class="ch-ok">DONE</span>' : c.done ? `<button class="ch-claim" data-chal="${c.id}">+${c.sp} XP</button>` : `<span class="ch-n">${c.prog}/${c.target}</span>`}
+      </div>`).join('');
+    $('chalList').querySelectorAll('[data-chal]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.claimChallenge(b.dataset.chal); }));
+    // Playtime rewards
+    const pt = Prog.playtimeState();
+    const mins = pt[0].mins;
+    $('ptMins').textContent = `${Math.floor(mins)} MIN TODAY`;
+    $('ptTrack').innerHTML = pt.map((m) => `<button class="pt ${m.ready ? 'ready' : ''} ${m.claimed ? 'claimed' : ''}" data-pt="${m.i}" ${m.ready ? '' : 'disabled'}>${this.rewardIcon(m)}<b>${this.rewardShort(m)}</b><small>${m.claimed ? 'CLAIMED' : `${m.min} MIN`}</small><i style="width:${clamp(mins / m.min, 0, 1) * 100}%"></i></button>`).join('');
+    $('ptTrack').querySelectorAll('[data-pt]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.claimPlaytime(+b.dataset.pt); }));
+    this.refreshBadges();
+  }
+
+  refreshBadges() {
+    const pd = Prog.pending();
+    $('badgePass').classList.toggle('hidden', !pd.pass);
+    $('badgePlay').classList.toggle('hidden', !(pd.chal || pd.play || pd.ev || pd.cal));
+  }
+
+  renderPass() {
+    const g = Prog.s;
+    const si = Prog.seasonInfo();
+    const tier = Prog.tier();
+    $('passNo').textContent = `SEASON ${si.n}`;
+    $('passName').textContent = si.name;
+    $('passEnds').textContent = `ENDS IN ${fmtLeft(si.ends - Date.now())}`;
+    $('passTier').textContent = tier;
+    $('passBar').style.width = `${Prog.tierProgress() * 100}%`;
+    $('passSp').textContent = tier >= PASS.tiers ? 'PASS COMPLETE' : `${g.sp % PASS.spPerTier} / ${PASS.spPerTier} XP TO TIER ${tier + 1}`;
+    const el = $('passElite');
+    el.innerHTML = g.elite ? 'ELITE UNLOCKED' : `UNLOCK ELITE <span class="coin"></span>${PASS.eliteCost}`;
+    el.disabled = g.elite;
+    const pd = Prog.pending();
+    $('passClaimAll').disabled = !pd.pass;
+    let html = '';
+    for (let t = 1; t <= PASS.tiers; t++) {
+      const cell = (track) => {
+        const r = Prog.reward(t, track);
+        const claimed = g.claimed[track].includes(t);
+        const can = Prog.canClaim(t, track);
+        const locked = t > tier || (track === 'e' && !g.elite);
+        return `<button class="pc ${track} ${claimed ? 'claimed' : ''} ${can ? 'ready' : ''} ${locked ? 'locked' : ''} ${r.kind === 'item' ? 'excl' : ''}" data-tier="${t}" data-track="${track}" ${can ? '' : 'disabled'} title="${Prog.label(r)}">
+          ${this.rewardIcon(r)}<b>${r.kind === 'item' ? 'EXCLUSIVE' : this.rewardShort(r)}</b>${claimed ? '<i class="pc-ok"></i>' : ''}${locked && track === 'e' && !g.elite ? '<i class="pc-lock"></i>' : ''}</button>`;
+      };
+      html += `<div class="pcol ${t <= tier ? 'reached' : ''} ${t === tier + 1 ? 'next' : ''}"><span class="pcol-n">${t}</span>${cell('f')}${cell('e')}</div>`;
+    }
+    const tr = $('passTrack');
+    const sl = tr.scrollLeft;
+    tr.innerHTML = html;
+    this.fillPreviews(tr);
+    tr.querySelectorAll('[data-tier]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.claimTier(+b.dataset.tier, b.dataset.track); }));
+    if (!this.passScrolled) { this.passScrolled = true; const col = tr.children[Math.max(0, tier - 2)]; if (col) tr.scrollLeft = col.offsetLeft - 8; } else tr.scrollLeft = sl;
+    this.refreshBadges();
   }
 
   renderTraining() {
@@ -477,6 +578,7 @@ export class UI {
     $('resStats').innerHTML = `<div><b>${st.goals || 0}</b>Goals</div><div><b>${st.assists || 0}</b>Assists</div><div><b>${st.saves || 0}</b>Saves</div><div><b>${st.steals || 0}</b>Steals</div><div><b>${st.points || 0}</b>Points</div>`;
     $('resCoins').textContent = `+${r.coins}`;
     $('resXp').textContent = `+${r.xp}`;
+    $('resSp').textContent = `+${r.sp || 0}${r.tiers ? `  TIER ${Prog.tier()}` : ''}`;
     $('doubleBtn').classList.toggle('hidden', !r.canDouble);
     $('doubleBtn').disabled = false;
     if (!this.doubleHtml) this.doubleHtml = $('doubleBtn').innerHTML;
@@ -556,7 +658,7 @@ export class UI {
         <div class="roll-machine ${done ? 'done' : ''}">${this.cubeHtml()}<div class="rm-count">${owned}/${total} ITEMS</div></div>
         <div class="roll-side">
           <div class="roll-btns">
-            <button class="roll-btn" data-roll="1" ${done ? 'disabled' : ''}><b>ROLL ×1</b><span class="rb-cost"><span class="coin"></span>${ROLL.cost}</span></button>
+            ${Prog.s.tokens > 0 && !done ? `<button class="roll-btn free" data-roll="1"><b>FREE ROLL</b><span class="rb-cost">${Prog.s.tokens} LEFT</span></button>` : `<button class="roll-btn" data-roll="1" ${done ? 'disabled' : ''}><b>ROLL ×1</b><span class="rb-cost"><span class="coin"></span>${ROLL.cost}</span></button>`}
             <button class="roll-btn big" data-roll="5" ${done ? 'disabled' : ''}><b>ROLL ×5</b><span class="rb-cost"><span class="coin"></span>${ROLL.cost5}</span></button>
           </div>
           <div class="roll-pity">${done ? 'Collection complete!' : `New item guaranteed within <b>${Save.rollsToPity()}</b> roll${Save.rollsToPity() === 1 ? '' : 's'}`}</div>
@@ -567,12 +669,12 @@ export class UI {
         e.stopPropagation();
         const n = +b.dataset.roll;
         const m = grid.querySelector('.roll-machine');
-        if (Save.canAfford(n)) { if (m) m.classList.add('opening'); this.app.audio.whoosh(); setTimeout(() => { if (m) m.classList.remove('opening'); this.app.rollItems(n); }, 650); }
+        if (Save.canAfford(n) || (n === 1 && Prog.s.tokens > 0)) { if (m) m.classList.add('opening'); this.app.audio.whoosh(); setTimeout(() => { if (m) m.classList.remove('opening'); this.app.rollItems(n); }, 650); }
         else this.app.rollItems(n);
       }));
       return;
     }
-    for (const it of CATALOG[tab]) grid.appendChild(this.cosmeticCard(tab, it, true));
+    for (const it of CATALOG[tab]) if (!it.excl || Save.owns(tab, it.id)) grid.appendChild(this.cosmeticCard(tab, it, true));
   }
 
   // 3D mystery cube (same look as the in-game item cubes)

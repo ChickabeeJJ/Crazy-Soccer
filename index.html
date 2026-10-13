@@ -19,7 +19,8 @@
       <header class="mn-top">
         <div class="mn-brand"><div class="brand"><span class="b1">CRAZY</span><span class="b2">SOCCER</span></div></div>
         <nav id="mnNav" class="mn-nav">
-          <button data-page="play" class="on"><span>PLAY</span></button>
+          <button data-page="play" class="on"><span>PLAY</span><i id="badgePlay" class="nav-dot hidden"></i></button>
+          <button data-page="pass"><span>SEASON PASS</span><i id="badgePass" class="nav-dot hidden"></i></button>
           <button data-page="training"><span>TRAINING</span></button>
           <button data-page="shop"><span>SHOP</span></button>
           <button data-page="inventory"><span>INVENTORY</span></button>
@@ -42,19 +43,37 @@
       <!-- PLAY -->
       <section id="pg-play" class="mn-page show">
         <div class="mn-col mn-left">
+          <button id="seasonChip" class="season-chip"><span class="sc-tag" id="scTag">SEASON 1</span><span class="sc-name" id="scName">KICKOFF</span><span class="sc-tier">TIER <b id="scTier">0</b></span><span class="sc-bar"><i id="scBar"></i></span><span class="sc-ends" id="scEnds"></span></button>
           <button id="playBtn" class="play-hero"><span class="ph-text"><span class="ph-label">PLAY</span></span><span class="ph-go"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
         </div>
         <div class="mn-col mn-rightcol">
+          <div id="evCard" class="mn-card event"></div>
           <div class="mn-card daily">
-            <div class="mc-head"><span>DAILY REWARD</span><em id="dailyStreak">Day 1</em></div>
+            <div class="mc-head"><span>LOGIN REWARDS</span><em id="dailyStreak">Day 1</em></div>
             <div id="dailyDays" class="daily-days"></div>
             <button id="dailyBtn" class="btn btn-gold mc-btn">CLAIM</button>
           </div>
-          <div class="mn-card powers">
-            <div class="mc-head"><span>YOUR ITEMS</span><em id="powerCount">4/10</em></div>
-            <div id="powerStrip" class="power-strip"></div>
-            <button id="powerShopBtn" class="btn btn-sec mc-btn">ROLL FOR ITEMS</button>
+          <div class="mn-card chal">
+            <div class="mc-head"><span>DAILY CHALLENGES</span><em id="chalReset"></em></div>
+            <div id="chalList" class="chal-list"></div>
           </div>
+          <div class="mn-card ptime">
+            <div class="mc-head"><span>PLAYTIME REWARDS</span><em id="ptMins"></em></div>
+            <div id="ptTrack" class="pt-track"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SEASON PASS -->
+      <section id="pg-pass" class="mn-page">
+        <div class="pass-wrap">
+          <div class="pass-head">
+            <div class="pass-season"><em id="passNo">SEASON 1</em><h1 id="passName">KICKOFF</h1><span id="passEnds"></span></div>
+            <div class="pass-tier"><div class="pt-num"><b id="passTier">0</b><span>/ 30</span></div><div class="pt-bar"><i id="passBar"></i></div><small id="passSp"></small></div>
+            <div class="pass-acts"><button id="passElite" class="btn btn-gold"></button><button id="passClaimAll" class="btn btn-play">CLAIM ALL</button></div>
+          </div>
+          <div class="pass-rows"><span class="pr-l free">FREE</span><span class="pr-l elite">ELITE</span></div>
+          <div id="passTrack" class="pass-track"></div>
         </div>
       </section>
 
@@ -171,6 +190,7 @@
         <div class="res-rewards">
           <div class="rw"><span class="coin"></span><b id="resCoins">+0</b></div>
           <div class="rw xpw"><span>XP</span><b id="resXp">+0</b></div>
+          <div class="rw spw"><span>SEASON</span><b id="resSp">+0</b></div>
         </div>
         <button id="doubleBtn" class="btn btn-gold hidden"><svg viewBox="0 0 24 24" width="0.9em" height="0.9em" style="vertical-align:-0.08em;margin-right:0.35em"><path d="M7 4l13 8-13 8z" fill="currentColor"/></svg>WATCH AD: DOUBLE COINS</button>
         <div id="resNext" class="res-next"></div>

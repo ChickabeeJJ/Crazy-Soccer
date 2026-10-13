@@ -32,6 +32,11 @@ export const CATALOG = {
     { id: 'royal', name: 'Royal', price: 350, base: '#2346c8', accent: '#ffcf3f', sole: '#ffffff' },
     { id: 'galaxy', name: 'Galaxy', price: 500, base: '#3a1d7a', accent: '#ff7ae0', sole: '#9ad8ff' },
     { id: 'gold', name: 'Golden Boot', price: 900, base: '#ffc93a', accent: '#ffffff', sole: '#b8860b' },
+    // Exclusives: earned from the Season Pass and limited-time events only
+    { id: 'phantom', name: 'Phantom', price: 0, excl: 'pass', base: '#0d0d12', accent: '#39ff88', sole: '#39ff88' },
+    { id: 'aurora', name: 'Aurora', price: 0, excl: 'pass', base: '#1fd6c8', accent: '#ff5ad1', sole: '#ffffff' },
+    { id: 'champion', name: 'Champion', price: 0, excl: 'event', base: '#ffffff', accent: '#ffcf3f', sole: '#ffcf3f' },
+    { id: 'ember', name: 'Ember', price: 0, excl: 'event', base: '#ff3d00', accent: '#1a1010', sole: '#ffb300' },
   ],
   jersey: [
     { id: 'classic', name: 'Classic', price: 0 },
@@ -42,6 +47,11 @@ export const CATALOG = {
     { id: 'stars', name: 'All Stars', price: 450 },
     { id: 'lightning', name: 'Lightning', price: 550 },
     { id: 'checks', name: 'Checkers', price: 650 },
+    { id: 'flames', name: 'Inferno', price: 0, excl: 'pass' },
+    { id: 'galaxyk', name: 'Nebula', price: 0, excl: 'pass' },
+    { id: 'neon', name: 'Neon Grid', price: 0, excl: 'pass' },
+    { id: 'carbon', name: 'Carbon', price: 0, excl: 'pass' },
+    { id: 'camo', name: 'Night Camo', price: 0, excl: 'event' },
   ],
   ball: [
     { id: 'classic', name: 'Classic', price: 0, a: '#ffffff', b: '#1d1d24' },
@@ -52,6 +62,9 @@ export const CATALOG = {
     { id: 'lava', name: 'Lava', price: 500, a: '#2a0f0a', b: '#ff6a00', glow: true },
     { id: 'galaxy', name: 'Galaxy', price: 650, a: '#1b1046', b: '#b388ff', glow: true },
     { id: 'golden', name: 'Golden', price: 900, a: '#ffd54a', b: '#b8860b', metal: true },
+    { id: 'plasma', name: 'Plasma', price: 0, excl: 'pass', a: '#10204a', b: '#38e1ff', glow: true },
+    { id: 'diamond', name: 'Diamond', price: 0, excl: 'pass', a: '#eef8ff', b: '#9ad8ff', metal: true },
+    { id: 'eclipse', name: 'Eclipse', price: 0, excl: 'event', a: '#120a1e', b: '#ff7a1a', glow: true },
   ],
   goalfx: [
     { id: 'confetti', name: 'Confetti', price: 0 },

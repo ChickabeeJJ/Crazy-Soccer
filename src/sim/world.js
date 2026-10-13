@@ -37,6 +37,7 @@ export class World {
       replays: opts.replays ?? true,
       teamSize: opts.teamSize ?? MATCH.teamSize,
     };
+    this.itemMul = opts.itemMul || 1; // Item Frenzy event: cubes drop more often
     this.players = [];
     this.byId = new Map();
     this.ball = createBall();
@@ -1115,12 +1116,12 @@ export class World {
     const b = this.ball;
     // Spawn item boxes
     const practice = this.mode === 'practice';
-    const maxItems = practice ? MATCH.practiceMaxItems : MATCH.maxItems;
+    const maxItems = practice ? MATCH.practiceMaxItems : Math.round(MATCH.maxItems * Math.min(1.5, this.itemMul));
     if (!this.noAutoItems && (this.phase === 'play' || this.phase === 'warmup' || practice)) {
       this.nextItemT -= dt;
       if (this.nextItemT <= 0) {
         const iv = practice ? MATCH.practiceItemInterval : MATCH.itemInterval;
-        this.nextItemT = rand(iv[0], iv[1]);
+        this.nextItemT = rand(iv[0], iv[1]) / (practice ? 1 : this.itemMul);
         if (this.boxes.length < maxItems) {
           for (let tries = 0; tries < 10; tries++) {
             const x = rand(-FIELD.halfL + FIELD.boxL + 2, FIELD.halfL - FIELD.boxL - 2);

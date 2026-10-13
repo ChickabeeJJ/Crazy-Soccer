@@ -355,6 +355,38 @@ export function jerseyTexture(pattern, teamIdx, number) {
         g.moveTo(ox + 60, 0); g.lineTo(ox + 20, 120); g.lineTo(ox + 60, 120); g.lineTo(ox + 30, 256); g.lineTo(ox + 110, 100); g.lineTo(ox + 70, 100); g.lineTo(ox + 100, 0); g.closePath(); g.fill();
       }
       break;
+    case 'flames': {
+      g.fillStyle = '#1a1010'; g.fillRect(0, 0, 512, 256);
+      const fl = (col, h) => { g.fillStyle = col; g.beginPath(); g.moveTo(0, 256); for (let x = 0; x <= 512; x += 32) g.lineTo(x + 16, 256 - h - ((x * 37) % 50)); g.lineTo(512, 256); g.closePath(); g.fill(); };
+      fl('#ff3d00', 150); fl('#ff8a00', 105); fl('#ffd23f', 60);
+      break;
+    }
+    case 'galaxyk': {
+      const gr = g.createLinearGradient(0, 0, 512, 256);
+      gr.addColorStop(0, '#120a3a'); gr.addColorStop(0.5, '#3a1d7a'); gr.addColorStop(1, '#0a1640');
+      g.fillStyle = gr; g.fillRect(0, 0, 512, 256);
+      for (let i = 0; i < 140; i++) { g.fillStyle = i % 9 ? 'rgba(255,255,255,0.8)' : '#ff7ae0'; const r = (i % 5) * 0.5 + 0.6; g.fillRect((i * 151) % 512, 20 + ((i * 89) % 236), r, r); }
+      g.fillStyle = 'rgba(255,122,224,0.25)'; g.beginPath(); g.ellipse(150, 140, 120, 40, -0.4, 0, Math.PI * 2); g.fill();
+      break;
+    }
+    case 'neon':
+      g.fillStyle = '#0b0820'; g.fillRect(0, 0, 512, 256);
+      g.strokeStyle = '#ff3bd0'; g.lineWidth = 3;
+      for (let x = 0; x < 512; x += 32) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 256); g.stroke(); }
+      g.strokeStyle = '#38e1ff';
+      for (let y = 24; y < 256; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(512, y); g.stroke(); }
+      break;
+    case 'carbon':
+      g.fillStyle = '#16161c'; g.fillRect(0, 0, 512, 256);
+      for (let y = 0; y < 256; y += 8) for (let x = (y / 8) % 2 ? 8 : 0; x < 512; x += 16) { g.fillStyle = '#26262f'; g.fillRect(x, y, 8, 8); }
+      g.fillStyle = base; g.fillRect(0, 196, 512, 14);
+      break;
+    case 'camo': {
+      g.fillStyle = '#2b3324'; g.fillRect(0, 0, 512, 256);
+      const cols = ['#3f4a31', '#1d2218', '#55603f'];
+      for (let i = 0; i < 60; i++) { g.fillStyle = cols[i % 3]; g.beginPath(); g.ellipse((i * 113) % 512, (i * 71) % 256, 22 + (i % 4) * 8, 12 + (i % 3) * 6, i, 0, Math.PI * 2); g.fill(); }
+      break;
+    }
     case 'checks':
       g.fillStyle = dark;
       for (let y = 0; y < 256; y += 32) for (let x = (y / 32) % 2 ? 32 : 0; x < 512; x += 64) g.fillRect(x, y, 32, 32);
