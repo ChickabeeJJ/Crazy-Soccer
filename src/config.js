@@ -128,7 +128,6 @@ export const NET = {
   // Optional: a URL that returns a JSON array of ICE servers with fresh TURN credentials, fetched at startup.
   // e.g. Metered: 'https://<your-app>.metered.live/api/v1/turn/credentials?apiKey=<key>'
   turnCredentialsUrl: '',
-  publicRooms: 16,
   snapshotRate: 20,
   inputRate: 30,
   interpDelay: 0.11,
