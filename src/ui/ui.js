@@ -636,6 +636,7 @@ export class UI {
       this.app.sendEmote(b.dataset.postEmote);
     }));
     root.classList.remove('show');
+    $('hud').classList.add('post-goal-open');
     root.setAttribute('aria-hidden', 'false');
     void root.offsetWidth;
     root.classList.add('show');
@@ -645,6 +646,7 @@ export class UI {
     const root = $('postGoal');
     if (!root) return;
     root.classList.remove('show');
+    $('hud').classList.remove('post-goal-open');
     root.setAttribute('aria-hidden', 'true');
   }
 
@@ -812,6 +814,7 @@ export class UI {
     const grid = $('shopGrid');
     grid.innerHTML = '';
     grid.classList.toggle('roll-mode', tab === 'roll');
+    grid.classList.toggle('card-shop', tab === 'cards');
     if (tab === 'cards') { this.renderCardShop(grid); return; }
     if (tab === 'roll') {
       const owned = p.powers.length, total = ITEM_KINDS.length;
@@ -911,6 +914,7 @@ export class UI {
   // (5-rolls spin one after another and collect below). opts.starter = the free first roll.
   showRoll(results, opts = {}) {
     this.lastRollN = results.length;
+    this.cardRollN = null;
     this.rollState = { results, i: 0, starter: !!opts.starter, done: false };
     $('rrHead').textContent = opts.starter ? 'YOUR FIRST ITEM' : results.length > 1 ? 'ITEM ROLL ×5' : 'ITEM ROLL';
     $('rrIntro').innerHTML = '';
@@ -940,7 +944,7 @@ export class UI {
     $('rrStartBtn').classList.toggle('hidden', state !== 'intro');
     $('rrSkipBtn').classList.toggle('hidden', state !== 'spinning');
     const again = $('rrAgainBtn');
-    const showAgain = state === 'done' && !(st && st.starter);
+    const showAgain = state === 'done' && this.cardRollN == null && !(st && st.starter);
     again.classList.toggle('hidden', !showAgain);
     if (showAgain) {
       const cost = this.lastRollN === 5 ? ROLL.cost5 : ROLL.cost;
@@ -1312,6 +1316,7 @@ export class UI {
     this.setVal('touch', 'class', cls);
     if (this.setVal('tbDribLbl', 'v', hasBall)) this.touchButton('.tb-dribble', hasBall ? 'skill' : 'jump', hasBall ? 'SPIN' : 'JUMP');
     if (this.setVal('tbKickLbl', 'v', item)) this.touchButton('.tb-kick', item ? 'use' : 'kick', item ? 'USE' : 'KICK');
+    this.touchButton('.tb-curve', 'skill', 'CURVE');
     this.setTackleLabel(dive);
   }
 }
