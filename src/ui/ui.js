@@ -451,7 +451,7 @@ export class UI {
     if (this.cache.ctrlKey === key) return;
     this.cache.ctrlKey = key;
     const L = (a) => this.app.input.actionLabel(a);
-    const kick = state.item ? 'Activate' : 'Kick';
+    const kick = state.item ? 'Activate' : state.inBox ? 'Punch' : state.keeperBall ? 'Throw' : 'Kick';
     const pass = state.item ? 'Focus' : 'Pass';
     const rows = [
       [kick, L('kick'), state.hasBall || state.item || state.nearBall, 'kick'],
@@ -1048,8 +1048,6 @@ export class UI {
       ${toggle('invertY', 'Invert Y', 'Flip vertical camera movement')}
       <div class="set-sec">Gameplay</div>
       ${toggle('assistedPasses', 'Assisted Passes', 'Passes auto-target the best teammate')}
-      ${toggle('autoCurve', 'Strafe Curve', 'A / D while charging bends the shot')}
-      ${this.isTouch ? '' : toggle('autoCurveAlways', 'Always Auto Curve', 'Camera swings while charging always bend the shot')}
       ${this.isTouch ? '' : slider('curveSens', 'Curve Sensitivity', 'How sharply a mouse swipe bends the ball', 0.3, 2.5, 0.05)}
       ${this.isTouch ? toggle('aimAssist', 'Aim Assist', 'Touch: shots near the goal snap inside the frame') : ''}
       <div class="set-sec">Interface</div>

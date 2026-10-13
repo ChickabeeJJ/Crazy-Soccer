@@ -226,7 +226,7 @@ export class BotBrain {
         this.tryItem('fire');
         const yaw = Math.atan2(dxg, dzg);
         const near = dGoal < 14;
-        this.shotAim = { yaw, pitch: near ? rand(0.24, 0.34) : rand(0.18, 0.3), cv: rand(-0.18, 0.18) };
+        this.shotAim = { yaw, pitch: near ? rand(0.24, 0.34) : rand(0.18, 0.3), cv: rand(-0.08, 0.08) };
         this.chargeTarget = clamp(dGoal / 30 + rand(0.05, 0.25), 0.3, 1);
         w.doAction(p, { a: 'charge', on: true });
         return;

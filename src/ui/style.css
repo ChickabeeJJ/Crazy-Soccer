@@ -1103,9 +1103,14 @@ body.awards #hud, body.awards #touch, body.awards .announce { visibility: hidden
 .curve-meter { position: absolute; left: 50%; top: calc(50% + 42px); transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
 .curve-meter.show { display: flex; }
 .curve-meter span { font-family: var(--f-head); font-style: italic; font-weight: 900; font-size: 12px; letter-spacing: 0.14em; color: var(--ink); background: var(--hi); padding: 2px 10px; clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%); }
-.cm-bar { position: relative; width: 170px; height: 8px; background: rgba(17, 12, 32, 0.7); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25); }
-.cm-bar i { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, var(--hi), #ff8a1f); }
-.cm-bar em { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #fff; }
+.cm-bar { position: relative; width: 190px; height: 12px; background: rgba(17, 12, 32, 0.72); overflow: hidden; clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%); }
+.cm-bar i { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, #2fe39b, var(--hi) 60%, #ff8a1f); transition: width 0.05s linear; }
+.cm-bar::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 3px), rgba(17, 12, 32, 0.9) calc(12.5% - 3px) 12.5%); pointer-events: none; }
+.curve-meter[data-dir='l'] .cm-bar i { left: auto !important; right: 0; background: linear-gradient(270deg, #2fe39b, var(--hi) 60%, #ff8a1f); }
+.curve-meter span::before, .curve-meter span::after { display: inline-block; margin: 0 6px; font-size: 10px; }
+.curve-meter[data-dir='l'] span::before { content: '<<'; }
+.curve-meter[data-dir='r'] span::after { content: '>>'; }
+.cm-bar em { display: none; }
 
 /* Training cards v2: big illustrated art, content stacked on the left */
 .tg-card { padding: 0; justify-content: stretch; align-items: stretch; flex-direction: row; background-image: repeating-linear-gradient(-55deg, color-mix(in srgb, var(--tc) 7%, transparent) 0 14px, transparent 14px 34px), linear-gradient(160deg, rgba(36, 28, 62, 0.95), rgba(17, 12, 32, 0.97)); }

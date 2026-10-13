@@ -907,10 +907,9 @@ class App {
     }
   }
 
-  // Curve for the next shot: mouse curve plus A/D strafing when Auto Curve is on
-  shotCurve(right) {
-    const auto = Save.p.settings.autoCurve ? right * 0.7 : 0;
-    return clamp((this.curveAmt || 0) + auto, -1, 1);
+  // Curve for the next shot (set with the mouse while Curve / Auto Curve is held)
+  shotCurve() {
+    return clamp(this.curveAmt || 0, -1, 1);
   }
 
   updateGame(dt) {
@@ -925,18 +924,13 @@ class App {
     const active = !this.ui.anyModal() && (inp.locked || touch || this.lockFailed) && !this.adPlaying;
     this.ui.clickToPlay(!touch && !this.lockFailed && !inp.locked && !this.ui.anyModal() && !this.wheelOpen && !this.renderer.awards.active);
 
-    // Curve: hold the Curve key while charging to lock the aim and drag the mouse sideways to bend
-    // the shot; with Auto Curve on, a mouse swipe during the charge bends it while the camera turns
+    // Curve: while a shot charges, holding Curve (RMB) or Auto Curve (MMB, which also starts the
+    // kick by itself) locks the camera where it was; moving the mouse then bends the shot that way
     const charging = !!(me && me.charging);
     if (!charging) this.curveAmt = 0;
-    // Curve (RMB by default): aim locks, drag the mouse sideways to set the bend.
-    // Auto Curve (MMB by default, or always on in Settings): the shot bends with your camera swing.
-    const curveHold = charging && active && !touch && inp.isDown('curve');
-    const autoHold = charging && active && !touch && !curveHold && (inp.isDown('autoCurve') || settings.autoCurveAlways);
-    const cs = 0.0045 * (settings.curveSens || 1);
-    if (curveHold) this.curveAmt = clamp((this.curveAmt || 0) + inp.mdx * cs * 1.6, -1, 1);
-    else if (autoHold) this.curveAmt = clamp((this.curveAmt || 0) * Math.exp(-dt * 0.8) + inp.mdx * cs * 1.2, -1, 1);
-    this.curveMode = curveHold ? 'CURVE' : autoHold ? 'AUTO CURVE' : null;
+    const curveHold = charging && active && !touch && (inp.isDown('curve') || inp.isDown('autoCurve'));
+    if (curveHold) this.curveAmt = clamp((this.curveAmt || 0) + inp.mdx * 0.0042 * (settings.curveSens || 1), -1, 1);
+    this.curveMode = curveHold ? (inp.isDown('autoCurve') ? 'AUTO CURVE' : 'CURVE') : null;
     // Camera
     if ((active || inp.dragging) && !curveHold) {
       const k = 0.0024 * settings.sens;
@@ -994,13 +988,20 @@ class App {
         if (me.anim !== 'bike' && me.anim !== 'volley' && this.bikeAim.t > 0.2) this.bikeAim = null; // knocked out of it
         else if (this.bikeAim.t >= KICK.bikeHold || (this.bikeAim.released && this.bikeAim.t >= 0.14)) fireBike();
       }
-      if (inp.wasPressed('kick')) {
+      // Kick, or Auto Curve (= kick + curve in one button). Goalkeepers without the ball punch.
+      const kickBtn = inp.wasPressed('kick') ? 'kick' : inp.wasPressed('autoCurve') ? 'autoCurve' : null;
+      const keeperFree = me.keeper && inOwnBox(me, 0.6) && !s.hasBall();
+      if (kickBtn) {
         const b = s.view.ball;
+        this.kickBtn = kickBtn;
         if (this.bikeAim) {
           this.kickSuppressed = true;
         } else if (equip >= 0) {
           s.action({ a: 'item', slot: equip, ...aim });
           me.equip = -1;
+          this.kickSuppressed = true;
+        } else if (keeperFree) {
+          s.action({ a: 'punch', ...aim });
           this.kickSuppressed = true;
         } else if (this.canBike(s, me, b) && me.cd.kick <= 0) {
           s.action({ a: 'bike' });
@@ -1008,16 +1009,17 @@ class App {
           this.kickSuppressed = true;
         } else if (this.canVolley(me, b)) {
           // Ball in the air next to you: volley it instantly (no charging mid-air)
-          s.action({ a: 'kick', pw: 0.9, ...shotAim, cv: this.shotCurve(right) });
+          s.action({ a: 'kick', pw: 0.9, ...shotAim, cv: this.shotCurve() });
           this.kickSuppressed = true;
         } else {
           s.action({ a: 'charge', on: true });
         }
         this.ui.flashControl('kick');
       }
-      if (inp.wasReleased('kick')) {
+      if (this.kickBtn && inp.wasReleased(this.kickBtn)) {
+        this.kickBtn = null;
         if (this.kickSuppressed) this.kickSuppressed = false;
-        else if (me.charging) s.action({ a: 'kick', pw: me.charge, ...shotAim, cv: this.shotCurve(right) });
+        else if (me.charging) s.action({ a: 'kick', pw: me.charge, ...shotAim, cv: this.shotCurve() });
         else s.action({ a: 'kick', pw: 0, ...shotAim, cv: 0 });
       }
       const simple = (name, extra = {}) => { if (inp.wasPressed(name)) { s.action({ a: name, ...aim, mx, mz, ...extra }); this.ui.flashControl(name); } };
@@ -1028,8 +1030,8 @@ class App {
       const dived = !curving && canDive && inp.wasPressed('dive');
       if (dived) { s.action({ a: 'dive', ...aim, mx, mz }); this.ui.flashControl('tackle'); }
       if (inp.wasPressed('pass') && equip >= 0) me.equip = -1;
-      else if (!dived && !curving) simple('pass', { assist: settings.assistedPasses });
-      simple('lob'); simple('flick'); simple('tackle'); simple('dribble'); simple('request');
+      else if (!curving) simple('pass', { assist: settings.assistedPasses });
+      simple('lob'); simple('flick'); if (!dived) simple('tackle'); simple('dribble'); simple('request');
       if (inp.wasPressed('chat')) this.ui.toggleWheel('chat');
       if (inp.wasPressed('emote')) this.ui.toggleWheel('emote');
       if (inp.wasPressed('lobby')) this.askLeave();
@@ -1069,17 +1071,18 @@ class App {
     }
     if (!staging) {
       this.renderer.syncAim(me, rig.yaw, !!(me && me.charging && !frame), me ? me.charge : 0);
-      this.updateTrajectory(s, me, frame, shotAim, this.shotCurve(right));
+      this.updateTrajectory(s, me, frame, shotAim, this.shotCurve());
       // Curve meter under the crosshair while bending a shot
-      const cvNow = me && me.charging ? this.shotCurve(right) : 0;
+      const cvNow = me && me.charging ? this.shotCurve() : 0;
       const showCm = !!(me && me.charging && (this.curveMode || Math.abs(cvNow) > 0.05));
       const cm = $('curveMeter');
       cm.classList.toggle('show', showCm);
       if (showCm) {
         $('cmLabel').textContent = this.curveMode || 'CURVE';
+        $('curveMeter').dataset.dir = cvNow < -0.02 ? 'l' : cvNow > 0.02 ? 'r' : '';
         const f = $('cmFill');
-        f.style.left = cvNow < 0 ? `${50 + cvNow * 50}%` : '50%';
-        f.style.width = `${Math.abs(cvNow) * 50}%`;
+        f.style.left = '0';
+        f.style.width = `${Math.min(1, Math.abs(cvNow)) * 100}%`;
       }
     }
 
@@ -1091,7 +1094,7 @@ class App {
     xh.classList.toggle('show', !!me && v.phase !== 'replay');
     xh.classList.toggle('charging', !!(me && me.charging));
     const equip = me && me.equip >= 0 && me.items[me.equip] ? me.items[me.equip] : null;
-    this.ui.buildControls({ hasBall: !!hasBall, item: !!equip, inBox: !!inBox && !hasBall, nearBall: !!nearBall });
+    this.ui.buildControls({ hasBall: !!hasBall, item: !!equip, inBox: !!inBox && !hasBall, keeperBall: !!inBox && !!hasBall, nearBall: !!nearBall });
     if (this.ui.isTouch) this.ui.setTouchState(!!hasBall, !!inBox, !!equip);
     this.ui.updateHud({
       view: v, localTeam: me ? me.team : 0, practice: s.mode === 'practice', items: me ? me.items : [null, null], equip: me ? me.equip : -1,

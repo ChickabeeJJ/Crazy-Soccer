@@ -18,7 +18,7 @@ export const DEFAULT_BINDS = {
   sprint: ['ShiftLeft', 'ShiftRight'],
   curve: ['Mouse2'],
   autoCurve: ['Mouse1'],
-  dive: ['Mouse2'],
+  dive: ['KeyE'],
   item1: ['Digit1'],
   item2: ['Digit2'],
   stats: ['Tab'],

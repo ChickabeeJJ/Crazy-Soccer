@@ -333,7 +333,7 @@ export class World {
     if (b.shot && b.shot.team !== p.team) {
       const sp = Math.hypot(b.vx, b.vy, b.vz);
       if (sp > 10) {
-        this.award(p, 'Save', 25, 'saves');
+        this.award(p, sp > 32 ? 'Epic Save' : 'Save', sp > 32 ? 40 : 25, 'saves');
         this.emit({ e: 'save', id: p.id });
       }
     }
@@ -522,6 +522,26 @@ export class World {
           }
           if (best) this.hitPlayer(p, best, 'hit', 0.85, dir.x * 7, dir.z * 7, 'Hit');
         }
+        return;
+      }
+      case 'punch': {
+        // Goalkeeper without the ball: punch it clear (a strong, high fist away from goal)
+        if (!this.keeperInBox(p) || this.hasBall(p) || p.cd.kick > 0) return;
+        p.cd.kick = 0.45;
+        setAnim(p, 'throw', 0.3);
+        if (b.owner >= 0 || b.bike >= 0 || b.held) return;
+        const d = len2(b.x - p.x, b.z - p.z), rel = b.y - (p.y || 0);
+        if (d > 3.6 || rel > 4 || rel < -0.7) { this.emit({ e: 'fizzle', id: p.id }); return; }
+        const speed = Math.hypot(b.vx, b.vy, b.vz);
+        const rivalShot = b.shot && b.shot.team !== p.team;
+        const up = clamp((0.28 - pitch) * 14 + 8, 4, 16);
+        this.launch(p, dir.x * 31, up, dir.z * 31, 'pass', 0.8);
+        if (rivalShot) {
+          const epic = speed > 32;
+          this.award(p, epic ? 'Epic Save' : 'Save', epic ? 40 : 25, 'saves');
+          this.emit({ e: 'save', id: p.id });
+        }
+        this.emit({ e: 'shatter', x: r2(b.x), y: r2(Math.max(0.6, b.y)), z: r2(b.z), k: 'fist' });
         return;
       }
       case 'pass': {
@@ -1096,7 +1116,7 @@ export class World {
             b.vx -= 1.6 * vn * nx; b.vz -= 1.6 * vn * nz;
             b.vx *= 0.55; b.vz *= 0.55; b.vy = Math.abs(b.vy) * 0.4 + 3;
             if (b.shot && b.shot.team !== p.team && (keeper || diving)) {
-              this.award(p, 'Save', 25, 'saves');
+              this.award(p, speed > 32 ? 'Epic Save' : 'Save', speed > 32 ? 40 : 25, 'saves');
               this.emit({ e: 'save', id: p.id });
               b.shot = null;
             }
