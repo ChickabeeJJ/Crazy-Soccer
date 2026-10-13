@@ -30,7 +30,7 @@ export const DEFAULT_BINDS = {
 
 export const BIND_LABELS = {
   kick: 'Kick / Activate', pass: 'Pass', flick: 'Flick', tackle: 'Tackle', dive: 'Dive (Goalkeeper)', lob: 'Lob', request: 'Request',
-  dribble: 'Dribble', sprint: 'Sprint', curve: 'Curve (hold while charging)', autoCurve: 'Auto Curve (hold while charging)', item1: 'Item 1', item2: 'Item 2', stats: 'Stats', lobby: 'Return to Lobby',
+  dribble: 'Dribble', sprint: 'Sprint', curve: 'Curve (hold while charging)', item1: 'Item 1', item2: 'Item 2', stats: 'Stats', lobby: 'Return to Lobby',
   chat: 'Quick Chat', emote: 'Emotes', forward: 'Move Forward', back: 'Move Back', left: 'Move Left', right: 'Move Right',
   unlock: 'Unlock Mouse',
 };
@@ -43,9 +43,7 @@ export const DEFAULT_SETTINGS = {
   invertY: false,
   shake: 5,
   assistedPasses: true,
-  autoCurve: true,
   curveSens: 1,
-  autoCurveAlways: false,
   showControls: true,
   showHints: true,
   showStats: false,
@@ -141,6 +139,10 @@ export const Save = {
     } else {
       this.p = base;
     }
+    // Remove retired auto-curve settings from migrated profile data.
+    delete this.p.settings.autoCurve;
+    delete this.p.settings.autoCurveAlways;
+    delete this.p.binds.autoCurve;
     return this.p;
   },
 
