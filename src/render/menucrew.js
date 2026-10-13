@@ -1,4 +1,4 @@
-// Lobby warm-up behind the hero: two teammates passing a ball, one juggling, and a striker
+// Lobby warm-up behind the hero: two teammates passing a ball and a striker
 // firing shots at a diving keeper (goals set off the crowd). Everything is placed relative to the hero so it always
 // sits in the background of the menu camera.
 import * as THREE from 'three';
@@ -9,7 +9,6 @@ import { PHYS, FIELD } from '../config.js';
 
 const PASS_T = 1.05; // seconds the ball is in the air between the passers
 const PASS_GAP = 1.1; // pause before the return pass
-const JUGGLE_T = 0.72;
 
 export class MenuCrew {
   constructor(scene, quality, onGoal) {
@@ -26,11 +25,10 @@ export class MenuCrew {
     };
     this.passA = mk(0);
     this.passB = mk(1);
-    this.juggler = mk(0);
     this.striker = mk(0);
     this.keeper = mk(1, true);
-    this.balls = [new BallMesh('classic', false), new BallMesh('classic', false), new BallMesh('classic', false)];
-    for (const b of this.balls) { b.mesh.castShadow = quality.shadows; this.group.add(b.root); }
+    this.balls = [new BallMesh('classic', false), null, new BallMesh('classic', false)];
+    for (const b of this.balls.filter(Boolean)) { b.mesh.castShadow = quality.shadows; this.group.add(b.root); }
     this.t = 0;
     this.prev = new Map();
   }
@@ -72,17 +70,6 @@ export class MenuCrew {
     this.pose(this.passA, A, B, kickT(0) < 0.6 ? { anim: 'kick', animT: kickT(0) } : { anim: 'idle', speed: 0 }, dt);
     this.pose(this.passB, B, A, kickT(1) < 0.6 ? { anim: 'kick', animT: kickT(1) } : { anim: 'idle', speed: 0 }, dt);
 
-    // --- juggler: the ball pops off the foot every JUGGLE_T seconds
-    const Jp = at(7.5, -4.2);
-    const camDir = at(-10, 0);
-    const jt = t % JUGGLE_T;
-    const jface = Math.atan2(camDir.x - Jp.x, camDir.z - Jp.z) + 0.9;
-    const jb = this.balls[1].root;
-    jb.position.set(Jp.x + Math.sin(jface) * 0.55 - Math.cos(jface) * 0.18, PHYS.ballR + 0.35 + Math.sin((jt / JUGGLE_T) * Math.PI) * 1.15, Jp.z + Math.cos(jface) * 0.55 + Math.sin(jface) * 0.18);
-    this.balls[1].mesh.rotation.z -= dt * 6;
-    this.juggler.root.position.copy(Jp);
-    this.juggler.root.rotation.y = jface;
-    this.juggler.update(dt, { anim: 'kick', animT: (jt + JUGGLE_T - 0.14) % JUGGLE_T * 0.62, animDur: 0.5 });
 
     // --- shootout at the goal behind the hero: run-up, strike, keeper dive, goal or save
     const SHOT = 6.5;
@@ -153,7 +140,7 @@ export class MenuCrew {
   }
 
   dispose() {
-    for (const m of [this.passA, this.passB, this.juggler, this.striker, this.keeper]) m.dispose();
+    for (const m of [this.passA, this.passB, this.striker, this.keeper]) m.dispose();
     this.group.removeFromParent();
   }
 }
