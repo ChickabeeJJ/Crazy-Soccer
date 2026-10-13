@@ -17,8 +17,6 @@ export const DEFAULT_BINDS = {
   dribble: ['Space'],
   sprint: ['ShiftLeft', 'ShiftRight'],
   curve: ['Mouse2'],
-  // Kept as an alias for existing saved controls; both names use the same curve action.
-  autoCurve: ['Mouse2'],
   // Dedicated keyboard dive input, independent from kick, pass and curve buttons.
   dive: ['KeyG'],
   item1: ['Digit1'],
@@ -147,7 +145,10 @@ export const Save = {
   },
 
   get binds() {
-    return { ...DEFAULT_BINDS, ...this.p.binds };
+    const binds = { ...DEFAULT_BINDS, ...this.p.binds };
+    // Curve and Auto Curve were consolidated. Ignore legacy duplicate bindings.
+    delete binds.autoCurve;
+    return binds;
   },
 
   save(now = false) {
