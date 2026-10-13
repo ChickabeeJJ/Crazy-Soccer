@@ -244,7 +244,7 @@ export class BotBrain {
           if (mate) { w.doAction(p, { a: 'pass', yaw: Math.atan2(mate.x - p.x, mate.z - p.z), pitch: 0.28 }); return; }
         }
         if (r < 0.8 && p.cd.flick <= 0) { w.doAction(p, { a: 'flick', yaw: Math.atan2(dxg, dzg) }); return; }
-        if (this.tryItem('shield') || this.tryItem('speed') || this.tryItem('jet')) return;
+        if (this.tryItem('shield') || this.tryItem('speed') || this.tryItem('jet') || this.tryItem('giant') || this.tryItem('blink', Math.atan2(dxg, dzg))) return;
       }
       if (this.holdT > 2.5 && Math.random() < 0.05) {
         const mate = this.openMate(s);
@@ -347,6 +347,10 @@ export class BotBrain {
     const p = this.p;
     const yaw = Math.atan2(owner.x - p.x, owner.z - p.z);
     if (d < 7 && this.tryItem('shotgun', yaw)) return;
+    if (d < 5.5 && this.tryItem('stomp', yaw)) return;
+    if (d < 12 && Math.random() < 0.4 && this.tryItem('warp', yaw)) return;
+    if (d < 10 && Math.random() < 0.3 && this.tryItem('giant', yaw)) return;
+    if (d < 9 && Math.random() < 0.15 && this.tryItem('banana', yaw)) return;
     if (d < 16 && Math.random() < 0.4 && this.tryItem('punch', yaw)) return;
     if (d < 22 && d > 4 && Math.random() < 0.35 && this.tryItem('bazooka', yaw)) return;
     if (d < 30 && d > 6 && Math.random() < 0.3 && this.tryItem('flintlock', yaw)) return;

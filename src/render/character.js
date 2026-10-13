@@ -972,7 +972,8 @@ export class CharacterModel {
     leg(this.legL, p.lhX, p.lhZ, p.lkX, p.lfX, p.lfl);
     leg(this.legR, p.rhX, p.rhZ, p.rkX, p.rfX, p.rfl);
     const sq = p.sq;
-    this.root.scale.set(1 + sq * 0.5, 1 - sq, 1 + sq * 0.5);
+    const K = this.sizeK || 1; // Titan item grows the whole player
+    this.root.scale.set((1 + sq * 0.5) * K, (1 - sq) * K, (1 + sq * 0.5) * K);
   }
 
   // World position of the right foot (for effects)

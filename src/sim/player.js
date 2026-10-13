@@ -12,7 +12,7 @@ export function createPlayer({ id, name, team, slot = 0, isBot = false, remote =
     cd: { kick: 0, tackle: 0, dive: 0, dribble: 0, flick: 0, lob: 0, pass: 0, request: 0, item: 0, hit: 0 },
     charging: false, charge: 0,
     items: [null, null], equip: -1,
-    fx: { fire: 0, speed: 0, shield: 0, jet: 0, oil: 0, magnet: 0 },
+    fx: { fire: 0, speed: 0, shield: 0, jet: 0, oil: 0, magnet: 0, giant: 0, slow: 0 },
     zipT: 0, zipX: 0, zipZ: 0,
     req: 0, emote: '', chat: -1, chatT: 0,
     slideX: 0, slideZ: 0, hitSet: null, slipCd: 0,
@@ -66,6 +66,8 @@ export function speedFor(p, hasBall) {
   if (hasBall) s *= PLAYER.withBallMul;
   if (p.fx.speed > 0) s *= 1.45;
   if (p.fx.jet > 0) s *= 1.35;
+  if (p.fx.slow > 0) s *= 0.55;
+  if (p.fx.giant > 0) s *= 1.1;
   if (p.charging) s *= 0.55;
   return s;
 }

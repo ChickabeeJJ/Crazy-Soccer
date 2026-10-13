@@ -702,6 +702,39 @@ export class World {
       case 'bazooka': shoot('rocket', 34, 1.5); break;
       case 'oil': p.fx.oil = 3.2; p.oilT = 0; break; // Oil Spill
       case 'magnet': p.fx.magnet = 3.5; break;
+      case 'giant': p.fx.giant = 6; break; // Titan
+      case 'warp': { // Time Warp: rivals close by move at half speed
+        setAnim(p, 'throw', 0.32);
+        for (const q of this.players) {
+          if (q.team === p.team || q.left || q.keeper || q.fx.shield > 0) continue;
+          if (len2(q.x - p.x, q.z - p.z) < 15) q.fx.slow = 4;
+        }
+        this.emit({ e: 'warp', id: p.id, x: r2(p.x), z: r2(p.z) });
+        break;
+      }
+      case 'stomp': { // Shockwave
+        p.vy = Math.max(p.vy || 0, 4);
+        setAnim(p, 'throw', 0.32);
+        this.explode(p.x, p.z, 6.5, 15, p.id, p.team, 'stomp');
+        break;
+      }
+      case 'blink': { // teleport forward, the ball comes along
+        const d = 10;
+        const fx0 = p.x, fz0 = p.z;
+        p.x = clamp(p.x + dir.x * d, -FIELD.wallX + 1.5, FIELD.wallX - 1.5);
+        p.z = clamp(p.z + dir.z * d, -FIELD.wallZ + 1.5, FIELD.wallZ - 1.5);
+        p.face = yaw;
+        if (b.owner === p.id) { const o = this.ballOffset(p); b.x = o.x; b.z = o.z; }
+        this.emit({ e: 'blink', id: p.id, fx: r2(fx0), fz: r2(fz0), x: r2(p.x), z: r2(p.z) });
+        break;
+      }
+      case 'banana': {
+        setAnim(p, 'throw', 0.32);
+        const mine = this.projs.filter((x) => x.k === 'banana' && x.owner === p.id);
+        if (mine.length >= 3) this.projs.splice(this.projs.indexOf(mine[0]), 1);
+        this.projs.push({ id: this.uid++, k: 'banana', x: p.x - dir.x * 1.2, y: 0.05, z: p.z - dir.z * 1.2, vx: 0, vy: 0, vz: 0, life: 25, arm: 0.5, owner: p.id, team: p.team, spin: Math.random() * 6 });
+        break;
+      }
       case 'shotgun': {
         setAnim(p, 'throw', 0.32);
         this.emit({ e: 'blast', id: p.id, x: r2(p.x + dir.x), z: r2(p.z + dir.z), a: r2(yaw) });
@@ -884,6 +917,7 @@ export class World {
 
     if (this.phase === 'play' || this.phase === 'warmup') this.ballInteractions(dt);
     this.stepItems(dt);
+    if (this.phase === 'play') this.stepGiants(dt);
 
     if (this.phase === 'warmup' && b.inNet !== 0 && Math.abs(b.x) > FIELD.halfL + PHYS.ballR * 1.2) {
       this.warmT = (this.warmT || 0) + dt;
@@ -898,6 +932,22 @@ export class World {
     if (this.phase === 'play' && b.inNet !== 0 && Math.abs(b.x) > FIELD.halfL + PHYS.ballR * 1.2) {
       if (b.owner >= 0) { const o = this.byId.get(b.owner); b.owner = -1; if (o) this.touch(o); }
       this.scoreGoal(b.inNet > 0 ? 0 : 1);
+    }
+  }
+
+  // Titan: a giant player bowls over any rival they run into
+  stepGiants(dt) {
+    for (const p of this.players) {
+      if (!(p.fx.giant > 0) || p.left || p.stun > 0) continue;
+      for (const q of this.players) {
+        if (q.team === p.team || q.left || q.stun > 0 || q.keeper) continue;
+        if ((q.giantHitT || 0) > 0) { q.giantHitT -= dt; continue; }
+        const dx = q.x - p.x, dz = q.z - p.z, d = len2(dx, dz);
+        if (d < 1.9 && Math.abs(q.y - p.y) < 2) {
+          q.giantHitT = 1.2;
+          this.hitPlayer(p, q, 'fall', 0.9, (dx / (d || 1)) * 12, (dz / (d || 1)) * 12, 'Flattened');
+        }
+      }
     }
   }
 
@@ -975,7 +1025,7 @@ export class World {
         if (d < 1.7 && Math.abs(q.y - p.y) < 1.5) {
           if (p.hitSet) p.hitSet.add(q.id);
           const had = b.owner === q.id;
-          if (q.fx.shield > 0 || (q.immune > 0 && had)) { this.emit({ e: 'shieldblock', id: q.id }); continue; }
+          if (q.fx.shield > 0 || q.fx.giant > 0 || (q.immune > 0 && had)) { this.emit({ e: 'shieldblock', id: q.id }); continue; }
           if (had) {
             b.owner = -1;
             const o = this.ballOffset(q);
@@ -1000,7 +1050,7 @@ export class World {
         if (q.team === o.team || q.stun > 0 || q.left) continue;
         if (len2(q.x - b.x, q.z - b.z) < PLAYER.radius + R + 0.35 && Math.abs(q.y - o.y) < 1.5) { contested = true; break; }
       }
-      if (contested && o.immune <= 0 && o.fx.shield <= 0 && !this.isKeeper(o)) {
+      if (contested && o.immune <= 0 && o.fx.shield <= 0 && !(o.fx.giant > 0) && !this.isKeeper(o)) {
         b.contestT += dt;
         if (b.contestT > PLAYER.contestTime) {
           const ang = o.face + rand(-1.2, 1.2) + Math.PI * 0.5 * (Math.random() < 0.5 ? 1 : -1);
@@ -1141,6 +1191,17 @@ export class World {
           if (len2(q.x - pr.x, q.z - pr.z) < 1.3) { boom = true; break; }
         }
         if (boom) { if (pr.life > 0) this.explode(pr.x, pr.z, 2.6, 12, pr.owner, pr.team, 'mine'); this.projs.splice(i, 1); }
+        continue;
+      }
+      if (pr.k === 'banana') {
+        if (pr.arm > 0) pr.arm -= dt;
+        let hit = null;
+        if (pr.arm <= 0) for (const q of this.players) {
+          if (q.team === pr.team || q.left || q.y > 0.6) continue;
+          if (len2(q.x - pr.x, q.z - pr.z) < 1.1) { hit = q; break; }
+        }
+        if (hit) this.hitPlayer(this.byId.get(pr.owner), hit, 'slip', 1.1, hit.vx * 0.6, hit.vz * 0.6, 'Slipped');
+        if (hit || pr.life <= 0) this.projs.splice(i, 1);
         continue;
       }
       if (pr.k === 'fist') {
@@ -1326,6 +1387,7 @@ export class World {
         p.items[0] || 0, p.items[1] || 0, r2(p.stun), p.emote || 0, p.chatT > 0 ? p.chat : -1,
         r2(p.fx.fire), r2(p.fx.speed), r2(p.fx.shield), r2(p.fx.jet), r2(p.fx.oil || 0),
         p.charging ? r2(p.in.yaw ?? p.face) : 0, p.charging ? r2(p.in.pitch ?? 0.28) : 0, // aim, so everyone sees shot lines
+        r2(p.fx.giant || 0), r2(p.fx.slow || 0),
       ]),
       bx: this.boxes.map((x) => [x.id, r2(x.x), r2(x.z), x.c]),
       pu: this.puddles.map((x) => [x.id, r2(x.x), r2(x.z), r2(x.r), r2(x.life)]),

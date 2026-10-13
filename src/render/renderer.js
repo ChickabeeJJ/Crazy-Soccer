@@ -367,6 +367,10 @@ export class GameRenderer {
           s.position.set(Math.cos(a) * 0.6, Math.sin(a * 2) * 0.08, Math.sin(a) * 0.6);
         });
       }
+      // Titan grows the player; Time Warp leaves a teal shimmer on slowed rivals
+      const giantK = !frame && p.fx && p.fx.giant > 0 ? 1.55 : 1;
+      m.sizeK = (m.sizeK || 1) + (giantK - (m.sizeK || 1)) * Math.min(1, dt * 8);
+      if (!frame && p.fx && p.fx.slow > 0 && Math.random() < 0.35) this.vfx.sparkles(x, y + 0.4 + Math.random() * 1.6, z, 0x3de0c0, 1, 0.6);
       c.shield.visible = !frame && p.fx && p.fx.shield > 0;
       if (c.shield.visible) { c.shield.position.set(x, y + 1.3, z); c.shield.material.opacity = 0.18 + Math.sin(this.time * 6) * 0.05; }
       c.ice.visible = anim === 'frozen';
@@ -453,6 +457,7 @@ export class GameRenderer {
       m.position.set(it.x, it.k === 'mine' ? 0.05 : it.y, it.z);
       if (it.k === 'ice') { m.rotation.x += dt * 8; m.rotation.y += dt * 6; this.vfx.trail(it.x, it.y, it.z, 0x8ff3ff, 0.9); return; }
       if (it.k === 'mine') { m.userData.light.material.color.set(Math.sin(this.time * 10 + it.id) > 0 ? 0xff2d2d : 0x551111); return; }
+      if (it.k === 'banana') { m.position.y = 0.04; m.rotation.y = it.spin || 0; return; }
       m.rotation.y = it.ang ?? 0;
       if (it.k === 'rocket') { this.vfx.fireTrail(it.x - Math.sin(it.ang || 0) * 0.8, it.y, it.z - Math.cos(it.ang || 0) * 0.8, 'fire'); }
       else if (it.k === 'fist') this.vfx.trail(it.x, it.y, it.z, 0xff9a3c, 0.8);
@@ -559,6 +564,19 @@ export class GameRenderer {
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: 0xffc46b, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
       glow.scale.set(1.1, 1.1, 1);
       g.add(m, glow);
+    } else if (k === 'banana') {
+      // flat peel: three yellow petals around a brown stem
+      const petal = new THREE.SphereGeometry(0.3, 10, 6);
+      for (let i = 0; i < 3; i++) {
+        const pm = T(petal, 0xffd93a);
+        pm.scale.set(0.55, 0.18, 1.25);
+        const a = (i / 3) * Math.PI * 2;
+        pm.position.set(Math.sin(a) * 0.32, 0.05, Math.cos(a) * 0.32);
+        pm.rotation.y = a;
+        g.add(pm);
+      }
+      const stem = T(new THREE.CylinderGeometry(0.07, 0.09, 0.16, 8), 0x6b4a22); stem.position.y = 0.1;
+      g.add(stem);
     } else if (k === 'mine') {
       const base = T(new THREE.CylinderGeometry(0.55, 0.65, 0.22, 16), 0x3b3f2e); base.position.y = 0.11;
       const top = T(new THREE.CylinderGeometry(0.22, 0.22, 0.12, 12), 0x9aa07a); top.position.y = 0.27;
@@ -662,11 +680,25 @@ export class GameRenderer {
         else if (ev.k === 'bullet') v.sparkles(ev.x, ev.y, ev.z, 0xffe9b0, 10, 5);
         break;
       case 'boom': {
+        if (ev.k === 'stomp') v.ring(ev.x, 0.2, ev.z, 0xffffff, 0.4, ev.r * 1.1, 0.35, 0.8);
         v.ring(ev.x, 0.15, ev.z, 0xffb347, 0.5, ev.r * 1.2, 0.45, 0.9);
         v.sparkles(ev.x, 1, ev.z, 0xff7a1a, 50, 12);
         v.dust(ev.x, ev.z, 18, 0x6b5a4a);
         const d = this.cam.position.distanceTo(new THREE.Vector3(ev.x, 1, ev.z));
         if (d < 30) this.rig.shake((0.6 - d / 60) * (settings.shake / 5));
+        break;
+      }
+      case 'blink': {
+        v.sparkles(ev.fx, 1.2, ev.fz, 0x7d6bff, 30, 6);
+        v.ring(ev.fx, 0.12, ev.fz, 0x7d6bff, 0.4, 3, 0.4);
+        v.sparkles(ev.x, 1.2, ev.z, 0xc4b8ff, 30, 6);
+        v.ring(ev.x, 1.2, ev.z, 0xffffff, 0.3, 2.4, 0.35, 0.9, true);
+        break;
+      }
+      case 'warp': {
+        v.ring(ev.x, 0.15, ev.z, 0x3de0c0, 1, 15, 0.8, 0.8);
+        v.ring(ev.x, 0.2, ev.z, 0xffffff, 0.6, 9, 0.6, 0.5);
+        v.sparkles(ev.x, 1.4, ev.z, 0x3de0c0, 40, 10);
         break;
       }
       case 'blast': {

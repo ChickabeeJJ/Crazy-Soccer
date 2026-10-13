@@ -347,7 +347,7 @@ export class Session {
       const p = this.localP;
       p.items[0] = me[12] || null; p.items[1] = me[13] || null;
       if (p.equip >= 0 && !p.items[p.equip]) p.equip = -1;
-      p.fx.fire = me[17]; p.fx.speed = me[18]; p.fx.shield = me[19]; p.fx.oil = me[21] || 0;
+      p.fx.fire = me[17]; p.fx.speed = me[18]; p.fx.shield = me[19]; p.fx.oil = me[21] || 0; p.fx.giant = me[24] || 0; p.fx.slow = me[25] || 0;
       if (me[20] > 0 && p.fx.jet <= 0) p.fx.jet = me[20];
       if (me[20] <= 0) p.fx.jet = Math.min(p.fx.jet, 0.2);
       p.req = (me[11] & 4) ? Math.max(p.req, 0.1) : p.req;
@@ -375,6 +375,8 @@ export class Session {
       this.ownKickT = 0; this.predOwnT = 0; this.bikeLocalT = 0;
     } else if (ev.e === 'own' && ev.id !== this.localId) {
       this.predOwnT = 0;
+    } else if (ev.e === 'blink' && ev.id === this.localId && p) {
+      p.x = ev.x; p.z = ev.z;
     } else if (ev.e === 'teamswitch' && ev.id === this.localId && p) {
       p.team = ev.team;
       this.snapNext = true; // the host moved us: take the next snapshot position
@@ -472,7 +474,7 @@ export class Session {
       let o = this.viewMap.get(id);
       const ros = this.roster.get(id);
       if (!o) {
-        o = { id, fx: { fire: 0, speed: 0, shield: 0, jet: 0, oil: 0, magnet: 0 }, items: [null, null], stats: {}, in: { yaw: 0 } };
+        o = { id, fx: { fire: 0, speed: 0, shield: 0, jet: 0, oil: 0, magnet: 0, giant: 0, slow: 0 }, items: [null, null], stats: {}, in: { yaw: 0 } };
         this.viewMap.set(id, o);
       }
       o.name = ros ? ros.name : 'Player';
@@ -489,7 +491,7 @@ export class Session {
       o.stamina = rb[9]; o.charge = rb[10];
       const fl = rb[11];
       o.sprinting = !!(fl & 1); o.charging = !!(fl & 2); o.req = fl & 4 ? 1 : 0; o.immune = fl & 128 ? 1 : 0;
-      o.fx.fire = rb[17]; o.fx.speed = rb[18]; o.fx.shield = rb[19]; o.fx.jet = rb[20]; o.fx.oil = rb[21] || 0;
+      o.fx.fire = rb[17]; o.fx.speed = rb[18]; o.fx.shield = rb[19]; o.fx.jet = rb[20]; o.fx.oil = rb[21] || 0; o.fx.giant = rb[24] || 0; o.fx.slow = rb[25] || 0;
       o.items[0] = rb[12] || null; o.items[1] = rb[13] || null;
       o.stun = rb[14]; o.emote = rb[15] || ''; o.chat = rb[16]; o.chatT = rb[16] >= 0 ? 1 : 0;
       o.aimYaw = rb[22] ?? o.face; o.aimPitch = rb[23] ?? 0.28;
