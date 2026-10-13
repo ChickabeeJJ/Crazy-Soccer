@@ -1316,7 +1316,7 @@ export class UI {
     this.setVal('touch', 'class', cls);
     if (this.setVal('tbDribLbl', 'v', hasBall)) this.touchButton('.tb-dribble', hasBall ? 'skill' : 'jump', hasBall ? 'SPIN' : 'JUMP');
     if (this.setVal('tbKickLbl', 'v', item)) this.touchButton('.tb-kick', item ? 'use' : 'kick', item ? 'USE' : 'KICK');
-    this.touchButton('.tb-curve', 'skill', 'CURVE');
+    if (this.setVal('tbCurveLbl', 'v', true)) this.touchButton('.tb-curve', 'skill', 'CURVE');
     this.setTackleLabel(dive);
   }
 }
