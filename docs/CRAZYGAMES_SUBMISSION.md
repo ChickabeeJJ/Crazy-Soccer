@@ -23,7 +23,7 @@ Chaotic 4v4 soccer with no referee: slide tackles, bicycle kicks, bazookas and f
 
 Crazy Soccer is fast 4v4 online soccer where anything goes. There's no referee, so slide-tackle the ball carrier, knock rivals over with a rocket punch, or freeze them solid with an ice gun, then hammer the ball into the net.
 
-Grab the glowing mystery cubes for 14 items: Bazooka, Freeze Gun, Grappling Hook, Jetpack, Magnet, Landmines, Shotgun, Supercharge, Forcefield and more. Flick the ball up, jump and hang in the air for a bicycle kick that nobody can take off you without an item, then release to send it into the top corner.
+Grab the glowing mystery cubes for 19 items: Bazooka, Freeze Gun, Titan, Time Warp, Blink, Shockwave, Jetpack, Grappling Hook, Banana Peel, Supercharge, Forcefield and more. Flick the ball up, jump and hang in the air for a bicycle kick that nobody can take off you without an item, then release to send it into the top corner.
 
 Every kickoff gives you a new random position. Walk into your own box to take the goalkeeper gloves: keepers can't be tackled, hold the ball in their hands and bowl over anyone in the path of their throw. Step out of the box and you lose the gloves, so your team might be left with an empty net.
 
@@ -33,12 +33,15 @@ New players get a quick, skippable tutorial and a free roll for their first item
 
 - Live online 4v4 matches with instant matchmaking and friend invites
 - Bicycle kicks, volleys, flicks, skill moves and charged power shots
-- 14 chaotic items, from Jetpacks to Bazookas
+- 19 chaotic items, from Jetpacks and Bazookas to Titan mode and Time Warp
 - Goalkeepers who can't be tackled, and gloves that move to the next player into the box
 - Ball-flight lines that show exactly where your shot will go
 - A podium award ceremony after every match: MVP, Top Scorer, Playmaker, The Wall and more
 - Tutorial, free practice, shooting challenge and goalkeeper challenge
-- Item Roll, levels and daily rewards
+- Seasonal Season Pass with a free and an Elite track, packed with exclusive kits, boots and balls
+- Weekly limited-time events with their own exclusive rewards
+- Daily challenges, a 7-day login calendar and playtime rewards
+- Item Roll and levels
 - Deep customisation: jerseys, boots, 16 hairstyles, skin and hair colours
 - Full touch controls for phones and tablets
 

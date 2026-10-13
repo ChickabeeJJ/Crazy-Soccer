@@ -843,6 +843,7 @@ export class GameRenderer {
 
   // Teammates warming up in the background of every menu page
   updateCrew(dt, hero) {
+    if (!this.crew && !this.crewAllowed) return;
     if (!this.crew) {
       this.crew = new MenuCrew(this.scene, this.quality, (p) => {
         // a lobby goal: net flash, fireworks and the crowd on its feet

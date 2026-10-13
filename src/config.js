@@ -1,6 +1,6 @@
 // Central tuning values for Crazy Soccer. Units are metres-ish "studs", seconds and radians.
 
-export const GAME_VERSION = '1.4.0';
+export const GAME_VERSION = '1.5.0';
 export const SAVE_KEY = 'crazysoccer_profile_v1';
 
 export const FIELD = {

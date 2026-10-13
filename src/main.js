@@ -426,13 +426,13 @@ class App {
     const net = new Net();
     this.net = net;
     let res;
-    try { res = await withTimeout(net.joinPrivate(code, this.hello()), 32000); } catch (e) { res = { ok: false, why: 'timeout' }; }
+    try { res = await withTimeout(net.joinPrivate(code, this.hello()), 32000); } catch (e) { console.warn('[join] failed:', e && (e.type || e.message)); res = { ok: false, why: 'timeout' }; }
     if (!res.ok) {
       net.close();
       const why = { unavailable: 'Room not found.', full: 'That room is full.', version: 'Room is on a different game version.', timeout: 'Room not found or it has closed.' }[res.why] || 'Could not join the room.';
       $('privateMsg').textContent = why;
       if (!this.ui.isOpen('private')) this.ui.globalToast(why);
-      return;
+      return res.why;
     }
     this.ui.modal('private', false);
     this.session = new Session({ mode: 'match', role: 'client', net, roomKind: 'priv', roomCode: code, profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
@@ -443,9 +443,20 @@ class App {
   }
 
   async joinFromInvite(value) {
+    this.joining = true;
+    try { await this.joinFromInviteInner(value); } finally { this.joining = false; }
+  }
+
+  async joinFromInviteInner(value) {
     const v = String(value);
     if (this.state === 'game') this.leaveToLobby(true);
-    if (v.startsWith('priv-')) { this.ui.modal('private', true); await this.joinPrivate(v.slice(5).toUpperCase()); return; }
+    if (v.startsWith('priv-')) {
+      this.ui.modal('private', true);
+      // a device still busy starting up can miss the first attempt: an invite gets one more go
+      const why = await this.joinPrivate(v.slice(5).toUpperCase());
+      if (why === 'timeout' && this.state !== 'game') await this.joinPrivate(v.slice(5).toUpperCase());
+      return;
+    }
     if (v.startsWith('pub-')) {
       this.endSession();
       const net = new Net();
@@ -886,6 +897,8 @@ class App {
     const page = this.ui.page;
     const emote = page === 'shop' || page === 'inventory' ? this.menuEmote : null;
     const shift = page === 'shop' || page === 'inventory' ? 2.6 : 0;
+    // the lobby crowd is only built once nothing heavier (like joining a friend) is going on
+    this.renderer.crewAllowed = !this.joining && this.state === 'menu' && !this.ui.isOpen('searching');
     this.renderer.menuScene(dt, this.cos(), emote, Save.p.eq.ball, this.menuTeam ?? (Save.p.team === 1 ? 1 : 0), shift, page === 'training');
     if (this.state === 'menu' && !this.ui.anyModal()) {
       // Idle character occasionally emotes
