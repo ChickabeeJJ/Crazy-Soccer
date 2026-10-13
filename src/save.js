@@ -1,5 +1,5 @@
 import { SDK } from './sdk.js';
-import { SAVE_KEY, ITEMS, ITEM_KINDS, ROLL } from './config.js';
+import { SAVE_KEY, ITEMS, ITEM_KINDS, ROLL, PLAYER_CARDS, CARD_ROLL } from './config.js';
 import { CATALOG, guestName } from './cosmetics.js';
 import { todayKey } from './util/math.js';
 
@@ -82,6 +82,7 @@ function freshProfile() {
     daily: { last: '', streak: 0 },
     tut: 0,
     powers: [], // new players start with only the item from their free first roll
+    cards: [],
     starterRoll: false,
     pity: 0,
     rolls: 0,
@@ -124,6 +125,7 @@ export const Save = {
         daily: { ...base.daily, ...(data.daily || {}) },
         best: { ...base.best, ...(data.best || {}) },
         binds: data.binds || {},
+        cards: Array.isArray(data.cards) ? [...new Set(data.cards)].filter((id) => PLAYER_CARDS.some((c) => c.id === id)) : [],
       };
       // Older saves: Barrel Roll was replaced by the Bazooka
       const old = (Array.isArray(data.powers) ? data.powers : []).map((k) => (k === 'barrel' ? 'bazooka' : k));
@@ -225,6 +227,31 @@ export const Save = {
     return out;
   },
   rollsToPity() { return Math.max(1, ROLL.pity + 1 - (this.p.pity || 0)); },
+
+  // Card packs use the same coin wallet as cosmetics; duplicates refund a few coins.
+  rollCards(n = 1) {
+    if (![1, 10].includes(n) || this.p.cards.length >= PLAYER_CARDS.length) return null;
+    const cost = n === 10 ? CARD_ROLL.cost10 : CARD_ROLL.cost;
+    if (this.p.coins < cost) return null;
+    this.p.coins -= cost;
+    const bins = {};
+    for (const c of PLAYER_CARDS) (bins[c.rarity] = bins[c.rarity] || []).push(c);
+    const pool = PLAYER_CARDS;
+    const w = pool.map((c) => CARD_ROLL.odds[c.rarity] / bins[c.rarity].length);
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      let r = Math.random() * w.reduce((a, b) => a + b, 0);
+      let card = pool[pool.length - 1];
+      for (let j = 0; j < pool.length; j++) { r -= w[j]; if (r <= 0) { card = pool[j]; break; } }
+      const isNew = !this.p.cards.includes(card.id);
+      const refund = isNew ? 0 : CARD_ROLL.duplicateRefund;
+      if (isNew) this.p.cards.push(card.id);
+      else this.p.coins += refund;
+      out.push({ id: card.id, isNew, refund });
+    }
+    this.save(true);
+    return out;
+  },
   powerOn(k) { return this.ownsPower(k) && !this.p.powersOff.includes(k); },
   togglePower(k) {
     if (!this.ownsPower(k)) return false;
