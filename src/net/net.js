@@ -130,6 +130,8 @@ export class Net {
   }
 
   _incoming(conn) {
+    // Closing a room stops admissions immediately, even during the graceful transport shutdown.
+    if (this.closed) { try { conn.close(); } catch (e) { /* ignore */ } return; }
     let accepted = false;
     const kill = setTimeout(() => { if (!accepted) try { conn.close(); } catch (e) { /* ignore */ } }, 8000);
     conn.on('data', (msg) => {
