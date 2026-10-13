@@ -9,7 +9,7 @@ export const DEFAULT_BINDS = {
   left: ['KeyA', 'ArrowLeft'],
   right: ['KeyD', 'ArrowRight'],
   kick: ['Mouse0'],
-  pass: ['KeyT', 'Mouse2'],
+  pass: ['KeyT'],
   flick: ['KeyQ'],
   tackle: ['KeyE'],
   lob: ['KeyF'],
@@ -17,8 +17,10 @@ export const DEFAULT_BINDS = {
   dribble: ['Space'],
   sprint: ['ShiftLeft', 'ShiftRight'],
   curve: ['Mouse2'],
-  autoCurve: ['Mouse1'],
-  dive: ['Mouse2'],
+  // Kept as an alias for existing saved controls; both names use the same curve action.
+  autoCurve: ['Mouse2'],
+  // Dedicated keyboard dive input, independent from kick, pass and curve buttons.
+  dive: ['KeyG'],
   item1: ['Digit1'],
   item2: ['Digit2'],
   stats: ['Tab'],
