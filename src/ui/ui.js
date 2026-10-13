@@ -12,7 +12,18 @@ const $ = (id) => document.getElementById(id);
 const MEDALS = { shoot: [300, 700, 1200], keeper: [4, 7, 10] }; // bronze / silver / gold
 const TOKEN_SVG = '<svg viewBox="0 0 24 24"><path d="M12 2l9 5v10l-9 5-9-5V7z" fill="#8a5cf6"/><path d="M12 2l9 5-9 5-9-5z" fill="#b69cff"/><path d="M10 9.5a2.2 2 0 1 1 3 1.8c-.8.4-1 .8-1 1.6M12 15.4v.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>';
 const LOCK_SVG = '<svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" fill="currentColor"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.6"/></svg>';
-const COINS_SVG = '<svg viewBox="0 0 48 48"><ellipse cx="24" cy="36" rx="16" ry="6" fill="#c98a12"/><ellipse cx="24" cy="33" rx="16" ry="6" fill="#ffcf3f"/><ellipse cx="24" cy="27" rx="16" ry="6" fill="#c98a12"/><ellipse cx="24" cy="24" rx="16" ry="6" fill="#ffcf3f"/><ellipse cx="24" cy="18" rx="16" ry="6" fill="#c98a12"/><ellipse cx="24" cy="15" rx="16" ry="6" fill="#ffe07a"/><ellipse cx="24" cy="15" rx="9" ry="3" fill="#ffcf3f"/></svg>';
+// Coin stack for big reward art: three ridged gold coins, the top one showing the star emblem
+const COINS_SVG = (() => {
+  const coin = (cx, y, tilt = 0) => {
+    const rx = 19, ry = 7.2, h = 5.2;
+    let ridges = '';
+    for (let i = -8; i <= 8; i++) { const x = cx + (i / 8.6) * rx; ridges += `<path d="M${x.toFixed(1)} ${(y + ry * Math.sqrt(Math.max(0, 1 - ((x - cx) / rx) ** 2))).toFixed(1)}v${h}" stroke="#b8730a" stroke-width="0.9" opacity="0.55"/>`; }
+    return `<g transform="rotate(${tilt} ${cx} ${y})"><path d="M${cx - rx} ${y}v${h}a${rx} ${ry} 0 0 0 ${rx * 2} 0v-${h}z" fill="#d48a10"/>${ridges}<ellipse cx="${cx}" cy="${y}" rx="${rx}" ry="${ry}" fill="#ffc22e"/><ellipse cx="${cx}" cy="${y}" rx="${rx - 3.2}" ry="${ry - 1.3}" fill="#f0a91c"/><ellipse cx="${cx}" cy="${y + 0.3}" rx="${rx - 4.4}" ry="${ry - 1.9}" fill="#ffd257"/></g>`;
+  };
+  const star = (cx, cy) => { let d = ''; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? 2.6 : 6; d += `${i ? 'L' : 'M'}${(cx + Math.cos(a) * r * 1.35).toFixed(2)} ${(cy + Math.sin(a) * r * 0.48).toFixed(2)}`; } return `<path d="${d}Z" fill="#e39b14"/>`; };
+  const spark = (x, y, r) => `<path d="M${x} ${y - r}L${x + r * 0.28} ${y - r * 0.28}L${x + r} ${y}L${x + r * 0.28} ${y + r * 0.28}L${x} ${y + r}L${x - r * 0.28} ${y + r * 0.28}L${x - r} ${y}L${x - r * 0.28} ${y - r * 0.28}Z" fill="#fff6c8"/>`;
+  return `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><ellipse cx="32" cy="55" rx="23" ry="5" fill="#000" opacity="0.18"/>${coin(30, 44)}${coin(33, 36.5, -2)}${coin(31, 29)}${star(31, 29.2)}<path d="M17 26.5a17 5.6 0 0 1 14-3.2" stroke="#fff6c8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.85"/>${spark(51, 18, 4.2)}${spark(12, 34, 2.6)}${spark(46, 9, 2)}</svg>`;
+})();
 const CHEST_SVG = '<svg viewBox="0 0 24 24"><path d="M3 10h18v10H3z" fill="#b8742a"/><path d="M3 10c0-4 4-6 9-6s9 2 9 6z" fill="#d89a3a"/><path d="M3 10h18v2H3z" fill="#ffcf3f"/><path d="M10 11h4v4h-4z" fill="#ffcf3f"/></svg>';
 const TIPS = [
   'Walk into your own box when your team has no keeper to grab the gloves.',
