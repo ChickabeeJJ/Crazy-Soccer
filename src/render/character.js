@@ -230,7 +230,7 @@ function basePose() {
   const p = {};
   for (const k of J) p[k] = 0;
   p.pY = 0.95;
-  p.lsZ = 0.12; p.rsZ = -0.12; p.leX = -0.25; p.reX = -0.25;
+  p.lsZ = 0.2; p.rsZ = -0.2; p.leX = -0.35; p.reX = -0.35;
   p.lfl = 1; p.rfl = 1;
   return p;
 }
@@ -633,15 +633,16 @@ export class CharacterModel {
       if (st.sprinting) expr = 2;
     } else {
       // Idle: breathing, a slow weight shift between the feet, relaxed arms, looking around
-      const br = Math.sin(this.time * 1.9), ws = Math.sin(this.time * 0.55);
-      t.pY = 0.938 + br * 0.004;
-      t.pZ = ws * 0.022; t.pX = 0.02;
-      t.lhZ = 0.035 - ws * 0.022; t.rhZ = -0.035 - ws * 0.022;
-      t.lkX = 0.08 + Math.max(0, -ws) * 0.13; t.rkX = 0.08 + Math.max(0, ws) * 0.13;
-      t.lhX = -t.lkX * 0.5; t.rhX = -t.rkX * 0.5;
-      t.sX = 0.02; t.br = br * 0.025;
-      t.lsZ = 0.13 + br * 0.012; t.rsZ = -(0.13 + br * 0.012);
-      t.lsX = 0.05; t.rsX = 0.05; t.leX = -0.24; t.reX = -0.24; t.wf = 0.1;
+      // athletic ready stance: feet apart, soft knees, chest up, arms loose and away from the body
+      const br = Math.sin(this.time * 1.9), ws = Math.sin(this.time * 0.55), sw = Math.sin(this.time * 0.9 + 0.7);
+      t.pY = 0.925 + br * 0.004;
+      t.pZ = ws * 0.03; t.pX = 0.04; t.pRY = ws * 0.06;
+      t.lhZ = 0.075 - ws * 0.03; t.rhZ = -0.075 - ws * 0.03;
+      t.lkX = 0.16 + Math.max(0, -ws) * 0.14; t.rkX = 0.16 + Math.max(0, ws) * 0.14;
+      t.lhX = -t.lkX * 0.55 + 0.04; t.rhX = -t.rkX * 0.55 - 0.06;
+      t.sX = 0.03; t.sY = -ws * 0.05; t.sZ = -ws * 0.02; t.br = br * 0.025;
+      t.lsZ = 0.24 + br * 0.015 + sw * 0.02; t.rsZ = -(0.24 + br * 0.015 - sw * 0.02);
+      t.lsX = 0.1 + sw * 0.04; t.rsX = 0.02 - sw * 0.04; t.leX = -0.42 - sw * 0.06; t.reX = -0.5 + sw * 0.06; t.wf = 0.15;
       t.hY = Math.sin(this.time * 0.31) * Math.sin(this.time * 0.11 + 1) * 0.3;
       t.hX = -0.02;
       if (st.hasBall) {
