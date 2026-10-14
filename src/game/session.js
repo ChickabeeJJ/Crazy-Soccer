@@ -741,6 +741,8 @@ export class Session {
     if (this.destroyed) return;
     const authority = this.isAuthority;
     const receivedFinalResult = !!this.lastEnd;
+    this.view.phase = 'end';
+    this.view.phaseT = 0;
     const oldWorld = this.world;
     if (authority && oldWorld) {
       // Keep a read-only presentation snapshot for awards/results; discard the live simulation.
