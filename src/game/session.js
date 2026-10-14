@@ -130,7 +130,11 @@ export class Session {
   }
 
   switchTeam() {
-    if (this.isAuthority) { this.world.switchTeam(this.localId); this.flushWorldEvents(); return; }
+    if (this.destroyed) return;
+    if (this.isAuthority) {
+      if (!this.world) return;
+      this.world.switchTeam(this.localId); this.flushWorldEvents(); return;
+    }
     if (this.net) this.net.sendHost({ t: 'team' });
   }
 
@@ -388,13 +392,14 @@ export class Session {
 
   onHostLost() {
     if (this.destroyed) return;
-    const finished = this.ended || this.view.phase === 'end';
+    const receivedFinalResult = !!this.lastEnd;
     const net = this.net;
-    if (net) { try { net.close(); } catch (e) { /* ignore */ } }
-    // The room no longer exists. Keep final results visible, but never recreate its old state.
-    if (finished) return;
     this.net = null;
-    this.onEvent({ e: 'hostlost' });
+    if (net) { try { net.close(); } catch (e) { /* ignore */ } }
+    // Keep the results screen if its end event arrived; otherwise leave instead of freezing
+    // every client on a stale, completed snapshot.
+    this.destroyed = true;
+    if (!receivedFinalResult) this.onEvent({ e: 'hostlost' });
   }
 
   stepClient(dt) {
@@ -686,7 +691,7 @@ export class Session {
 
   // ===================================================================== COMMON
   get me() {
-    if (this.isAuthority) return this.world ? this.world.byId.get(this.localId) : null;
+    if (this.isAuthority) return this.world ? this.world.byId.get(this.localId) : (this.view.players || []).find((p) => p.id === this.localId) || null;
     return this.localP;
   }
 
@@ -704,6 +709,7 @@ export class Session {
   }
 
   action(act) {
+    if (this.destroyed) return;
     const p = this.me;
     if (!p) return;
     if (this.isAuthority) {
@@ -727,8 +733,42 @@ export class Session {
     if (ev.e === 'goal') this.goalT = now();
     if (ev.e === 'end') { this.ended = true; this.lastEnd = ev; }
     this.onEvent(ev);
-    // Final events have been broadcast by flushWorldEvents; now release the hosted room.
-    if (ev.e === 'end' && this.isAuthority && this.net && this.net.isHost) this.net.retire();
+    // Dispose only after the end-phase timer expires; snapshots carry the deadline to clients.
+    if (ev.e === 'expire') this.disposeExpiredMatch();
+  }
+
+  disposeExpiredMatch() {
+    if (this.destroyed) return;
+    const authority = this.isAuthority;
+    const receivedFinalResult = !!this.lastEnd;
+    const oldWorld = this.world;
+    if (authority && oldWorld) {
+      // Keep a read-only presentation snapshot for awards/results; discard the live simulation.
+      this.view.players = oldWorld.players.map((p) => ({
+        ...p,
+        cos: p.cos ? { ...p.cos } : p.cos,
+        stats: p.stats ? { ...p.stats } : p.stats,
+        fx: p.fx ? { ...p.fx } : p.fx,
+        cd: p.cd ? { ...p.cd } : p.cd,
+        in: p.in ? { ...p.in } : p.in,
+        items: Array.isArray(p.items) ? [...p.items] : p.items,
+      }));
+      this.view.ball = { ...oldWorld.ball };
+      this.view.boxes = []; this.view.puddles = []; this.view.projs = []; this.view.walls = [];
+      this.view.phase = 'end'; this.view.phaseT = 0; this.view.clock = oldWorld.clock;
+      this.view.score = [...oldWorld.score]; this.view.ot = oldWorld.overtime ? 1 : oldWorld.lastChance ? 2 : 0;
+      oldWorld.players.length = 0;
+      oldWorld.byId.clear(); oldWorld.brains.clear(); oldWorld.events.length = 0;
+      oldWorld.boxes.length = 0; oldWorld.puddles.length = 0; oldWorld.projs.length = 0; oldWorld.walls.length = 0;
+      this.world = null;
+      this.peerToPlayer.clear();
+    }
+    const net = this.net;
+    this.net = null;
+    if (net) { try { net.close(); } catch (e) { /* ignore */ } }
+    this.destroyed = true;
+    // If a client never received the final result event, do not leave it in a frozen match.
+    if (!authority && !receivedFinalResult) this.onEvent({ e: 'hostlost' });
   }
 
   replayFrame(progress) {
@@ -738,7 +778,7 @@ export class Session {
   }
 
   playerById(id) {
-    if (this.isAuthority) return this.world.byId.get(id);
+    if (this.isAuthority) return this.world ? this.world.byId.get(id) : (this.view.players || []).find((p) => p.id === id);
     if (id === this.localId) return this.localP;
     return this.viewMap.get(id);
   }
