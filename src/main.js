@@ -814,6 +814,9 @@ class App {
       if (pendingNet) { try { pendingNet.close(); } catch (e) { /* ignore */ } }
     }
     if (s.roomKind) SDK.leftRoom();
+    // Retire the public/private room at full time. Existing clients keep their local
+    // results screen, but the ended match can no longer accept re-joins.
+    if (s.isAuthority && s.net && s.net.isHost) s.net.retire();
     const me = s.me;
     const myTeam = me ? me.team : 0;
     const row = (ev.stats || []).find((r) => r.id === s.localId) || {};
