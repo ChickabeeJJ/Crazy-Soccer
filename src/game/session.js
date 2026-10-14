@@ -802,8 +802,24 @@ export class Session {
 
   destroy() {
     this.destroyed = true;
-    if (this.net) { try { this.net.close(); } catch (e) { /* ignore */ } }
+    const net = this.net;
     this.net = null;
+    if (net) { try { net.close(); } catch (e) { /* ignore */ } }
+    // A session that loses its last player or is replaced must release all live match state.
+    const w = this.world;
+    if (w) {
+      w.players.length = 0;
+      w.byId.clear(); w.brains.clear(); w.events.length = 0;
+      w.boxes.length = 0; w.puddles.length = 0; w.projs.length = 0; w.walls.length = 0;
+      this.world = null;
+    }
+    this.peerToPlayer.clear();
+    this.viewMap.clear();
+    this.roster.clear();
+    this.snaps.length = 0;
+    this.replay.clear();
+    this.view.players = [];
+    this.view.boxes = []; this.view.puddles = []; this.view.projs = []; this.view.walls = [];
   }
 }
 
