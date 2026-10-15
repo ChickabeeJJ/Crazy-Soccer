@@ -910,6 +910,17 @@ body.awards #hud, body.awards #touch, body.awards .announce { visibility: hidden
 .rc-progress-track i { display: block; height: 100%; background: #9b88cb; transition: width 0.2s; }
 .rc-claim { width: calc(100% - 24px); margin: 0 12px !important; background: #4a3b70 !important; color: #fff !important; }
 .return-contract .rc-claim:disabled { opacity: 0.52; background: #2d2740 !important; color: #aaa1be !important; }
+.release-event-panel { width: min(92vw, 360px); border: 1px solid rgba(166,145,232,0.5); background: #19162b; color: var(--paper); box-shadow: 0 18px 70px rgba(0,0,0,0.5); }
+.release-event-panel .panel-head { background: #30284a; color: #fff; }
+.release-event-body { gap: 10px; }
+.re-kicker { align-self: flex-start; padding: 4px 8px; background: #3b3158; color: #e4dcf8; font-family: var(--f-head); font-size: 11px; font-weight: 900; font-style: italic; letter-spacing: 0.08em; }
+.release-event-body p { margin: 0; color: rgba(255,255,255,0.82); font-size: 13px; line-height: 1.45; }
+.release-event-body p b { color: #fff; }
+.re-next { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: rgba(145,119,210,0.12); border: 1px solid rgba(166,145,232,0.3); }
+.re-next b { color: #cbbce9; font-family: var(--f-head); font-size: 11px; font-weight: 900; letter-spacing: 0.06em; }
+.re-next span { color: #fff; font-size: 13px; font-weight: 800; }
+.release-event-body .re-note { color: rgba(255,255,255,0.62); font-size: 11px; }
+.release-event-body .btn { background: #4a3b70 !important; color: #fff !important; }
 .res-login { width: 100%; margin-top: 2px; }
 .ch-reward { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: 0.04em; }
 @keyframes claimPulse { 50% { filter: brightness(1.15); transform: scale(1.04); } }
