@@ -214,12 +214,12 @@ export const Prog = {
 
   // ---------------------------------------------------------- 7-day comeback contract
   returnContractState() {
-    const g = this.s;
-    if (!g.returnContract || !Number.isFinite(g.returnContract.startAt)) {
-      g.returnContract = { startAt: Date.now(), claimed: [] };
+    this.s; // Ensure the progression profile has been normalized before reading the top-level campaign.
+    if (!Save.p.returnContract || !Number.isFinite(Save.p.returnContract.startAt)) {
+      Save.p.returnContract = { startAt: Date.now(), claimed: [] };
       Save.save(true);
     }
-    const event = g.returnContract;
+    const event = Save.p.returnContract;
     const day = Math.floor((localDayStart(Date.now()) - localDayStart(event.startAt)) / DAY) + 1;
     const claimed = Array.isArray(event.claimed) ? event.claimed : [];
     return {
@@ -239,7 +239,7 @@ export const Prog = {
     if (!state.active || day !== state.day || !state.ready) return null;
     const m = RETURN_CONTRACT.find((entry) => entry.day === day);
     if (!m) return null;
-    this.s.returnContract.claimed.push(day);
+    Save.p.returnContract.claimed.push(day);
     this.grant(m.reward);
     Save.save(true);
     return m.reward;
