@@ -42,7 +42,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html assets music favicon.png crazy-soccer-html5.zip
+          git add index.html assets music favicon.png
+          git add -f crazy-soccer-html5.zip
           if git diff --cached --quiet; then
             echo "Built package already up to date."
           else
