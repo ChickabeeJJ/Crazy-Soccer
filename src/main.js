@@ -204,6 +204,15 @@ class App {
     }
   }
 
+  claimReturnContract(day) {
+    const r = Prog.claimReturnContract(day);
+    if (!r) return;
+    this.audio.coins();
+    this.ui.globalToast(`COMEBACK CONTRACT: ${Prog.label(r)}`, 5000);
+    this.ui.renderPlayPage();
+    this.ui.refreshProfile();
+  }
+
   claimDaily() {
     const r = Prog.claimCalendar();
     if (r) { this.audio.coins(); this.ui.globalToast(`Login reward: ${Prog.label(r)}`); }
