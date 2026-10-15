@@ -220,7 +220,7 @@ export class UI {
       const value = coins ? (coins.n >= 1000000 ? `${coins.n / 1000000}M` : `${coins.n / 1000}K`) : 'EXCLUSIVE';
       const detail = [rolls ? `+${rolls.n} ROLLS` : null, item ? 'EXCLUSIVE' : !rolls && !item ? 'COINS' : null].filter(Boolean).join(' · ');
       const stateLabel = m.claimed ? 'DONE' : m.expired ? 'MISSED' : m.current ? (contract.canClaim ? 'READY' : `${contract.minutesPlayed}/10 MIN`) : 'LOCKED';
-      const preview = item ? this.rewardIcon(item) : '<span class="rc-generic-icon">✦</span>';
+      const preview = item ? this.rewardIcon(item) : '<span class="rc-coins-icon"><span class="coin"></span></span>';
       return `<div class="rc-day ${m.current ? 'current' : ''} ${m.claimed ? 'claimed' : ''} ${m.expired ? 'expired' : ''} ${item ? 'exclusive' : ''}">
         <small>DAY ${m.day}</small><span class="rc-art">${preview}</span>
         <b class="rc-value">${value}</b><span class="rc-detail">${detail}</span><em>${stateLabel}</em>
@@ -269,7 +269,9 @@ export class UI {
     $('dailyStreak').textContent = `DAY ${Math.max(1, cs.avail ? cs.next : cs.cur)}`;
     const btn = $('dailyBtn');
     btn.disabled = !cs.avail;
-    btn.textContent = cs.avail ? `CLAIM DAY ${cs.next}: ${Prog.label(CALENDAR[cs.next - 1])}` : 'COME BACK TOMORROW';
+    btn.textContent = cs.avail ? `CLAIM DAY ${cs.next} REWARD` : 'COME BACK TOMORROW';
+    btn.title = cs.avail ? Prog.label(CALENDAR[cs.next - 1]) : 'Your next login reward is available tomorrow.';
+    btn.setAttribute('aria-label', cs.avail ? `Claim day ${cs.next} login reward: ${Prog.label(CALENDAR[cs.next - 1])}` : 'Come back tomorrow for the next login reward.');
     // Daily challenges
     const tomorrow = new Date(); tomorrow.setHours(24, 0, 0, 0);
     $('chalReset').textContent = `RESETS ${fmtLeft(tomorrow - Date.now())}`;
