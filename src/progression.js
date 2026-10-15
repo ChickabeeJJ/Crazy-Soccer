@@ -48,7 +48,7 @@ export const PLAYTIME = [
 ];
 
 // One-time seven-local-day comeback contract. Economy-breaking by design:
-// 1.585M coins, 255 free rolls, and two cosmetics that are not sold in the shop.
+// 1.576M coins, 250 free rolls, and two cosmetics that are not sold in the shop.
 export const RETURN_CONTRACT = [
   { day: 1, title: 'WELCOME DROP', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 1000 }] } },
   { day: 2, title: 'ROLL STORM', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 25000 }, { kind: 'token', n: 10 }] } },
