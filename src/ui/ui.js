@@ -220,7 +220,7 @@ export class UI {
       const value = coins ? (coins.n >= 1000000 ? `${coins.n / 1000000}M` : `${coins.n / 1000}K`) : 'EXCLUSIVE';
       const detail = [rolls ? `+${rolls.n} ROLLS` : null, item ? 'EXCLUSIVE' : !rolls && !item ? 'COINS' : null].filter(Boolean).join(' · ');
       const stateLabel = m.claimed ? 'DONE' : m.expired ? 'MISSED' : m.current ? (contract.canClaim ? 'READY' : `${contract.minutesPlayed}/10 MIN`) : 'LOCKED';
-      const preview = item ? this.rewardIcon(item) : this.rewardIcon({ kind: 'chest' });
+      const preview = item ? this.rewardIcon(item) : '<span class="rc-generic-icon">✦</span>';
       return `<div class="rc-day ${m.current ? 'current' : ''} ${m.claimed ? 'claimed' : ''} ${m.expired ? 'expired' : ''} ${item ? 'exclusive' : ''}">
         <small>DAY ${m.day}</small><span class="rc-art">${preview}</span>
         <b class="rc-value">${value}</b><span class="rc-detail">${detail}</span><em>${stateLabel}</em>
