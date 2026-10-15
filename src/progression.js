@@ -47,6 +47,20 @@ export const PLAYTIME = [
   { min: 5, kind: 'coins', n: 80 }, { min: 10, kind: 'sp', n: 200 }, { min: 20, kind: 'token', n: 1 }, { min: 35, kind: 'coins', n: 250 }, { min: 50, kind: 'sp', n: 500 },
 ];
 
+// One-time seven-local-day comeback contract. Economy-breaking by design:
+// 1.585M coins, 255 free rolls, and two cosmetics that are not sold in the shop.
+export const RETURN_CONTRACT = [
+  { day: 1, title: 'BOOT-UP BONUS', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 10000 }, { kind: 'token', n: 5 }] } },
+  { day: 2, title: 'ROLL STORM', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 25000 }, { kind: 'token', n: 10 }] } },
+  { day: 3, title: 'GOLDEN COMEBACK', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 50000 }, { kind: 'token', n: 15 }, { kind: 'item', cat: 'boots', id: 'comeback_gold' }] } },
+  { day: 4, title: 'VAULT BREAKER', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 100000 }, { kind: 'token', n: 25 }] } },
+  { day: 5, title: 'COIN APOCALYPSE', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 150000 }, { kind: 'token', n: 40 }] } },
+  { day: 6, title: 'THE BIG ONE', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 250000 }, { kind: 'token', n: 60 }] } },
+  { day: 7, title: 'DAYBREAK SOVEREIGN', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 1000000 }, { kind: 'token', n: 100 }, { kind: 'item', cat: 'jersey', id: 'daybreak_royal' }] } },
+];
+
+const localDayStart = (t) => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+
 // Daily Match Circuit: any completed match counts, win or lose.
 // The five-match milestone gives a chest and free roll; these are gameplay rewards.
 export const MATCH_CIRCUIT = [
@@ -163,6 +177,7 @@ export const Prog = {
     else if (r.kind === 'token') { if (p.powers.length >= ITEM_KINDS.length) p.coins += 150 * r.n; else this.s.tokens += r.n; }
     else if (r.kind === 'sp') this.addSp(r.n);
     else if (r.kind === 'chest') { p.coins += r.n; this.s.tokens += r.tokens || 0; }
+    else if (r.kind === 'bundle') { for (const part of r.rewards || []) this.grant(part); }
     else if (r.kind === 'item') { if (!p.owned[r.cat].includes(r.id)) p.owned[r.cat].push(r.id); }
     Save.save(true);
   },
@@ -172,6 +187,7 @@ export const Prog = {
     if (r.kind === 'token') return r.n > 1 ? `${r.n} FREE ROLLS` : 'FREE ROLL';
     if (r.kind === 'sp') return `${r.n} SEASON XP`;
     if (r.kind === 'chest') return `CHEST: ${r.n} COINS + ${r.tokens} ROLLS`;
+    if (r.kind === 'bundle') return (r.rewards || []).map((part) => this.label(part)).filter(Boolean).join(' + ');
     if (r.kind === 'item') { const it = CATALOG[r.cat].find((x) => x.id === r.id); return it ? it.name.toUpperCase() : 'EXCLUSIVE'; }
     return '';
   },
@@ -194,6 +210,35 @@ export const Prog = {
     const r = CALENDAR[st.next - 1];
     this.grant(r);
     return r;
+  },
+
+  // ---------------------------------------------------------- 7-day comeback contract
+  returnContractState() {
+    this.s; // Normalize progression data before reading the top-level campaign.
+    if (!Save.p.returnContract || !Number.isFinite(Save.p.returnContract.startAt)) {
+      Save.p.returnContract = { startAt: Date.now(), claimed: [] };
+      Save.save(true);
+    }
+    const event = Save.p.returnContract;
+    const day = Math.floor((localDayStart(Date.now()) - localDayStart(event.startAt)) / DAY) + 1;
+    const claimed = Array.isArray(event.claimed) ? event.claimed : [];
+    return {
+      day, active: day >= 1 && day <= 7,
+      claimedCount: claimed.length,
+      complete: RETURN_CONTRACT.every((m) => claimed.includes(m.day)),
+      ready: day >= 1 && day <= 7 && !claimed.includes(day),
+      days: RETURN_CONTRACT.map((m) => ({ ...m, claimed: claimed.includes(m.day), current: m.day === day, expired: m.day < day && !claimed.includes(m.day) })),
+    };
+  },
+  claimReturnContract(day) {
+    const state = this.returnContractState();
+    if (!state.active || day !== state.day || !state.ready) return null;
+    const m = RETURN_CONTRACT.find((entry) => entry.day === day);
+    if (!m) return null;
+    Save.p.returnContract.claimed.push(day);
+    this.grant(m.reward);
+    Save.save(true);
+    return m.reward;
   },
 
   // ----------------------------------------------------------- daily match circuit
