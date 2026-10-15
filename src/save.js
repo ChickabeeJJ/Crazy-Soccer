@@ -78,6 +78,8 @@ function freshProfile() {
     stats: { matches: 0, wins: 0, goals: 0, assists: 0, saves: 0 },
     daily: { last: '', streak: 0 },
     loginBonusClaimed: false,
+    // One-time 7-day return event starts on the first load after it is introduced.
+    returnContract: { startAt: Date.now(), claimed: [] },
     tut: 0,
     powers: [], // new players start with only the item from their free first roll
     starterRoll: false,
@@ -120,6 +122,11 @@ export const Save = {
         settings: { ...base.settings, ...(data.settings || {}) },
         stats: { ...base.stats, ...(data.stats || {}) },
         daily: { ...base.daily, ...(data.daily || {}) },
+        returnContract: {
+          ...base.returnContract,
+          ...(data.returnContract || {}),
+          claimed: Array.isArray(data.returnContract && data.returnContract.claimed) ? data.returnContract.claimed : base.returnContract.claimed,
+        },
         best: { ...base.best, ...(data.best || {}) },
         binds: data.binds || {},
       };
