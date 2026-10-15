@@ -123,9 +123,19 @@ class App {
   // First launch: tutorial (skippable) -> free roll for your first item. Friends arriving through an
   // invite go straight into the match and get their free roll back in the menu.
   newPlayerFlow() {
-    if (Save.p.starterRoll) return;
+    if (Save.p.starterRoll) {
+      if (Save.p.tutDone) this.maybeShowReleaseEvent();
+      return;
+    }
     if (!Save.p.tutDone) this.startTraining('tutorial', { firstRun: true });
     else this.ui.showStarterRoll();
+  }
+
+  maybeShowReleaseEvent() {
+    if (!Save.p.tutDone || !Save.p.starterRoll || Save.p.releaseIntroSeen) return;
+    Save.p.releaseIntroSeen = true;
+    Save.save(true);
+    this.ui.modal('releaseEvent', true);
   }
 
   starterRoll() {
@@ -205,8 +215,15 @@ class App {
   }
 
   claimReturnContract(day) {
+    const state = Prog.returnContractState();
     const r = Prog.claimReturnContract(day);
-    if (!r) return;
+    if (!r) {
+      if (state.active && state.day === day && state.ready && state.playSeconds < 600) {
+        const minutesLeft = Math.max(1, 10 - state.minutesPlayed);
+        this.ui.globalToast(`Play ${minutesLeft} more minute${minutesLeft === 1 ? '' : 's'} to unlock today's reward.`, 3500);
+      }
+      return;
+    }
     this.audio.coins();
     this.ui.globalToast(`COMEBACK CONTRACT: ${Prog.label(r)}`, 5000);
     this.ui.renderPlayPage();
