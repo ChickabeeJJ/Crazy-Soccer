@@ -209,6 +209,7 @@ export class UI {
     $('scTier').textContent = Prog.tier();
     $('scBar').style.width = `${Prog.tierProgress() * 100}%`;
     $('scEnds').textContent = `ENDS IN ${fmtLeft(si.ends - Date.now())}`;
+    // Release-event card is part of the production CrazyGames build (game.html -> Vite dist/index.html).
     // Compact release rewards: one value, optional rolls, and concise status per day.
     const contract = Prog.returnContractState();
     const contractEl = $('returnContract');
