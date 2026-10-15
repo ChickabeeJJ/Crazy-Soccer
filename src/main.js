@@ -647,6 +647,7 @@ class App {
     this.showMenu(page || (wasTraining ? 'training' : 'play'));
     // Nobody leaves the first session without their free starter item
     if (!Save.p.starterRoll && !this.ui.isOpen('rollReveal')) { Save.p.tutDone = true; Save.save(true); this.ui.showStarterRoll(); }
+    this.maybeShowReleaseEvent();
     if (wasMatch && !early) this.midgameAd();
   }
 
