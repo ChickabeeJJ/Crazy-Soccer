@@ -234,6 +234,19 @@ export class UI {
         ${c.claimed ? '<span class="ch-ok">DONE</span>' : c.done ? `<button class="ch-claim" data-chal="${c.id}">+${c.sp} XP</button>` : `<span class="ch-n">${c.prog}/${c.target}</span>`}
       </div>`).join('');
     $('chalList').querySelectorAll('[data-chal]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.claimChallenge(b.dataset.chal); }));
+    // Daily Match Circuit: repeatable, transparent milestones. Losses count too.
+    const circuit = Prog.matchCircuitState();
+    const divider = `<div class="mc-divider">MATCH CIRCUIT · ${circuit.count}/${circuit.target} TODAY</div>`;
+    const circuitRows = circuit.milestones.map((m) => {
+      const progress = Math.min(100, (circuit.count / m.matches) * 100);
+      const status = m.claimed ? '<span class="ch-ok">CLAIMED</span>'
+        : m.ready ? `<button class="ch-claim" data-run="${m.i}">CLAIM</button>`
+        : `<span class="ch-n">${Math.min(circuit.count, m.matches)}/${m.matches}</span>`;
+      return `<div class="ch ${m.ready ? 'done' : ''} ${m.claimed ? 'claimed' : ''}">
+        <div class="ch-txt"><b>${m.matches} MATCH${m.matches === 1 ? '' : 'ES'}</b><span class="ch-bar"><i style="width:${progress}%"></i></span><small class="ch-reward">${Prog.label(m.reward)}</small></div>${status}</div>`;
+    }).join('');
+    $('chalList').insertAdjacentHTML('beforeend', divider + circuitRows);
+    $('chalList').querySelectorAll('[data-run]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.claimMatchCircuit(+b.dataset.run); }));
     // Playtime rewards
     const pt = Prog.playtimeState();
     const mins = pt[0].mins;
@@ -702,7 +715,14 @@ export class UI {
     $('doubleBtn').innerHTML = this.doubleHtml;
     $('againBtn').textContent = 'PLAY AGAIN';
     $('againBtn').classList.remove('hidden');
-    this.setResNext('');
+    const circuit = r.matchCircuit;
+    if (circuit) {
+      const ready = circuit.milestones.filter((m) => m.ready).length;
+      const next = circuit.milestones.find((m) => !m.claimed && m.matches > circuit.count);
+      if (ready) this.setResNext(`Daily Match Circuit: ${ready} reward${ready === 1 ? '' : 's'} ready to claim in the lobby.`);
+      else if (next) this.setResNext(`Daily Match Circuit: ${circuit.count}/${circuit.target} today · ${next.matches - circuit.count} more for ${Prog.label(next.reward)}.`);
+      else this.setResNext('Daily Match Circuit complete — claim your rewards in the lobby.');
+    } else this.setResNext('');
     this.modal('results', true);
   }
   setResNext(text) { $('resNext').textContent = text; }
