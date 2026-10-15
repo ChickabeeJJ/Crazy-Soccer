@@ -190,10 +190,15 @@ class App {
     if (!SDK.available || SDK.user) return;
     const user = await SDK.showAuthPrompt();
     if (user) {
+      const firstLink = !Save.p.loginBonusClaimed;
+      if (firstLink) {
+        Save.p.loginBonusClaimed = true;
+        Save.addCoins(300);
+      }
       Save.save(true);
       this.ui.refreshProfile();
       $('resLoginBtn').classList.add('hidden');
-      this.ui.globalToast('Progress linked to your CrazyGames account.', 3500);
+      this.ui.globalToast(firstLink ? 'Progress linked! +300 welcome coins added.' : 'Progress linked to your CrazyGames account.', 4000);
     } else {
       this.ui.globalToast('No worries — you can keep playing as a guest.', 3000);
     }
