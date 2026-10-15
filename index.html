@@ -8,8 +8,8 @@
     <link rel="icon" type="image/png" href="./assets/favicon-Bw4k-ucE.png" />
     <!-- CrazyGames HTML5 SDK v3 -->
     <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
-    <script type="module" crossorigin src="./assets/game-oKA67fyk.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/game-CJLhiOK8.css">
+    <script type="module" crossorigin src="./assets/game-BLZk6_pV.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/game-GG927zf8.css">
   </head>
   <body>
     <canvas id="game"></canvas>
@@ -37,7 +37,7 @@
             <div class="pc-info">
               <div id="pcName" class="pc-name">Player</div>
               <div class="pc-sub"><span id="pcLevel">Level 1</span> · <span id="pcXpText" class="xp-text"></span></div>
-              <button id="loginBtn" class="mini-btn hidden">Log in to save progress</button>
+              <button id="loginBtn" class="mini-btn hidden">LOG IN + 300 COINS</button>
             </div>
           </div>
         </div>
@@ -51,6 +51,7 @@
         </div>
         <div class="mn-col mn-rightcol">
           <div id="evCard" class="mn-card event"></div>
+          <div id="returnContract" class="mn-card return-contract"></div>
           <div class="mn-card daily">
             <div class="mc-head"><span>LOGIN REWARDS</span><em id="dailyStreak">Day 1</em></div>
             <div id="dailyDays" class="daily-days"></div>
@@ -222,6 +223,7 @@
           <div class="rw spw"><span>SEASON</span><b id="resSp">+0</b></div>
         </div>
         <button id="doubleBtn" class="btn btn-gold hidden"><svg viewBox="0 0 24 24" width="0.9em" height="0.9em" style="vertical-align:-0.08em;margin-right:0.35em"><path d="M7 4l13 8-13 8z" fill="currentColor"/></svg>WATCH AD: DOUBLE COINS</button>
+        <button id="resLoginBtn" class="btn btn-sec res-login hidden">SYNC PROGRESS + CLAIM 300 COINS</button>
         <div id="resNext" class="res-next"></div>
         <div class="row">
           <button id="againBtn" class="btn btn-play">PLAY AGAIN</button>
@@ -254,6 +256,20 @@
         <div id="rrStrip" class="rr-strip"><div id="rrTrack" class="rr-track"></div><i class="rr-mark top"></i><i class="rr-mark bot"></i><i class="rr-line"></i></div>
         <div id="rrCards" class="rr-cards"></div>
         <div class="row rr-btns"><button id="rrStartBtn" class="btn btn-gold">ROLL FREE</button><button id="rrSkipBtn" class="btn btn-sec">SKIP</button><button id="rrAgainBtn" class="btn btn-gold">ROLL AGAIN</button><button id="rrDoneBtn" class="btn btn-sec">DONE</button></div>
+      </div>
+    </div>
+
+    <!-- One-time release-event introduction, shown after the tutorial / starter roll -->
+    <div id="releaseEvent" class="modal">
+      <div class="panel small release-event-panel">
+        <div class="panel-head"><span>OP REWARDS</span></div>
+        <div class="panel-body col release-event-body">
+          <div class="re-kicker">7-DAY RELEASE EVENT</div>
+          <p>Play 10 active minutes today to unlock Day 1's <b>1,000 coins</b>.</p>
+          <div class="re-next"><b>TOMORROW · DAY 2</b><span>25,000 coins + 10 free rolls</span></div>
+          <p class="re-note">Return over the next 7 days for bigger drops and two exclusive cosmetics.</p>
+          <button id="releaseEventOk" class="btn btn-play">LET'S GO</button>
+        </div>
       </div>
     </div>
 
