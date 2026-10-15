@@ -78,6 +78,7 @@ function freshProfile() {
     stats: { matches: 0, wins: 0, goals: 0, assists: 0, saves: 0 },
     daily: { last: '', streak: 0 },
     loginBonusClaimed: false,
+    releaseIntroSeen: false,
     // One-time 7-day return event starts on the first load after it is introduced.
     returnContract: { startAt: Date.now(), claimed: [] },
     tut: 0,
