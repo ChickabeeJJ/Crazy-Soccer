@@ -186,6 +186,18 @@ class App {
     try { prewarmNet(); } catch (e) { /* offline */ }
   }
 
+  async login() {
+    if (!SDK.available || SDK.user) return;
+    const user = await SDK.showAuthPrompt();
+    if (user) {
+      Save.save(true);
+      this.ui.refreshProfile();
+      this.ui.globalToast('Progress linked to your CrazyGames account.', 3500);
+    } else {
+      this.ui.globalToast('No worries — you can keep playing as a guest.', 3000);
+    }
+  }
+
   claimDaily() {
     const r = Prog.claimCalendar();
     if (r) { this.audio.coins(); this.ui.globalToast(`Login reward: ${Prog.label(r)}`); }
@@ -202,6 +214,16 @@ class App {
     const r = Prog.claimChallenge(id);
     if (r) { this.audio.coins(); this.ui.globalToast(`Challenge complete: +${r.sp} Season XP, +${r.coins} coins`); }
     this.afterClaim();
+  }
+
+  claimMatchCircuit(i) {
+    const r = Prog.claimMatchCircuit(i);
+    if (r) {
+      this.audio.coins();
+      this.ui.globalToast(`Daily Match Circuit: ${Prog.label(r)} claimed!`, 3000);
+      this.ui.renderPlayPage();
+      this.ui.refreshProfile();
+    }
   }
   claimPlaytime(i) {
     const r = Prog.claimPlaytime(i);
@@ -831,6 +853,7 @@ class App {
     Save.save(true);
     const chalBefore = Prog.challenges().filter((c) => c.done).length;
     const pass = Prog.recordMatch({ ...row, items: this.matchItems || 0, win: outcome === 'win' });
+    const matchCircuit = Prog.matchCircuitState();
     this.matchItems = 0;
     const newChal = Prog.challenges().filter((c) => c.done).length - chalBefore;
     const mvpRow = (ev.stats || []).find((r) => r.id === ev.mvp);
@@ -844,6 +867,7 @@ class App {
       this.input.exitLock();
       this.ui.showResults({
         outcome, score: ev.score, mvp: mvpRow ? mvpRow.name : '', stats: row, coins, xp, sp: pass.sp, tiers: pass.tiers,
+        matchCircuit,
         canDouble: SDK.available && !this.adblock, online: !!s.net, isHost: s.isAuthority,
       });
       this.ui.showBanner(true);
