@@ -47,6 +47,14 @@ export const PLAYTIME = [
   { min: 5, kind: 'coins', n: 80 }, { min: 10, kind: 'sp', n: 200 }, { min: 20, kind: 'token', n: 1 }, { min: 35, kind: 'coins', n: 250 }, { min: 50, kind: 'sp', n: 500 },
 ];
 
+// Daily Match Circuit: any completed match counts, win or lose.
+// The five-match milestone gives a chest and free roll; these are gameplay rewards.
+export const MATCH_CIRCUIT = [
+  { matches: 1, reward: { kind: 'coins', n: 100 } },
+  { matches: 3, reward: { kind: 'coins', n: 250 } },
+  { matches: 5, reward: { kind: 'chest', n: 500, tokens: 1 } },
+];
+
 const dayKey = (t = Date.now()) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
 const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
 
@@ -56,6 +64,7 @@ function fresh() {
     cal: { day: 0, last: '' },
     chal: { day: '', list: [] },
     play: { day: '', secs: 0, claimed: [] },
+    matchRun: { day: '', count: 0, claimed: [] },
     ev: { key: '', prog: 0, claimed: false },
     tokens: 0,
   };
@@ -82,6 +91,7 @@ export const Prog = {
       g.chal = { day: today, list: pool.map(({ c }) => ({ id: c[0], prog: 0, done: false, claimed: false })) };
     }
     if (g.play.day !== today) g.play = { day: today, secs: 0, claimed: [] };
+    if (!g.matchRun || g.matchRun.day !== today) g.matchRun = { day: today, count: 0, claimed: [] };
     const ev = this.event();
     const key = ev ? `${ev.id}:${ev.start}` : '';
     if (g.ev.key !== key) g.ev = { key, prog: 0, claimed: false };
@@ -186,6 +196,28 @@ export const Prog = {
     return r;
   },
 
+  // ----------------------------------------------------------- daily match circuit
+  matchCircuitState() {
+    const g = this.s.matchRun;
+    return {
+      count: g.count,
+      target: MATCH_CIRCUIT[MATCH_CIRCUIT.length - 1].matches,
+      milestones: MATCH_CIRCUIT.map((m, i) => ({
+        ...m, i, claimed: g.claimed.includes(i),
+        ready: g.count >= m.matches && !g.claimed.includes(i),
+      })),
+    };
+  },
+  claimMatchCircuit(i) {
+    const g = this.s.matchRun;
+    const m = MATCH_CIRCUIT[i];
+    if (!m || g.count < m.matches || g.claimed.includes(i)) return null;
+    g.claimed.push(i);
+    this.grant(m.reward);
+    Save.save(true);
+    return m.reward;
+  },
+
   // --------------------------------------------------------- daily challenges
   challenges() {
     return this.s.chal.list.map((c) => {
@@ -264,6 +296,7 @@ export const Prog = {
   // stats: { goals, assists, saves, steals, items, win, matches }
   recordMatch(st) {
     const g = this.s;
+    g.matchRun.count = Math.min(MATCH_CIRCUIT[MATCH_CIRCUIT.length - 1].matches, g.matchRun.count + 1);
     const m = this.mods();
     const bump = (stat, n) => {
       if (!n) return;
