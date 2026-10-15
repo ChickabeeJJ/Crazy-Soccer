@@ -227,8 +227,11 @@ export class UI {
       </div>`;
     }).join('');
     const contractHeading = contract.complete ? 'COMPLETE' : contract.active ? `DAY ${contract.day}/7` : 'ENDED';
-    contractEl.innerHTML = `<div class="mc-head rc-head"><span>RELEASE EVENT</span><em>${contractHeading}</em></div>
-      <p class="rc-sub">Play 10 min today to unlock the drop.</p>
+    contractEl.innerHTML = `<div class="rc-hero">
+        <div class="rc-kicker"><span class="rc-live-dot"></span> 7-DAY RELEASE EVENT <em>${contractHeading}</em></div>
+        <div class="rc-title">OP REWARDS</div>
+        <p class="rc-sub">Play 10 min today to unlock your drop.</p>
+      </div>
       <div class="rc-days">${contractDays}</div>
       <div class="rc-progress"><div class="rc-progress-head"><span>PLAYTIME TODAY</span><b>${contract.minutesPlayed}/10 MIN</b></div><span class="rc-progress-track"><i style="width:${contract.minutesPlayed * 10}%"></i></span></div>
       <button id="returnClaimBtn" class="btn btn-play mc-btn rc-claim" ${contract.canClaim ? '' : 'disabled'}>${contract.canClaim ? `CLAIM DAY ${contract.day}` : contract.ready ? 'PLAY 10 MIN TO CLAIM' : contract.complete ? 'ALL REWARDS CLAIMED' : contract.active ? 'CLAIMED TODAY' : 'EVENT ENDED'}</button>`;
