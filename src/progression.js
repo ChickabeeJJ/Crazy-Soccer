@@ -50,7 +50,7 @@ export const PLAYTIME = [
 // One-time seven-local-day comeback contract. Economy-breaking by design:
 // 1.585M coins, 255 free rolls, and two cosmetics that are not sold in the shop.
 export const RETURN_CONTRACT = [
-  { day: 1, title: 'BOOT-UP BONUS', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 10000 }, { kind: 'token', n: 5 }] } },
+  { day: 1, title: 'WELCOME DROP', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 1000 }] } },
   { day: 2, title: 'ROLL STORM', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 25000 }, { kind: 'token', n: 10 }] } },
   { day: 3, title: 'GOLDEN COMEBACK', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 50000 }, { kind: 'token', n: 15 }, { kind: 'item', cat: 'boots', id: 'comeback_gold' }] } },
   { day: 4, title: 'VAULT BREAKER', reward: { kind: 'bundle', rewards: [{ kind: 'coins', n: 100000 }, { kind: 'token', n: 25 }] } },
@@ -214,7 +214,7 @@ export const Prog = {
 
   // ---------------------------------------------------------- 7-day comeback contract
   returnContractState() {
-    this.s; // Ensure the progression profile has been normalized before reading the top-level campaign.
+    const g = this.s; // Normalizes daily playtime before checking eligibility.
     if (!Save.p.returnContract || !Number.isFinite(Save.p.returnContract.startAt)) {
       Save.p.returnContract = { startAt: Date.now(), claimed: [] };
       Save.save(true);
@@ -222,11 +222,15 @@ export const Prog = {
     const event = Save.p.returnContract;
     const day = Math.floor((localDayStart(Date.now()) - localDayStart(event.startAt)) / DAY) + 1;
     const claimed = Array.isArray(event.claimed) ? event.claimed : [];
+    const playSeconds = g.play ? (g.play.secs || 0) : 0;
+    const minutesPlayed = Math.min(10, Math.floor(playSeconds / 60));
+    const active = day >= 1 && day <= 7;
+    const ready = active && !claimed.includes(day);
     return {
-      day, active: day >= 1 && day <= 7,
-      claimedCount: claimed.length,
+      day, active, claimedCount: claimed.length,
       complete: RETURN_CONTRACT.every((m) => claimed.includes(m.day)),
-      ready: day >= 1 && day <= 7 && !claimed.includes(day),
+      ready, canClaim: ready && playSeconds >= 600,
+      minutesPlayed, playSeconds,
       days: RETURN_CONTRACT.map((m) => ({
         ...m, claimed: claimed.includes(m.day),
         current: m.day === day,
@@ -236,7 +240,7 @@ export const Prog = {
   },
   claimReturnContract(day) {
     const state = this.returnContractState();
-    if (!state.active || day !== state.day || !state.ready) return null;
+    if (!state.active || day !== state.day || !state.ready || state.playSeconds < 600) return null;
     const m = RETURN_CONTRACT.find((entry) => entry.day === day);
     if (!m) return null;
     Save.p.returnContract.claimed.push(day);
