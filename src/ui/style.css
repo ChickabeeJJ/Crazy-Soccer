@@ -886,6 +886,8 @@ body.awards #hud, body.awards #touch, body.awards .announce { visibility: hidden
 .ch-n { font-family: var(--f-head); font-style: italic; font-weight: 900; font-size: 13px; }
 .ch-ok { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: var(--muted); }
 .ch-claim { border: none; border-radius: 0; background: var(--hi); color: var(--ink); font-family: var(--f-head); font-style: italic; font-weight: 900; font-size: 12px; padding: 5px 10px; clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%); animation: claimPulse 1.4s ease-in-out infinite; }
+.mc-divider { padding: 8px 2px 3px; border-top: 1px solid var(--paper-3); color: var(--muted); font-family: var(--f-head); font-size: 10px; font-weight: 900; font-style: italic; letter-spacing: 0.08em; }
+.ch-reward { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: 0.04em; }
 @keyframes claimPulse { 50% { filter: brightness(1.15); transform: scale(1.04); } }
 
 .pt-track { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
