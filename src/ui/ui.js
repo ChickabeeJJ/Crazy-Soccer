@@ -75,7 +75,7 @@ export class UI {
     }
   }
   isOpen(id) { return $(id).classList.contains('show'); }
-  anyModal() { return ['pause', 'results', 'settings', 'private', 'searching', 'confirm', 'trainRes', 'playSheet', 'rollReveal'].some((m) => this.isOpen(m)); }
+  anyModal() { return ['pause', 'results', 'settings', 'private', 'searching', 'confirm', 'trainRes', 'playSheet', 'rollReveal', 'releaseEvent'].some((m) => this.isOpen(m)); }
 
   setLoading() { /* no visible loading screen */ }
 
@@ -91,11 +91,12 @@ export class UI {
     click('botsBtn', () => { this.modal('playSheet', false); app.startOffline(null, Save.p.team === 1 ? 1 : 0); });
     click('privateBtn', () => { this.modal('playSheet', false); $('privateMsg').textContent = ''; this.modal('private', true); });
     click('switchTeamBtn', () => app.switchTeam());
-    click('rrDoneBtn', () => { this.modal('rollReveal', false); if (this.page === 'shop') this.renderShop(); if (this.page === 'inventory') this.renderInventory(); this.refreshProfile(); });
+    click('rrDoneBtn', () => { this.modal('rollReveal', false); if (this.page === 'shop') this.renderShop(); if (this.page === 'inventory') this.renderInventory(); this.refreshProfile(); app.maybeShowReleaseEvent(); });
     click('rrAgainBtn', () => app.rollItems(this.lastRollN || 1));
     click('rrSkipBtn', () => this.skipRoll());
     click('tutSkipBtn', () => app.askLeave());
     click('rrStartBtn', () => app.starterRoll());
+    click('releaseEventOk', () => this.modal('releaseEvent', false));
     click('createRoomBtn', () => app.createPrivate());
     click('joinCodeBtn', () => app.joinPrivate($('codeInput').value.trim().toUpperCase()));
     $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') app.joinPrivate($('codeInput').value.trim().toUpperCase()); });
@@ -208,25 +209,29 @@ export class UI {
     $('scTier').textContent = Prog.tier();
     $('scBar').style.width = `${Prog.tierProgress() * 100}%`;
     $('scEnds').textContent = `ENDS IN ${fmtLeft(si.ends - Date.now())}`;
-    // One-time 7-day comeback contract: explosive, escalating rewards for each day's return.
+    // Compact release rewards: one value, optional rolls, and concise status per day.
     const contract = Prog.returnContractState();
     const contractEl = $('returnContract');
     const contractDays = contract.days.map((m) => {
-      const item = m.reward.rewards.find((part) => part.kind === 'item');
-      const rewardCopy = Prog.label(m.reward);
-      const stateLabel = m.claimed ? 'CLAIMED' : m.expired ? 'MISSED' : m.current ? (contract.ready ? 'CLAIM TODAY' : 'CLAIMED TODAY') : 'LOCKED';
-      const preview = item ? this.rewardIcon(item) : this.rewardIcon(m.reward);
+      const parts = m.reward.rewards || [];
+      const item = parts.find((part) => part.kind === 'item');
+      const coins = parts.find((part) => part.kind === 'coins');
+      const rolls = parts.find((part) => part.kind === 'token');
+      const value = coins ? (coins.n >= 1000000 ? `${coins.n / 1000000}M` : `${coins.n / 1000}K`) : 'EXCLUSIVE';
+      const detail = [rolls ? `+${rolls.n} ROLLS` : null, item ? 'EXCLUSIVE' : !rolls && !item ? 'COINS' : null].filter(Boolean).join(' · ');
+      const stateLabel = m.claimed ? 'DONE' : m.expired ? 'MISSED' : m.current ? (contract.canClaim ? 'READY' : `${contract.minutesPlayed}/10 MIN`) : 'LOCKED';
+      const preview = item ? this.rewardIcon(item) : this.rewardIcon({ kind: 'chest' });
       return `<div class="rc-day ${m.current ? 'current' : ''} ${m.claimed ? 'claimed' : ''} ${m.expired ? 'expired' : ''} ${item ? 'exclusive' : ''}">
         <small>DAY ${m.day}</small><span class="rc-art">${preview}</span>
-        <b>${m.title}</b><em>${stateLabel}</em><span class="rc-detail">${rewardCopy}</span>
+        <b class="rc-value">${value}</b><span class="rc-detail">${detail}</span><em>${stateLabel}</em>
       </div>`;
     }).join('');
-    const contractHeading = contract.complete ? 'CONTRACT CLEARED' : contract.active ? `DAY ${contract.day} OF 7` : 'CONTRACT ENDED';
-    const contractSub = contract.complete ? 'You collected the full comeback haul.' : contract.active ? 'Return each day for 1,585,000 coins, 255 free rolls and two exclusive cosmetics.' : 'This one-time launch event has ended.';
-    contractEl.innerHTML = `<div class="mc-head rc-head"><span>7-DAY COMEBACK CONTRACT</span><em>${contractHeading}</em></div>
-      <p class="rc-sub">${contractSub}</p><div class="rc-days">${contractDays}</div>
-      <button id="returnClaimBtn" class="btn btn-gold mc-btn" ${contract.ready ? '' : 'disabled'}>${contract.ready ? `CLAIM DAY ${contract.day} MEGA DROP` : contract.active ? 'TODAY\'S DROP CLAIMED' : contract.complete ? 'ALL REWARDS CLAIMED' : 'EVENT ENDED'}</button>
-      <small class="rc-foot">${contract.active ? `Day ${contract.day} is available today. Missed days do not stack; claim the current day's drop before local midnight.` : 'Rewards are one-time and do not require a purchase.'}</small>`;
+    const contractHeading = contract.complete ? 'COMPLETE' : contract.active ? `DAY ${contract.day}/7` : 'ENDED';
+    contractEl.innerHTML = `<div class="mc-head rc-head"><span>RELEASE EVENT</span><em>${contractHeading}</em></div>
+      <p class="rc-sub">Play 10 min today to unlock the drop.</p>
+      <div class="rc-days">${contractDays}</div>
+      <div class="rc-progress"><span>PLAYTIME TODAY</span><b>${contract.minutesPlayed}/10 MIN</b><i style="width:${contract.minutesPlayed * 10}%"></i></div>
+      <button id="returnClaimBtn" class="btn btn-play mc-btn rc-claim" ${contract.canClaim ? '' : 'disabled'}>${contract.canClaim ? `CLAIM DAY ${contract.day}` : contract.ready ? 'PLAY 10 MIN TO CLAIM' : contract.complete ? 'ALL REWARDS CLAIMED' : contract.active ? 'CLAIMED TODAY' : 'EVENT ENDED'}</button>`;
     const returnClaimBtn = $('returnClaimBtn');
     if (returnClaimBtn) returnClaimBtn.onclick = (e) => { e.stopPropagation(); this.app.claimReturnContract(contract.day); };
     this.fillPreviews(contractEl);
