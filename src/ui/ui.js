@@ -113,6 +113,7 @@ export class UI {
     click('againBtn', () => app.playAgain());
     click('resLobbyBtn', () => app.leaveToLobby(false));
     click('doubleBtn', () => app.doubleCoins());
+    click('resLoginBtn', () => app.login());
     click('cancelSearchBtn', () => app.cancelSearch());
     click('trAgainBtn', () => app.retryTraining());
     click('trLobbyBtn', () => { this.modal('trainRes', false); app.leaveToLobby(true, 'training'); });
@@ -713,6 +714,7 @@ export class UI {
     $('doubleBtn').disabled = false;
     if (!this.doubleHtml) this.doubleHtml = $('doubleBtn').innerHTML;
     $('doubleBtn').innerHTML = this.doubleHtml;
+    $('resLoginBtn').classList.toggle('hidden', !(SDK.available && !SDK.user && SDK.environment === 'crazygames'));
     $('againBtn').textContent = 'PLAY AGAIN';
     $('againBtn').classList.remove('hidden');
     const circuit = r.matchCircuit;
