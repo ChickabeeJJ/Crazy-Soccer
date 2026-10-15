@@ -456,6 +456,7 @@ export class UI {
     const u = SDK.user;
     if (u && u.profilePictureUrl) $('pcAvatar').style.backgroundImage = `url("${u.profilePictureUrl}")`;
     $('loginBtn').classList.toggle('hidden', !(SDK.available && !SDK.user && SDK.environment === 'crazygames'));
+    $('loginBtn').textContent = Save.p.loginBonusClaimed ? 'LOG IN · SYNC PROGRESS' : 'LOG IN + 300 COINS';
   }
 
   // ------------------------------------------------------------------ HUD
@@ -715,6 +716,7 @@ export class UI {
     if (!this.doubleHtml) this.doubleHtml = $('doubleBtn').innerHTML;
     $('doubleBtn').innerHTML = this.doubleHtml;
     $('resLoginBtn').classList.toggle('hidden', !(SDK.available && !SDK.user && SDK.environment === 'crazygames'));
+    $('resLoginBtn').textContent = Save.p.loginBonusClaimed ? 'LOG IN TO SYNC PROGRESS' : 'SYNC PROGRESS + CLAIM 300 COINS';
     $('againBtn').textContent = 'PLAY AGAIN';
     $('againBtn').classList.remove('hidden');
     const circuit = r.matchCircuit;
