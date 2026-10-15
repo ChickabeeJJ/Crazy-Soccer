@@ -401,6 +401,26 @@ export function jerseyTexture(pattern, teamIdx, number) {
       g.restore();
       break;
     }
+    case 'daybreak_royal': {
+      // 7-Day Comeback exclusive: midnight royal fabric, gold sunrise rays, and star crests.
+      const grd = g.createLinearGradient(0, 0, 512, 256);
+      grd.addColorStop(0, '#120b35'); grd.addColorStop(0.45, '#4820a0'); grd.addColorStop(1, '#100a27');
+      g.fillStyle = grd; g.fillRect(0, 0, 512, 256);
+      g.save(); g.globalAlpha = 0.9;
+      for (let x = -220; x < 620; x += 76) {
+        const ray = g.createLinearGradient(x, 0, x + 100, 256);
+        ray.addColorStop(0, 'rgba(255,207,63,0)'); ray.addColorStop(0.5, 'rgba(255,207,63,0.85)'); ray.addColorStop(1, 'rgba(255,207,63,0)');
+        g.fillStyle = ray; g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 30, 0); g.lineTo(x + 150, 256); g.lineTo(x + 120, 256); g.closePath(); g.fill();
+      }
+      g.globalAlpha = 1;
+      for (let i = 0; i < 24; i++) {
+        const x = (i * 137 + 31) % 512, y = (i * 83 + 17) % 226 + 15;
+        g.fillStyle = i % 3 ? '#fff3b0' : '#ffcf3f';
+        g.beginPath(); g.arc(x, y, i % 4 === 0 ? 3 : 1.6, 0, Math.PI * 2); g.fill();
+      }
+      g.restore();
+      break;
+    }
     case 'camo': {
       g.fillStyle = '#2b3324'; g.fillRect(0, 0, 512, 256);
       const cols = ['#3f4a31', '#1d2218', '#55603f'];
