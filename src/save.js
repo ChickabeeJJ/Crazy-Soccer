@@ -77,6 +77,7 @@ function freshProfile() {
     binds: {},
     stats: { matches: 0, wins: 0, goals: 0, assists: 0, saves: 0 },
     daily: { last: '', streak: 0 },
+    loginBonusClaimed: false,
     tut: 0,
     powers: [], // new players start with only the item from their free first roll
     starterRoll: false,
