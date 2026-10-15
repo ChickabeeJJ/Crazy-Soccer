@@ -269,9 +269,7 @@ export class UI {
     $('dailyStreak').textContent = `DAY ${Math.max(1, cs.avail ? cs.next : cs.cur)}`;
     const btn = $('dailyBtn');
     btn.disabled = !cs.avail;
-    btn.textContent = cs.avail ? `CLAIM DAY ${cs.next} REWARD` : 'COME BACK TOMORROW';
-    btn.title = cs.avail ? Prog.label(CALENDAR[cs.next - 1]) : 'Your next login reward is available tomorrow.';
-    btn.setAttribute('aria-label', cs.avail ? `Claim day ${cs.next} login reward: ${Prog.label(CALENDAR[cs.next - 1])}` : 'Come back tomorrow for the next login reward.');
+    btn.textContent = cs.avail ? `CLAIM DAY ${cs.next}: ${Prog.label(CALENDAR[cs.next - 1])}` : 'COME BACK TOMORROW';
     // Daily challenges
     const tomorrow = new Date(); tomorrow.setHours(24, 0, 0, 0);
     $('chalReset').textContent = `RESETS ${fmtLeft(tomorrow - Date.now())}`;
