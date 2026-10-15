@@ -192,6 +192,7 @@ class App {
     if (user) {
       Save.save(true);
       this.ui.refreshProfile();
+      $('resLoginBtn').classList.add('hidden');
       this.ui.globalToast('Progress linked to your CrazyGames account.', 3500);
     } else {
       this.ui.globalToast('No worries — you can keep playing as a guest.', 3000);
