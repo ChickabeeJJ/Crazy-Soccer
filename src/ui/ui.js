@@ -173,6 +173,10 @@ export class UI {
     if (r.kind === 'token') return `<span class="rw-ico tok">${TOKEN_SVG}</span>`;
     if (r.kind === 'sp') return '<span class="rw-ico sp">XP</span>';
     if (r.kind === 'chest') return `<span class="rw-ico chest">${CHEST_SVG}</span>`;
+    if (r.kind === 'bundle') {
+      const item = (r.rewards || []).find((part) => part.kind === 'item');
+      return item ? `<span class="rw-ico pvh" data-pv="${item.cat}|${item.id}"></span>` : `<span class="rw-ico chest">${CHEST_SVG}</span>`;
+    }
     if (r.kind === 'item') return `<span class="rw-ico pvh" data-pv="${r.cat}|${r.id}"></span>`;
     return '';
   }
@@ -183,6 +187,15 @@ export class UI {
     if (r.kind === 'coins' || r.kind === 'chest') return String(r.n);
     if (r.kind === 'token') return r.n > 1 ? `×${r.n}` : 'ROLL';
     if (r.kind === 'sp') return String(r.n);
+    if (r.kind === 'bundle') {
+      const coins = (r.rewards || []).find((part) => part.kind === 'coins');
+      const rolls = (r.rewards || []).find((part) => part.kind === 'token');
+      const item = (r.rewards || []).find((part) => part.kind === 'item');
+      if (item) return 'EXCLUSIVE';
+      if (coins && coins.n >= 1000000) return '1M';
+      if (coins && coins.n >= 1000) return `${Math.round(coins.n / 1000)}K`;
+      if (rolls) return `${rolls.n} ROLLS`;
+    }
     return 'EXCL';
   }
 
@@ -195,6 +208,28 @@ export class UI {
     $('scTier').textContent = Prog.tier();
     $('scBar').style.width = `${Prog.tierProgress() * 100}%`;
     $('scEnds').textContent = `ENDS IN ${fmtLeft(si.ends - Date.now())}`;
+    // One-time 7-day comeback contract: explosive, escalating rewards for each day's return.
+    const contract = Prog.returnContractState();
+    const contractEl = $('returnContract');
+    const contractDays = contract.days.map((m) => {
+      const item = m.reward.rewards.find((part) => part.kind === 'item');
+      const rewardCopy = Prog.label(m.reward);
+      const stateLabel = m.claimed ? 'CLAIMED' : m.expired ? 'MISSED' : m.current ? (contract.ready ? 'CLAIM TODAY' : 'CLAIMED TODAY') : 'LOCKED';
+      const preview = item ? this.rewardIcon(item) : this.rewardIcon(m.reward);
+      return `<div class="rc-day ${m.current ? 'current' : ''} ${m.claimed ? 'claimed' : ''} ${m.expired ? 'expired' : ''} ${item ? 'exclusive' : ''}">
+        <small>DAY ${m.day}</small><span class="rc-art">${preview}</span>
+        <b>${m.title}</b><em>${stateLabel}</em><span class="rc-detail">${rewardCopy}</span>
+      </div>`;
+    }).join('');
+    const contractHeading = contract.complete ? 'CONTRACT CLEARED' : contract.active ? `DAY ${contract.day} OF 7` : 'CONTRACT ENDED';
+    const contractSub = contract.complete ? 'You collected the full comeback haul.' : contract.active ? 'Return each day for 1,585,000 coins, 255 free rolls and two exclusive cosmetics.' : 'This one-time launch event has ended.';
+    contractEl.innerHTML = `<div class="mc-head rc-head"><span>7-DAY COMEBACK CONTRACT</span><em>${contractHeading}</em></div>
+      <p class="rc-sub">${contractSub}</p><div class="rc-days">${contractDays}</div>
+      <button id="returnClaimBtn" class="btn btn-gold mc-btn" ${contract.ready ? '' : 'disabled'}>${contract.ready ? `CLAIM DAY ${contract.day} MEGA DROP` : contract.active ? 'TODAY\'S DROP CLAIMED' : contract.complete ? 'ALL REWARDS CLAIMED' : 'EVENT ENDED'}</button>
+      <small class="rc-foot">${contract.active ? `Day ${contract.day} is available today. Missed days do not stack; claim the current day's drop before local midnight.` : 'Rewards are one-time and do not require a purchase.'}</small>`;
+    const returnClaimBtn = $('returnClaimBtn');
+    if (returnClaimBtn) returnClaimBtn.onclick = (e) => { e.stopPropagation(); this.app.claimReturnContract(contract.day); };
+    this.fillPreviews(contractEl);
     // Limited-time event
     const ev = Prog.event();
     const evEl = $('evCard');
