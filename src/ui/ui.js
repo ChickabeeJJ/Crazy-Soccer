@@ -230,7 +230,7 @@ export class UI {
     contractEl.innerHTML = `<div class="mc-head rc-head"><span>RELEASE EVENT</span><em>${contractHeading}</em></div>
       <p class="rc-sub">Play 10 min today to unlock the drop.</p>
       <div class="rc-days">${contractDays}</div>
-      <div class="rc-progress"><span>PLAYTIME TODAY</span><b>${contract.minutesPlayed}/10 MIN</b><i style="width:${contract.minutesPlayed * 10}%"></i></div>
+      <div class="rc-progress"><div class="rc-progress-head"><span>PLAYTIME TODAY</span><b>${contract.minutesPlayed}/10 MIN</b></div><span class="rc-progress-track"><i style="width:${contract.minutesPlayed * 10}%"></i></span></div>
       <button id="returnClaimBtn" class="btn btn-play mc-btn rc-claim" ${contract.canClaim ? '' : 'disabled'}>${contract.canClaim ? `CLAIM DAY ${contract.day}` : contract.ready ? 'PLAY 10 MIN TO CLAIM' : contract.complete ? 'ALL REWARDS CLAIMED' : contract.active ? 'CLAIMED TODAY' : 'EVENT ENDED'}</button>`;
     const returnClaimBtn = $('returnClaimBtn');
     if (returnClaimBtn) returnClaimBtn.onclick = (e) => { e.stopPropagation(); this.app.claimReturnContract(contract.day); };
