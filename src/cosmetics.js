@@ -38,6 +38,7 @@ export const CATALOG = {
     { id: 'champion', name: 'Champion', price: 0, excl: 'event', base: '#ffffff', accent: '#ffcf3f', sole: '#ffcf3f' },
     { id: 'ember', name: 'Ember', price: 0, excl: 'event', base: '#ff3d00', accent: '#1a1010', sole: '#ffb300' },
     { id: 'comeback_gold', name: 'Golden Comeback', price: 0, excl: 'return-contract', base: '#b87b10', accent: '#fff1a6', sole: '#4a1f85' },
+    { id: 'comeback_gold', name: 'Golden Comeback', price: 0, excl: 'return-contract', base: '#b87b10', accent: '#fff1a6', sole: '#4a1f85' },
   ],
   jersey: [
     { id: 'classic', name: 'Classic', price: 0 },
@@ -53,6 +54,7 @@ export const CATALOG = {
     { id: 'neon', name: 'Neon Grid', price: 0, excl: 'pass' },
     { id: 'carbon', name: 'Carbon', price: 0, excl: 'pass' },
     { id: 'camo', name: 'Night Camo', price: 0, excl: 'event' },
+    { id: 'daybreak_royal', name: 'Daybreak Sovereign', price: 0, excl: 'return-contract' },
     { id: 'daybreak_royal', name: 'Daybreak Sovereign', price: 0, excl: 'return-contract' },
   ],
   ball: [
