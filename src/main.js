@@ -1403,7 +1403,8 @@ class App {
       this.goalInfo = null;
     }
     if (v.phase !== this.lastPhase) {
-      if (s.mode !== 'practice' && ((this.lastPhase === 'goal' && v.phase === 'replay') || ((this.lastPhase === 'replay' || this.lastPhase === 'goal') && v.phase === 'kickoff'))) this.ui.barWipe();
+      // One wipe per goal: into the countdown (after the scorer card if there is one)
+      if (s.mode !== 'practice' && (this.lastPhase === 'replay' || this.lastPhase === 'goal') && v.phase === 'kickoff' && !(this.goalInfo && v.phaseT > MATCH.kickoffTime)) this.ui.barWipe();
       if (v.phase !== 'kickoff' && v.phase !== 'replay' && v.phase !== 'goal' && this.goalInfo) { this.ui.hideGoalCard(); this.goalInfo = null; }
       if (v.phase === 'play' && this.lastPhase === 'kickoff' && s.mode !== 'practice' && !skippedJoinIntro) this.audio.beep(true);
       this.lastPhase = v.phase;
