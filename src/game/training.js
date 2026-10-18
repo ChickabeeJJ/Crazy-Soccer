@@ -37,6 +37,8 @@ export class Training {
     this.s = session;
     this.w = session.world;
     const w = this.w;
+    // Goalkeeper Challenge must not use Free Practice's request-to-teleport behavior.
+    w.noRequestTeleport = this.kind === 'keeper';
     w.practiceGoalT = this.kind === 'free' ? 1.4 : 0.9;
     if (this.kind !== 'free') { w.noAutoItems = true; w.quietAwards = true; }
     w.hooks.kickoff = () => this.kickoff();

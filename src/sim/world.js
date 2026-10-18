@@ -61,9 +61,11 @@ export class World {
     this.uid = 1;
     this.lastGoal = null;
     this.result = null;
+    this.expired = false;
     this.brains = new Map();
     this.hooks = {}; // training drills: { kickoff(world) }
     this.itemPool = opts.itemPool || null; // practice override (e.g. "try" a single power)
+    this.noRequestTeleport = false; // Goalkeeper Challenge opts out of Free Practice's ball recall
     this.noAutoItems = false; // drills without mystery cubes
     this.practiceGoalT = 1.6;
   }
@@ -633,8 +635,8 @@ export class World {
         p.cd.request = KICK.requestCooldown;
         p.req = 2.5;
         this.emit({ e: 'request', id: p.id });
-        if (this.mode === 'practice' && b.owner !== p.id) {
-          // Practice: the ball comes back to you
+        if (this.mode === 'practice' && !this.noRequestTeleport && b.owner !== p.id) {
+          // Free Practice: the ball comes back to you
           const o = this.ballOffset(p);
           Object.assign(b, { x: o.x, y: 3, z: o.z, vx: 0, vy: 2, vz: 0, owner: -1, inNet: 0, curve: 0, fire: false });
         }
@@ -809,6 +811,7 @@ export class World {
 
   // ------------------------------------------------------------------- step
   step(dt) {
+    if (this.expired) return;
     this.time += dt;
     this.tick += 1;
     const b = this.ball;
@@ -831,6 +834,14 @@ export class World {
       return;
     } else if (this.phase === 'end') {
       this.phaseT -= dt;
+      if (this.phaseT <= 0) {
+        this.phaseT = 0;
+        if (!this.expired) {
+          this.expired = true;
+          this.emit({ e: 'expire' });
+        }
+        return;
+      }
       for (const p of this.players) movePlayer(p, dt, false, true);
       return;
     } else if (this.phase === 'play' && this.mode !== 'practice') {

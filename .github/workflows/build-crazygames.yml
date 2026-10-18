@@ -1,0 +1,52 @@
+name: Build CrazyGames upload
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'index.html'
+      - 'assets/**'
+      - 'music/**'
+      - 'favicon.png'
+      - 'crazy-soccer-html5.zip'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build CrazyGames package
+        run: npm run build
+      - name: Verify release event is in the build
+        shell: bash
+        run: |
+          grep -q 'id="returnContract"' dist/index.html
+          grep -q 'OP REWARDS' dist/index.html
+          grep -R -q 'returnContractState' dist/assets/*.js
+      - name: Commit upload-ready files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html assets music favicon.png
+          git add -f crazy-soccer-html5.zip
+          if git diff --cached --quiet; then
+            echo "Built package already up to date."
+          else
+            git commit -m "Build CrazyGames upload with release event [skip ci]"
+            git push origin HEAD:main
+          fi

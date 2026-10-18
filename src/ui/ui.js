@@ -76,7 +76,7 @@ export class UI {
     }
   }
   isOpen(id) { return $(id).classList.contains('show'); }
-  anyModal() { return ['pause', 'results', 'settings', 'private', 'searching', 'confirm', 'trainRes', 'playSheet', 'rollReveal'].some((m) => this.isOpen(m)); }
+  anyModal() { return ['pause', 'results', 'settings', 'private', 'searching', 'confirm', 'trainRes', 'playSheet', 'rollReveal', 'releaseEvent'].some((m) => this.isOpen(m)); }
 
   setLoading() { /* no visible loading screen */ }
 
@@ -93,11 +93,12 @@ export class UI {
     click('privateBtn', () => { this.modal('playSheet', false); $('privateMsg').textContent = ''; this.modal('private', true); });
     click('switchTeamBtn', () => app.switchTeam());
     click('crvDone', () => { this.modal('cardReveal', false); this.renderLocker(); this.refreshProfile(); });
-    click('rrDoneBtn', () => { this.modal('rollReveal', false); if (this.page === 'shop') this.renderShop(); if (this.page === 'inventory') this.renderInventory(); this.refreshProfile(); });
+    click('rrDoneBtn', () => { this.modal('rollReveal', false); if (this.page === 'shop') this.renderShop(); if (this.page === 'inventory') this.renderInventory(); this.refreshProfile(); app.maybeShowReleaseEvent(); });
     click('rrAgainBtn', () => app.rollItems(this.lastRollN || 1));
     click('rrSkipBtn', () => this.skipRoll());
     click('tutSkipBtn', () => app.askLeave());
     click('rrStartBtn', () => app.starterRoll());
+    click('releaseEventOk', () => this.modal('releaseEvent', false));
     click('createRoomBtn', () => app.createPrivate());
     click('joinCodeBtn', () => app.joinPrivate($('codeInput').value.trim().toUpperCase()));
     $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') app.joinPrivate($('codeInput').value.trim().toUpperCase()); });
@@ -115,6 +116,7 @@ export class UI {
     click('againBtn', () => app.playAgain());
     click('resLobbyBtn', () => app.leaveToLobby(false));
     click('doubleBtn', () => app.doubleCoins());
+    click('resLoginBtn', () => app.login());
     click('cancelSearchBtn', () => app.cancelSearch());
     click('trAgainBtn', () => app.retryTraining());
     click('trLobbyBtn', () => { this.modal('trainRes', false); app.leaveToLobby(true, 'training'); });
@@ -174,6 +176,10 @@ export class UI {
     if (r.kind === 'token') return `<span class="rw-ico tok">${TOKEN_SVG}</span>`;
     if (r.kind === 'sp') return '<span class="rw-ico sp">XP</span>';
     if (r.kind === 'chest') return `<span class="rw-ico chest">${CHEST_SVG}</span>`;
+    if (r.kind === 'bundle') {
+      const item = (r.rewards || []).find((part) => part.kind === 'item');
+      return item ? `<span class="rw-ico pvh" data-pv="${item.cat}|${item.id}"></span>` : `<span class="rw-ico chest">${CHEST_SVG}</span>`;
+    }
     if (r.kind === 'item') return `<span class="rw-ico pvh" data-pv="${r.cat}|${r.id}"></span>`;
     return '';
   }
@@ -184,6 +190,15 @@ export class UI {
     if (r.kind === 'coins' || r.kind === 'chest') return String(r.n);
     if (r.kind === 'token') return r.n > 1 ? `×${r.n}` : 'ROLL';
     if (r.kind === 'sp') return String(r.n);
+    if (r.kind === 'bundle') {
+      const coins = (r.rewards || []).find((part) => part.kind === 'coins');
+      const rolls = (r.rewards || []).find((part) => part.kind === 'token');
+      const item = (r.rewards || []).find((part) => part.kind === 'item');
+      if (item) return 'EXCLUSIVE';
+      if (coins && coins.n >= 1000000) return '1M';
+      if (coins && coins.n >= 1000) return `${Math.round(coins.n / 1000)}K`;
+      if (rolls) return `${rolls.n} ROLLS`;
+    }
     return 'EXCL';
   }
 
@@ -196,6 +211,36 @@ export class UI {
     $('scTier').textContent = Prog.tier();
     $('scBar').style.width = `${Prog.tierProgress() * 100}%`;
     $('scEnds').textContent = `ENDS IN ${fmtLeft(si.ends - Date.now())}`;
+    // Release-event card is part of the production CrazyGames build (game.html -> Vite dist/index.html).
+    // Compact release rewards: one value, optional rolls, and concise status per day.
+    const contract = Prog.returnContractState();
+    const contractEl = $('returnContract');
+    const contractDays = contract.days.map((m) => {
+      const parts = m.reward.rewards || [];
+      const item = parts.find((part) => part.kind === 'item');
+      const coins = parts.find((part) => part.kind === 'coins');
+      const rolls = parts.find((part) => part.kind === 'token');
+      const value = coins ? (coins.n >= 1000000 ? `${coins.n / 1000000}M` : `${coins.n / 1000}K`) : 'EXCLUSIVE';
+      const detail = [rolls ? `+${rolls.n} ROLLS` : null, item ? 'EXCLUSIVE' : !rolls && !item ? 'COINS' : null].filter(Boolean).join(' · ');
+      const stateLabel = m.claimed ? 'DONE' : m.expired ? 'MISSED' : m.current ? (contract.canClaim ? 'READY' : `${contract.minutesPlayed}/10 MIN`) : 'LOCKED';
+      const preview = item ? this.rewardIcon(item) : `<span class="rc-coins-icon">${COINS_SVG}</span>`;
+      return `<div class="rc-day ${m.current ? 'current' : ''} ${m.claimed ? 'claimed' : ''} ${m.expired ? 'expired' : ''} ${item ? 'exclusive' : ''}">
+        <small>DAY ${m.day}</small><span class="rc-art">${preview}</span>
+        <b class="rc-value">${value}</b><span class="rc-detail">${detail}</span><em>${stateLabel}</em>
+      </div>`;
+    }).join('');
+    const contractHeading = contract.complete ? 'COMPLETE' : contract.active ? `DAY ${contract.day}/7` : 'ENDED';
+    contractEl.innerHTML = `<div class="rc-hero">
+        <div class="rc-kicker"><span class="rc-live-dot"></span> 7-DAY RELEASE EVENT <em>${contractHeading}</em></div>
+        <div class="rc-title">OP REWARDS</div>
+        <p class="rc-sub">Play 10 min today to unlock your drop.</p>
+      </div>
+      <div class="rc-days">${contractDays}</div>
+      <div class="rc-progress"><div class="rc-progress-head"><span>PLAYTIME TODAY</span><b>${contract.minutesPlayed}/10 MIN</b></div><span class="rc-progress-track"><i style="width:${contract.minutesPlayed * 10}%"></i></span></div>
+      <button id="returnClaimBtn" class="btn btn-play mc-btn rc-claim" ${contract.canClaim ? '' : 'disabled'}>${contract.canClaim ? `CLAIM DAY ${contract.day}` : contract.ready ? 'PLAY 10 MIN TO CLAIM' : contract.complete ? 'ALL REWARDS CLAIMED' : contract.active ? 'CLAIMED TODAY' : 'EVENT ENDED'}</button>`;
+    const returnClaimBtn = $('returnClaimBtn');
+    if (returnClaimBtn) returnClaimBtn.onclick = (e) => { e.stopPropagation(); this.app.claimReturnContract(contract.day); };
+    this.fillPreviews(contractEl);
     // Limited-time event
     const ev = Prog.event();
     const evEl = $('evCard');
@@ -214,31 +259,20 @@ export class UI {
       evEl.innerHTML = `<div class="mc-head"><span>NEXT EVENT</span><em>IN ${fmtLeft(nx.start - Date.now())}</em></div><div class="ev-body"><div class="ev-txt"><b>${nx.name}</b><small>${nx.desc}</small></div></div>`;
     }
     this.fillPreviews(evEl);
-    // Login calendar (7 days, cycles): days 1-6 in two rows, the day 7 chest as a big tile on the right
+    // Login calendar (7 days, cycles)
     const cs = Prog.calendarState();
-    const reached = cs.avail ? cs.next - 1 : cs.cur;
-    const CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="square"/></svg>';
     let html = '';
     for (let d = 1; d <= 7; d++) {
-      const done = d <= reached;
+      const done = cs.avail ? d < cs.next : d <= cs.cur;
       const cur = cs.avail && d === cs.next;
       const r = CALENDAR[d - 1];
-      const art = r.kind === 'coins' ? COINS_SVG : r.kind === 'token' ? TOKEN_SVG : r.kind === 'chest' ? CHEST_SVG : '<b class="dd-xp">XP</b>';
-      const amt = r.kind === 'chest' ? `${r.n}<em>+${r.tokens} ROLLS</em>` : r.kind === 'token' ? 'FREE ROLL' : r.kind === 'sp' ? `${r.n} XP` : r.n;
-      html += `<div class="dd ${done ? 'done' : ''} ${cur ? 'cur' : ''} ${d === 7 ? 'big' : ''} k-${r.kind}">
-        <span class="dd-day">${d === 7 ? 'DAY 7' : `DAY ${d}`}</span>
-        <span class="dd-art">${art}</span>
-        <b class="dd-amt">${amt}</b>
-        ${done ? `<span class="dd-ok">${CHECK}</span>` : ''}
-      </div>`;
+      html += `<div class="dd ${done ? 'done' : ''} ${cur ? 'cur' : ''} ${d === 7 ? 'big' : ''}">${this.rewardIcon(r)}<b>${this.rewardShort(r)}</b><small>DAY ${d}</small></div>`;
     }
     $('dailyDays').innerHTML = html;
-    $('dailyProg').innerHTML = Array.from({ length: 7 }, (_, i) => `<i class="${i < reached ? 'on' : ''} ${cs.avail && i === cs.next - 1 ? 'now' : ''}"></i>`).join('');
-    $('dailyStreak').textContent = `STREAK ${reached}/7`;
+    $('dailyStreak').textContent = `DAY ${Math.max(1, cs.avail ? cs.next : cs.cur)}`;
     const btn = $('dailyBtn');
     btn.disabled = !cs.avail;
-    if (cs.avail) btn.innerHTML = `CLAIM DAY ${cs.next}<span>${Prog.label(CALENDAR[cs.next - 1])}</span>`;
-    else { const tm = new Date(); tm.setHours(24, 0, 0, 0); btn.innerHTML = `NEXT REWARD<span>${fmtLeft(tm - Date.now())}</span>`; }
+    btn.textContent = cs.avail ? `CLAIM DAY ${cs.next}: ${Prog.label(CALENDAR[cs.next - 1])}` : 'COME BACK TOMORROW';
     // Daily challenges
     const tomorrow = new Date(); tomorrow.setHours(24, 0, 0, 0);
     $('chalReset').textContent = `RESETS ${fmtLeft(tomorrow - Date.now())}`;
@@ -247,6 +281,19 @@ export class UI {
         ${c.claimed ? '<span class="ch-ok">DONE</span>' : c.done ? `<button class="ch-claim" data-chal="${c.id}">+${c.sp} XP</button>` : `<span class="ch-n">${c.prog}/${c.target}</span>`}
       </div>`).join('');
     $('chalList').querySelectorAll('[data-chal]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.claimChallenge(b.dataset.chal); }));
+    // Daily Match Circuit: repeatable, transparent milestones. Losses count too.
+    const circuit = Prog.matchCircuitState();
+    const divider = `<div class="mc-divider">MATCH CIRCUIT · ${circuit.count}/${circuit.target} TODAY</div>`;
+    const circuitRows = circuit.milestones.map((m) => {
+      const progress = Math.min(100, (circuit.count / m.matches) * 100);
+      const status = m.claimed ? '<span class="ch-ok">CLAIMED</span>'
+        : m.ready ? `<button class="ch-claim" data-run="${m.i}">CLAIM</button>`
+        : `<span class="ch-n">${Math.min(circuit.count, m.matches)}/${m.matches}</span>`;
+      return `<div class="ch ${m.ready ? 'done' : ''} ${m.claimed ? 'claimed' : ''}">
+        <div class="ch-txt"><b>${m.matches} MATCH${m.matches === 1 ? '' : 'ES'}</b><span class="ch-bar"><i style="width:${progress}%"></i></span><small class="ch-reward">${Prog.label(m.reward)}</small></div>${status}</div>`;
+    }).join('');
+    $('chalList').insertAdjacentHTML('beforeend', divider + circuitRows);
+    $('chalList').querySelectorAll('[data-run]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.claimMatchCircuit(+b.dataset.run); }));
     // Playtime rewards
     const pt = Prog.playtimeState();
     const mins = pt[0].mins;
@@ -455,6 +502,7 @@ export class UI {
     const u = SDK.user;
     if (u && u.profilePictureUrl) $('pcAvatar').style.backgroundImage = `url("${u.profilePictureUrl}")`;
     $('loginBtn').classList.toggle('hidden', !(SDK.available && !SDK.user && SDK.environment === 'crazygames'));
+    $('loginBtn').textContent = Save.p.loginBonusClaimed ? 'LOG IN · SYNC PROGRESS' : 'LOG IN + 300 COINS';
   }
 
   // ------------------------------------------------------------------ HUD
@@ -713,9 +761,18 @@ export class UI {
     $('doubleBtn').disabled = false;
     if (!this.doubleHtml) this.doubleHtml = $('doubleBtn').innerHTML;
     $('doubleBtn').innerHTML = this.doubleHtml;
+    $('resLoginBtn').classList.toggle('hidden', !(SDK.available && !SDK.user && SDK.environment === 'crazygames'));
+    $('resLoginBtn').textContent = Save.p.loginBonusClaimed ? 'LOG IN TO SYNC PROGRESS' : 'SYNC PROGRESS + CLAIM 300 COINS';
     $('againBtn').textContent = 'PLAY AGAIN';
     $('againBtn').classList.remove('hidden');
-    this.setResNext('');
+    const circuit = r.matchCircuit;
+    if (circuit) {
+      const ready = circuit.milestones.filter((m) => m.ready).length;
+      const next = circuit.milestones.find((m) => !m.claimed && m.matches > circuit.count);
+      if (ready) this.setResNext(`Daily Match Circuit: ${ready} reward${ready === 1 ? '' : 's'} ready to claim in the lobby.`);
+      else if (next) this.setResNext(`Daily Match Circuit: ${circuit.count}/${circuit.target} today · ${next.matches - circuit.count} more for ${Prog.label(next.reward)}.`);
+      else this.setResNext('Daily Match Circuit complete — claim your rewards in the lobby.');
+    } else this.setResNext('');
     this.modal('results', true);
   }
   setResNext(text) { $('resNext').textContent = text; }
@@ -1217,7 +1274,7 @@ export class UI {
       <div class="set-sec">Mouse</div>
       ${bindRow('unlock')}
       <div class="set-sec" data-sec="keys">Gameplay Keybinds</div>
-      ${['kick', 'curve', 'autoCurve', 'pass', 'flick', 'tackle', 'dive', 'lob', 'request', 'dribble', 'sprint', 'item1', 'item2'].map(bindRow).join('')}
+      ${['kick', 'curve', 'pass', 'flick', 'tackle', 'dive', 'lob', 'request', 'dribble', 'sprint', 'item1', 'item2'].map(bindRow).join('')}
       <div class="set-sec">Movement & UI Keybinds</div>
       ${['forward', 'back', 'left', 'right', 'stats', 'lobby', 'chat', 'emote'].map(bindRow).join('')}
       <div class="set-row"><div class="lbl"><b>Reset all keybinds</b><span>Restore the default controls</span></div><button class="bind-reset" id="resetBinds">Reset</button></div>

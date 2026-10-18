@@ -41,6 +41,8 @@ class App {
     this.lockFailed = false;
     this.wheelOpen = false;
     this.pendingResults = null;
+    this.quickMatchPending = false;
+    this.skipJoinKickoffAnnouncement = false;
   }
 
   async boot() {
@@ -121,9 +123,19 @@ class App {
   // First launch: tutorial (skippable) -> free roll for your first item. Friends arriving through an
   // invite go straight into the match and get their free roll back in the menu.
   newPlayerFlow() {
-    if (Save.p.starterRoll) return;
+    if (Save.p.starterRoll) {
+      if (Save.p.tutDone) this.maybeShowReleaseEvent();
+      return;
+    }
     if (!Save.p.tutDone) this.startTraining('tutorial', { firstRun: true });
     else this.ui.showStarterRoll();
+  }
+
+  maybeShowReleaseEvent() {
+    if (!Save.p.tutDone || !Save.p.starterRoll || Save.p.releaseIntroSeen) return;
+    Save.p.releaseIntroSeen = true;
+    Save.save(true);
+    this.ui.modal('releaseEvent', true);
   }
 
   starterRoll() {
@@ -168,6 +180,8 @@ class App {
 
   // ================================================================== menu
   showMenu(page) {
+    // Close any chat/emote wheel before leaving gameplay for the menu.
+    this.ui.closeWheel();
     this.state = 'menu';
     this.ui.screen('menu', true);
     this.ui.setPage(page || this.ui.page || 'play');
@@ -181,6 +195,40 @@ class App {
     SDK.gameplayStop();
     // Open the signalling connection now so Quick Match connects instantly
     try { prewarmNet(); } catch (e) { /* offline */ }
+  }
+
+  async login() {
+    if (!SDK.available || SDK.user) return;
+    const user = await SDK.showAuthPrompt();
+    if (user) {
+      const firstLink = !Save.p.loginBonusClaimed;
+      if (firstLink) {
+        Save.p.loginBonusClaimed = true;
+        Save.addCoins(300);
+      }
+      Save.save(true);
+      this.ui.refreshProfile();
+      $('resLoginBtn').classList.add('hidden');
+      this.ui.globalToast(firstLink ? 'Progress linked! +300 welcome coins added.' : 'Progress linked to your CrazyGames account.', 4000);
+    } else {
+      this.ui.globalToast('No worries — you can keep playing as a guest.', 3000);
+    }
+  }
+
+  claimReturnContract(day) {
+    const state = Prog.returnContractState();
+    const r = Prog.claimReturnContract(day);
+    if (!r) {
+      if (state.active && state.day === day && state.ready && state.playSeconds < 600) {
+        const minutesLeft = Math.max(1, 10 - state.minutesPlayed);
+        this.ui.globalToast(`Play ${minutesLeft} more minute${minutesLeft === 1 ? '' : 's'} to unlock today's reward.`, 3500);
+      }
+      return;
+    }
+    this.audio.coins();
+    this.ui.globalToast(`COMEBACK CONTRACT: ${Prog.label(r)}`, 5000);
+    this.ui.renderPlayPage();
+    this.ui.refreshProfile();
   }
 
   claimDaily() {
@@ -199,6 +247,16 @@ class App {
     const r = Prog.claimChallenge(id);
     if (r) { this.audio.coins(); this.ui.globalToast(`Challenge complete: +${r.sp} Season XP, +${r.coins} coins`); }
     this.afterClaim();
+  }
+
+  claimMatchCircuit(i) {
+    const r = Prog.claimMatchCircuit(i);
+    if (r) {
+      this.audio.coins();
+      this.ui.globalToast(`Daily Match Circuit: ${Prog.label(r)} claimed!`, 3000);
+      this.ui.renderPlayPage();
+      this.ui.refreshProfile();
+    }
   }
   claimPlaytime(i) {
     const r = Prog.claimPlaytime(i);
@@ -344,6 +402,8 @@ class App {
     else if (team === -1) Save.p.team = Math.random() < 0.5 ? 0 : 1;
     Save.save();
     this.endSession();
+    // This first session is provisional while CrazyGames public matchmaking checks for a live room.
+    this.quickMatchPending = true;
     const session = new Session({ mode: 'match', role: 'offline', roomKind: 'pub', profile: this.hello(), onEvent: (e) => this.onGameEvent(e) });
     session.startHost({ itemMul: Prog.mods().itemMul });
     this.session = session;
@@ -361,11 +421,16 @@ class App {
     try {
       res = await withTimeout(net.quickPlay(this.hello()), 45000);
     } catch (e) {
-      if (this.searchToken === token) { this.net = null; this.netStatus = 'bots'; }
+      if (this.searchToken === token) {
+        this.net = null;
+        this.netStatus = 'bots';
+        this.quickMatchPending = false;
+      }
       try { net.close(); } catch (e2) { /* ignore */ }
       return;
     }
-    if (this.searchToken !== token || this.session !== session || session.destroyed) { net.close(); return; }
+    if (this.searchToken !== token || this.session !== session || session.destroyed || session.ended || session.view.phase === 'end') { net.close(); return; }
+    this.quickMatchPending = false;
     this.searchToken = null;
     const code = `pub-${res.k}`;
     if (res.role === 'host') {
@@ -510,6 +575,9 @@ class App {
 
   enterGame() {
     const s = this.session;
+    // A client joining during an existing kickoff should skip that room's current intro.
+    // Private-room clients in warmup still get the countdown when their host starts the match.
+    this.skipJoinKickoffAnnouncement = !!(s.mode !== 'practice' && s.role === 'client' && s.view.phase === 'kickoff');
     this.state = 'game';
     this.ui.screen('menu', false);
     this.ui.screen('hud', true);
@@ -540,6 +608,8 @@ class App {
     this.searchToken = null;
     this.goalInfo = null;
     this.ui.hideGoalCard();
+    this.quickMatchPending = false;
+    this.skipJoinKickoffAnnouncement = false;
     if (this.session) { this.session.destroy(); this.session = null; }
     if (this.net) { try { this.net.close(); } catch (e) { /* ignore */ } this.net = null; }
     this.stopBgTicker();
@@ -589,32 +659,18 @@ class App {
     this.showMenu(page || (wasTraining ? 'training' : 'play'));
     // Nobody leaves the first session without their free starter item
     if (!Save.p.starterRoll && !this.ui.isOpen('rollReveal')) { Save.p.tutDone = true; Save.save(true); this.ui.showStarterRoll(); }
+    this.maybeShowReleaseEvent();
     if (wasMatch && !early) this.midgameAd();
   }
 
   playAgain() {
     const s = this.session;
     this.ui.modal('results', false);
-    if (s && !s.isAuthority && s.net && this.rematchReady && !s.destroyed) {
-      // the room already started its rematch: jump straight in
-      this.rematchReady = false;
-      this.pendingResults = null;
-      this.enterGame();
-      return;
-    }
-    if (s && !s.isAuthority && s.net && s.roomKind === 'priv' && !s.destroyed) {
-      // private room: stay together and wait for the host's rematch
-      this.pendingResults = null;
-      this.enterGame();
-      this.ui.globalToast('Waiting for the host to start the next match', 3500);
-      return;
-    }
     this.rematchReady = false;
-    if (s && s.isAuthority) {
-      s.newMatch();
-      this.enterGame();
-      this.midgameAd();
-    } else this.quickPlay(Save.p.team);
+    this.pendingResults = null;
+    // Full time retires the old room; Play Again always creates/joins a fresh match state.
+    this.quickPlay(Save.p.team);
+    if (s && s.isAuthority) this.midgameAd();
   }
 
   midgameAd() {
@@ -797,7 +853,11 @@ class App {
         break;
       }
       case 'target': A.goalHorn(); break;
-      case 'joined': case 'left': case 'hostlost': break; // never reveal who is a real player
+      case 'hostlost':
+        this.leaveToLobby(true);
+        this.ui.globalToast('The match server closed. Join a new match from the lobby.', 4500);
+        break;
+      case 'joined': case 'left': break; // never reveal who is a real player
       case 'newmatch':
         // The room's host started a rematch. Players still looking at their results stay there
         // until they choose Play Again themselves.
@@ -811,6 +871,20 @@ class App {
 
   onMatchEnd(ev) {
     const s = this.session;
+    if (!s) return;
+    if (this.quickMatchPending) {
+      // The provisional bot match can finish before matchmaking completes; cancel the search
+      // so it cannot attach an ended session to a newly claimed room.
+      this.quickMatchPending = false;
+      this.searchToken = null;
+      const pendingNet = this.net;
+      this.net = null;
+      if (pendingNet) { try { pendingNet.close(); } catch (e) { /* ignore */ } }
+    }
+    if (s.roomKind) SDK.leftRoom();
+    // Retire the public/private room at full time. Existing clients keep their local
+    // results screen, but the ended match can no longer accept re-joins.
+    if (s.isAuthority && s.net && s.net.isHost) s.net.retire();
     const me = s.me;
     const myTeam = me ? me.team : 0;
     const row = (ev.stats || []).find((r) => r.id === s.localId) || {};
@@ -825,6 +899,7 @@ class App {
     Save.save(true);
     const chalBefore = Prog.challenges().filter((c) => c.done).length;
     const pass = Prog.recordMatch({ ...row, items: this.matchItems || 0, win: outcome === 'win' });
+    const matchCircuit = Prog.matchCircuitState();
     this.matchItems = 0;
     const newChal = Prog.challenges().filter((c) => c.done).length - chalBefore;
     const mvpRow = (ev.stats || []).find((r) => r.id === ev.mvp);
@@ -838,6 +913,7 @@ class App {
       this.input.exitLock();
       this.ui.showResults({
         outcome, score: ev.score, mvp: mvpRow ? mvpRow.name : '', stats: row, coins, xp, sp: pass.sp, tiers: pass.tiers,
+        matchCircuit,
         canDouble: SDK.available && !this.adblock, online: !!s.net, isHost: s.isAuthority,
       });
       this.ui.showBanner(true);
@@ -920,7 +996,7 @@ class App {
     }
   }
 
-  // Curve for the next shot (set with the mouse while Curve / Auto Curve is held)
+  // Curve strength for the next shot comes only from the held Curve control.
   shotCurve() {
     return clamp(this.curveAmt || 0, -1, 1);
   }
@@ -937,13 +1013,14 @@ class App {
     const active = !this.ui.anyModal() && (inp.locked || touch || this.lockFailed) && !this.adPlaying;
     this.ui.clickToPlay(!touch && !this.lockFailed && !inp.locked && !this.ui.anyModal() && !this.wheelOpen && !this.renderer.awards.active);
 
-    // Curve: while a shot charges, holding Curve (RMB) or Auto Curve (MMB, which also starts the
-    // kick by itself) locks the camera where it was; moving the mouse then bends the shot that way
+    // Hold Curve while charging to lock aim and use horizontal mouse movement to bend the shot.
     const charging = !!(me && me.charging);
     if (!charging) this.curveAmt = 0;
-    const curveHold = charging && active && !touch && (inp.isDown('curve') || inp.isDown('autoCurve'));
-    if (curveHold) this.curveAmt = clamp((this.curveAmt || 0) + inp.mdx * 0.0042 * (settings.curveSens || 1), -1, 1);
-    this.curveMode = curveHold ? (inp.isDown('autoCurve') ? 'AUTO CURVE' : 'CURVE') : null;
+    // Curve control: lock the camera and let horizontal mouse movement set shot bend.
+    const curveHold = charging && active && !touch && inp.isDown('curve');
+    const cs = 0.0045 * (settings.curveSens || 1);
+    if (curveHold) this.curveAmt = clamp((this.curveAmt || 0) + inp.mdx * cs * 1.6, -1, 1);
+    this.curveMode = curveHold ? 'CURVE' : null;
     // Camera
     if ((active || inp.dragging) && !curveHold) {
       const k = 0.0024 * settings.sens;
@@ -1001,8 +1078,8 @@ class App {
         if (me.anim !== 'bike' && me.anim !== 'volley' && this.bikeAim.t > 0.2) this.bikeAim = null; // knocked out of it
         else if (this.bikeAim.t >= KICK.bikeHold || (this.bikeAim.released && this.bikeAim.t >= 0.14)) fireBike();
       }
-      // Kick, or Auto Curve (= kick + curve in one button). Goalkeepers without the ball punch.
-      const kickBtn = inp.wasPressed('kick') ? 'kick' : inp.wasPressed('autoCurve') ? 'autoCurve' : null;
+      // Kick. Goalkeepers without the ball punch.
+      const kickBtn = inp.wasPressed('kick') ? 'kick' : null;
       const keeperFree = me.keeper && inOwnBox(me, 0.6) && !s.hasBall();
       if (kickBtn) {
         const b = s.view.ball;
@@ -1276,6 +1353,21 @@ class App {
   }
 
   updatePhaseAnnouncements(s, v) {
+    // Quick Match starts a local bot-filled session before it knows whether a live room exists.
+    // Do not announce that provisional kickoff; the session may be replaced by an active match.
+    if (this.quickMatchPending) {
+      this.lastCount = null;
+      this.lastPhase = v.phase;
+      return;
+    }
+    // Joining an existing room mid-kickoff should not replay its countdown or role announcement.
+    if (this.skipJoinKickoffAnnouncement && v.phase === 'kickoff' && s.mode !== 'practice') {
+      this.lastCount = null;
+      this.lastPhase = v.phase;
+      return;
+    }
+    const skippedJoinIntro = this.skipJoinKickoffAnnouncement;
+    this.skipJoinKickoffAnnouncement = false;
     if (v.phase === 'kickoff' && s.mode !== 'practice') {
       const n = Math.ceil(v.phaseT);
       if (n !== this.lastCount && n > 0 && n <= 3) {
@@ -1302,7 +1394,7 @@ class App {
     if (v.phase !== this.lastPhase) {
       if (s.mode !== 'practice' && ((this.lastPhase === 'goal' && v.phase === 'replay') || ((this.lastPhase === 'replay' || this.lastPhase === 'goal') && v.phase === 'kickoff'))) this.ui.barWipe();
       if (v.phase !== 'kickoff' && v.phase !== 'replay' && v.phase !== 'goal' && this.goalInfo) { this.ui.hideGoalCard(); this.goalInfo = null; }
-      if (v.phase === 'play' && this.lastPhase === 'kickoff' && s.mode !== 'practice') this.audio.beep(true);
+      if (v.phase === 'play' && this.lastPhase === 'kickoff' && s.mode !== 'practice' && !skippedJoinIntro) this.audio.beep(true);
       this.lastPhase = v.phase;
     }
   }
