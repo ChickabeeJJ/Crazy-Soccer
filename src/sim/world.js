@@ -1359,7 +1359,8 @@ export class World {
     if (this.overtime || this.lastChance) { this.endMatch(); return; }
     const conceded = this.lastGoal ? 1 - this.lastGoal.team : 0;
     this.resetKickoff(conceded);
-    this.setPhase('kickoff', this.mode === 'practice' ? 0.3 : MATCH.kickoffTime);
+    const card = this.mode !== 'practice' && this.lastGoal && !this.lastGoal.own && this.lastGoal.scorer >= 0;
+    this.setPhase('kickoff', this.mode === 'practice' ? 0.3 : MATCH.kickoffTime + (card ? MATCH.cardTime : 0));
   }
 
   checkEnd(afterGoal) {

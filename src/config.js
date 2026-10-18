@@ -97,6 +97,7 @@ export const MATCH = {
   duration: 360,
   mercy: 4,
   kickoffTime: 3,
+  cardTime: 2.8, // scorer card + emote bar after the replay, before the countdown
   goalTime: 2.6,
   replayTime: 4.6,
   endTime: 4,

@@ -52,7 +52,8 @@
           <div class="mn-card daily">
             <div class="mc-head"><span>LOGIN REWARDS</span><em id="dailyStreak">Day 1</em></div>
             <div id="dailyDays" class="daily-days"></div>
-            <button id="dailyBtn" class="btn btn-gold mc-btn">CLAIM</button>
+            <div id="dailyProg" class="daily-prog"></div>
+            <button id="dailyBtn" class="daily-btn">CLAIM</button>
           </div>
           <div class="mn-card chal">
             <div class="mc-head"><span>DAILY CHALLENGES</span><em id="chalReset"></em></div>
@@ -174,6 +175,8 @@
       </div>
       <div id="announce" class="announce"></div>
       <div id="crosshair" class="crosshair"><i></i><i></i><i></i><i></i><b></b></div>
+      <div id="goalCard" class="goal-card"><span class="gc-tag" id="gcTag">GOAL!</span><div id="gcCard"></div></div>
+      <div id="emoteBar" class="emote-bar"></div>
       <div id="curveMeter" class="curve-meter"><span id="cmLabel">CURVE</span><div class="cm-bar"><i id="cmFill"></i><em></em></div></div>
       <div id="hint" class="hint"></div>
 
@@ -229,6 +232,15 @@
     </div>
 
     <div id="resBanner" class="res-banner"></div>
+
+    <div id="cardReveal" class="modal">
+      <div class="panel">
+        <div id="crvBody" class="crv-row"></div>
+        <div id="crvInfo"></div>
+        <button id="crvDone" class="btn btn-play">NICE</button>
+      </div>
+    </div>
+    <div id="barWipe" class="bar-wipe"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
 
     <!-- Play sheet: pick a team, then a mode -->
     <div id="playSheet" class="modal">

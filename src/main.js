@@ -161,7 +161,8 @@ class App {
 
   cos() {
     const e = Save.p.eq;
-    return { skin: e.skin, hair: e.hair, hairColor: e.hairColor, eyeColor: e.eyeColor || 0, jersey: e.jersey, boots: e.boots, ball: e.ball, goalfx: e.goalfx, number: e.number };
+    const st = Save.p.stats;
+    return { skin: e.skin, hair: e.hair, hairColor: e.hairColor, eyeColor: e.eyeColor || 0, jersey: e.jersey, boots: e.boots, ball: e.ball, goalfx: e.goalfx, number: e.number, card: e.card || 'basic', cs: [st.goals, st.assists, st.saves] };
   }
   hello() { return { name: Save.displayName(), cos: this.cos(), team: Save.p.team === 1 ? 1 : 0, pw: Save.activePowers() }; }
 
@@ -236,6 +237,15 @@ class App {
     }
     this.audio.coins();
     this.ui.showRoll(res);
+    this.ui.refreshProfile();
+  }
+
+  rollCards(kind, n) {
+    const res = Save.rollCards(kind, n);
+    if (!res) { this.audio.beep(false); this.ui.globalToast('Not enough coins. Win matches and claim daily rewards to earn more!'); return; }
+    this.audio.coins();
+    this.audio.reveal(res.some((r) => r.card.rarity === 'legend' || r.card.rarity === 'mythic'));
+    this.ui.showCardReveal(res);
     this.ui.refreshProfile();
   }
 
@@ -528,6 +538,8 @@ class App {
 
   endSession() {
     this.searchToken = null;
+    this.goalInfo = null;
+    this.ui.hideGoalCard();
     if (this.session) { this.session.destroy(); this.session = null; }
     if (this.net) { try { this.net.close(); } catch (e) { /* ignore */ } this.net = null; }
     this.stopBgTicker();
@@ -742,6 +754,7 @@ class App {
         this.ui.announce(title);
         this.ui.goalPopup(ev.own ? `Own goal${scorer ? ` (${scorer})` : ''}` : scorer, ev.team, assist);
         if (ev.scorer === s.localId && !ev.own) { SDK.happytime(); }
+        this.goalInfo = s.mode !== 'practice' && !ev.own && ev.scorer >= 0 ? { scorer: ev.scorer, shown: false } : null;
         break;
       }
       case 'stun':
@@ -1273,7 +1286,22 @@ class App {
         this.audio.beep(false);
       }
     } else this.lastCount = null;
+    // After the replay: the scorer's card (and your emote bar if it was you), then a bar wipe into the countdown
+    const gi = this.goalInfo;
+    if (gi && v.phase === 'kickoff' && v.phaseT > MATCH.kickoffTime + 0.05 && !gi.shown) {
+      gi.shown = true;
+      const p = s.playerById(gi.scorer);
+      if (p) this.ui.showGoalCard(p, gi.scorer === s.localId);
+    }
+    if (gi && gi.shown && !gi.hidden && (v.phase !== 'kickoff' || v.phaseT <= MATCH.kickoffTime)) {
+      gi.hidden = true;
+      this.ui.hideGoalCard();
+      if (v.phase === 'kickoff') this.ui.barWipe();
+      this.goalInfo = null;
+    }
     if (v.phase !== this.lastPhase) {
+      if (s.mode !== 'practice' && ((this.lastPhase === 'goal' && v.phase === 'replay') || ((this.lastPhase === 'replay' || this.lastPhase === 'goal') && v.phase === 'kickoff'))) this.ui.barWipe();
+      if (v.phase !== 'kickoff' && v.phase !== 'replay' && v.phase !== 'goal' && this.goalInfo) { this.ui.hideGoalCard(); this.goalInfo = null; }
       if (v.phase === 'play' && this.lastPhase === 'kickoff' && s.mode !== 'practice') this.audio.beep(true);
       this.lastPhase = v.phase;
     }

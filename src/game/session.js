@@ -19,6 +19,7 @@ function sanitizeCos(c) {
   return {
     skin: clamp(c.skin | 0, 0, 5), hair: s(c.hair, 'spiky'), hairColor: clamp(c.hairColor | 0, 0, 11), eyeColor: clamp(c.eyeColor | 0, 0, 4),
     jersey: s(c.jersey, 'classic'), boots: s(c.boots, 'classic'), ball: s(c.ball, 'classic'), goalfx: s(c.goalfx, 'confetti'), number: clamp(c.number | 0, 1, 99),
+    card: s(c.card, 'basic'), cs: Array.isArray(c.cs) ? c.cs.slice(0, 3).map((v) => clamp(v | 0, 0, 999999)) : [0, 0, 0],
   };
 }
 

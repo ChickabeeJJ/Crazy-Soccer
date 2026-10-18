@@ -663,6 +663,7 @@ function buildDesertWalls(group) {
   const stone = TX.stoneTexture();
   const wood = new THREE.MeshToonMaterial({ color: 0x7a4a2a });
   const woodDark = new THREE.MeshToonMaterial({ color: 0x5a341c });
+  const glowStrip = new THREE.MeshBasicMaterial({ color: 0x4cc8ff });
   const side = (len, x, z, rotY) => {
     const t = stone.clone();
     t.needsUpdate = true;
@@ -672,6 +673,11 @@ function buildDesertWalls(group) {
     base.rotation.y = rotY;
     base.castShadow = true; base.receiveShadow = true;
     group.add(base);
+    // Glowing blue light strip along the top of the low wall (like the canyon arena)
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(len, 0.12, 0.86), glowStrip);
+    strip.position.set(x, 0.93, z);
+    strip.rotation.y = rotY;
+    group.add(strip);
     for (const y of [1.25, 1.75]) {
       const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.16, 0.2), wood);
       rail.position.set(x, y, z);
@@ -787,11 +793,144 @@ function buildDesert(root, quality) {
     p.castShadow = quality.shadows;
     g.add(p);
   }
+  addCanyonProps(g, rnd, gap);
   g.userData.crowd = buildStands(g, { stand: 0xb07a4e, trim: 0x6b3f22, fill: 0.82, seed: 23 }, quality);
   g.userData.flags = addFlags(g, flagSpots(5 * 1.1 + 5, 4 * 1.1 + 2.5));
   if (!quality.perf) g.userData.motes = addMotes(g, 0xffc890, 220);
   addFloodlights(g, [[-FIELD.wallX - 3.5, -FIELD.wallZ - 3.5], [FIELD.wallX + 3.5, -FIELD.wallZ - 3.5], [-FIELD.wallX - 3.5, FIELD.wallZ + 3.5], [FIELD.wallX + 3.5, FIELD.wallZ + 3.5]], 23);
   return g;
+}
+
+// Canyon arena set dressing: sci-fi monoliths, oil pumpjacks, satellite dishes and a power line.
+// Everything sits well outside the stands (gap() is the distance from the keep-out box).
+function addCanyonProps(g, rnd, gap) {
+  const dark = new THREE.MeshToonMaterial({ color: 0x2a1f4a });
+  const darker = new THREE.MeshToonMaterial({ color: 0x1a1430 });
+  const neon = new THREE.MeshBasicMaterial({ color: 0x8f6bff });
+  const cyan = new THREE.MeshBasicMaterial({ color: 0x4cc8ff });
+  const glowMat = new THREE.SpriteMaterial({ map: TX.glowTexture(), color: 0x9a7bff, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending });
+  const free = (x, z, m) => gap(x, z) > m;
+  // Monoliths: tall angular slabs with glowing seams, in a loose ring around the arena
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2 + (rnd() - 0.5) * 0.25, r = 112 + rnd() * 40;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (!free(x, z, 10)) continue;
+    const h = 30 + rnd() * 34, w = 4 + rnd() * 3, d = 3 + rnd() * 2;
+    const m = new THREE.Group();
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), i % 3 ? dark : darker);
+    slab.position.y = h / 2;
+    m.add(slab);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(w * 0.72, w * 0.9, 4), i % 3 ? dark : darker);
+    cap.position.y = h + w * 0.45;
+    cap.rotation.y = Math.PI / 4;
+    m.add(cap);
+    for (const sx of [-1, 1]) {
+      const seam = new THREE.Mesh(new THREE.BoxGeometry(0.22, h * 0.86, 0.22), i % 2 ? neon : cyan);
+      seam.position.set(sx * (w / 2 + 0.02), h * 0.5, d / 2 + 0.02);
+      m.add(seam);
+    }
+    const band = new THREE.Mesh(new THREE.BoxGeometry(w + 0.1, 0.4, d + 0.1), i % 2 ? neon : cyan);
+    band.position.y = h * (0.55 + rnd() * 0.3);
+    m.add(band);
+    const glow = new THREE.Sprite(glowMat);
+    glow.position.y = band.position.y;
+    glow.scale.set(w * 6, w * 6, 1);
+    m.add(glow);
+    m.position.set(x, 0, z);
+    m.rotation.y = -a + Math.PI / 2;
+    m.rotation.z = (rnd() - 0.5) * 0.06;
+    g.add(m);
+  }
+  // Oil pumpjacks with red signs
+  const steel = new THREE.MeshToonMaterial({ color: 0x3a3f4a });
+  const red = new THREE.MeshToonMaterial({ color: 0xd8342c });
+  const sign = new THREE.MeshBasicMaterial({ color: 0xff4a3a });
+  const jacks = [[0.55, 150], [2.2, 160], [3.6, 145], [5.3, 155]];
+  for (const [a, r] of jacks) {
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (!free(x, z, 12)) continue;
+    const j = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(12, 0.8, 3.2), steel);
+    base.position.y = 0.4;
+    j.add(base);
+    for (const sz of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.4, 7.4, 0.4), steel);
+      leg.position.set(0, 4, sz * 1.1);
+      leg.rotation.x = -sz * 0.14;
+      j.add(leg);
+    }
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(11, 0.8, 0.7), red);
+    beam.position.set(0, 7.8, 0);
+    beam.rotation.z = 0.14;
+    j.add(beam);
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 0.9, 12, 1, false, 0, Math.PI), red);
+    head.rotation.set(Math.PI / 2, 0, -Math.PI / 2 + 0.14);
+    head.position.set(5.6, 8.6, 0);
+    j.add(head);
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 6, 6), steel);
+    rod.position.set(6.6, 4.4, 0);
+    j.add(rod);
+    const weight = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 1.6), steel);
+    weight.position.set(-4.4, 4.4, 0);
+    j.add(weight);
+    const board = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.8, 0.2), sign);
+    board.position.set(-3.5, 2.4, 1.8);
+    j.add(board);
+    j.position.set(x, 0, z);
+    j.rotation.y = rnd() * Math.PI;
+    j.scale.setScalar(1.3);
+    g.add(j);
+  }
+  // Satellite dishes
+  const white = new THREE.MeshToonMaterial({ color: 0xe8e4dc, side: THREE.DoubleSide });
+  for (const [a, r] of [[1.25, 128], [4.45, 132], [2.9, 175]]) {
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (!free(x, z, 10)) continue;
+    const d = new THREE.Group();
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 9, 8), steel);
+    post.position.y = 4.5;
+    d.add(post);
+    const dish = new THREE.Mesh(new THREE.SphereGeometry(6, 18, 8, 0, Math.PI * 2, 0, Math.PI * 0.32), white);
+    dish.position.y = 10;
+    dish.rotation.x = -Math.PI * 0.62;
+    d.add(dish);
+    const horn = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 5, 5), steel);
+    horn.position.set(0, 10.4, 2.4);
+    horn.rotation.x = Math.PI * 0.38;
+    d.add(horn);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6), red);
+    lamp.position.set(0, 9.4 + 2.2, 4.4);
+    d.add(lamp);
+    d.position.set(x, 0, z);
+    d.rotation.y = Math.atan2(-x, -z) + Math.PI;
+    g.add(d);
+  }
+  // Power line marching across the far side
+  const wood = new THREE.MeshToonMaterial({ color: 0x5a341c });
+  const cable = new THREE.MeshBasicMaterial({ color: 0x1a1420 });
+  const pts = [];
+  for (let i = -5; i <= 5; i++) {
+    const x = i * 38, z = -150 - Math.abs(i) * 6;
+    if (!free(x, z, 8)) continue;
+    const pole = new THREE.Group();
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.55, 18, 6), wood);
+    p.position.y = 9;
+    pole.add(p);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(6, 0.4, 0.4), wood);
+    arm.position.y = 16.8;
+    pole.add(arm);
+    pole.position.set(x, 0, z);
+    g.add(pole);
+    pts.push(new THREE.Vector3(x, 16.9, z));
+  }
+  for (let i = 0; i < pts.length - 1; i++) {
+    for (const off of [-2.6, 2.6]) {
+      const a = pts[i].clone().add(new THREE.Vector3(0, 0, off)), b = pts[i + 1].clone().add(new THREE.Vector3(0, 0, off));
+      const mid = a.clone().lerp(b, 0.5); mid.y -= 2.4;
+      const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 10, 0.07, 3, false), cable));
+    }
+  }
 }
 
 function buildIndoor(root) {

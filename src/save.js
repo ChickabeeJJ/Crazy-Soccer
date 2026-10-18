@@ -2,6 +2,7 @@ import { SDK } from './sdk.js';
 import { SAVE_KEY, ITEMS, ITEM_KINDS, ROLL } from './config.js';
 import { CATALOG, guestName } from './cosmetics.js';
 import { todayKey } from './util/math.js';
+import { CARD_ROLLS, CARD_DUPE_REFUND, rollCard } from './ui/cards.js';
 
 export const DEFAULT_BINDS = {
   forward: ['KeyW', 'ArrowUp'],
@@ -73,6 +74,7 @@ function freshProfile() {
       boots: 'classic',
       ball: 'classic',
       goalfx: 'confetti',
+      card: 'basic',
       emotes: ['wave', 'clap', null, null, null, null, null, null],
       number: 7 + Math.floor(Math.random() * 3) * 3,
     },
@@ -81,6 +83,7 @@ function freshProfile() {
     stats: { matches: 0, wins: 0, goals: 0, assists: 0, saves: 0 },
     daily: { last: '', streak: 0 },
     tut: 0,
+    cards: ['basic'],
     powers: [], // new players start with only the item from their free first roll
     starterRoll: false,
     pity: 0,
@@ -125,6 +128,8 @@ export const Save = {
         best: { ...base.best, ...(data.best || {}) },
         binds: data.binds || {},
       };
+      if (!Array.isArray(this.p.cards) || !this.p.cards.length) this.p.cards = ['basic'];
+      if (!this.p.cards.includes(this.p.eq.card)) this.p.eq.card = 'basic';
       // Older saves: Barrel Roll was replaced by the Bazooka
       const old = (Array.isArray(data.powers) ? data.powers : []).map((k) => (k === 'barrel' ? 'bazooka' : k));
       this.p.powers = [...new Set(old)].filter((k) => ITEMS[k]);
@@ -221,6 +226,23 @@ export const Save = {
     }
     this.p.rolls = (this.p.rolls || 0) + n;
     if (free) this.p.starterRoll = true;
+    this.save(true);
+    return out;
+  },
+  // Card rolls: returns [{ card, isNew, refund }] or null if not enough coins
+  rollCards(kind, n = 1) {
+    const R = CARD_ROLLS[kind];
+    const cost = n >= 10 ? R.cost10 : R.cost * n;
+    if (!R || this.p.coins < cost) return null;
+    this.p.coins -= cost;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const card = rollCard(kind);
+      const isNew = !this.p.cards.includes(card.id);
+      let refund = 0;
+      if (isNew) this.p.cards.push(card.id); else { refund = Math.round(R.cost * CARD_DUPE_REFUND); this.p.coins += refund; }
+      out.push({ card, isNew, refund });
+    }
     this.save(true);
     return out;
   },

@@ -114,6 +114,8 @@ export function randomCosmetics(rng = Math.random) {
     ball: 'classic',
     goalfx: CATALOG.goalfx[Math.floor(rng() * 4)].id,
     number: 2 + Math.floor(rng() * 97),
+    card: ['basic', 'steel', 'mint', 'coral', 'blueprint', 'waves', 'marble', 'pearl', 'cosmic'][Math.floor(Math.pow(rng(), 1.6) * 9)],
+    cs: [Math.floor(rng() * 120), Math.floor(rng() * 50), Math.floor(rng() * 90)],
   };
 }
 

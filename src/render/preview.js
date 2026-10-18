@@ -46,7 +46,7 @@ export class PreviewStudio {
     let box;
     if (shot === 'boots') { box = new THREE.Box3().setFromObject(m.legL.upper.parent); box.union(new THREE.Box3().setFromObject(m.legR.upper.parent)); }
     else box = new THREE.Box3().setFromObject(shot === 'hair' ? m.head : m.root);
-    this.frame(box, shot === 'hair' ? 0.74 : shot === 'boots' ? 0.9 : 0.78, shot === 'hair' ? 0.16 : shot === 'boots' ? 0.35 : 0.1, shot === 'hair' ? 0 : shot === 'boots' ? 0 : 0.08);
+    this.frame(box, shot === 'hair' ? 0.74 : shot === 'boots' ? 0.9 : shot === 'card' ? 0.6 : 0.78, shot === 'hair' ? 0.16 : shot === 'boots' ? 0.35 : 0.1, shot === 'hair' ? 0 : shot === 'boots' ? 0 : 0.08);
     this.r.render(this.scene, this.cam);
     const out = this.snapshot();
     m.root.removeFromParent();

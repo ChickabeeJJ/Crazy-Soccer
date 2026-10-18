@@ -7,6 +7,7 @@ import { itemSvg, previewJersey, previewBall, previewGoalFx, previewEmote, previ
 import { SDK } from '../sdk.js';
 import { PreviewStudio } from '../render/preview.js';
 import { Prog, PASS, CALENDAR, fmtLeft } from '../progression.js';
+import { CARDS, CARD_RARITY, CARD_ROLLS, cardDef, makeCard } from './cards.js';
 
 const $ = (id) => document.getElementById(id);
 const MEDALS = { shoot: [300, 700, 1200], keeper: [4, 7, 10] }; // bronze / silver / gold
@@ -91,6 +92,7 @@ export class UI {
     click('botsBtn', () => { this.modal('playSheet', false); app.startOffline(null, Save.p.team === 1 ? 1 : 0); });
     click('privateBtn', () => { this.modal('playSheet', false); $('privateMsg').textContent = ''; this.modal('private', true); });
     click('switchTeamBtn', () => app.switchTeam());
+    click('crvDone', () => { this.modal('cardReveal', false); this.renderLocker(); this.refreshProfile(); });
     click('rrDoneBtn', () => { this.modal('rollReveal', false); if (this.page === 'shop') this.renderShop(); if (this.page === 'inventory') this.renderInventory(); this.refreshProfile(); });
     click('rrAgainBtn', () => app.rollItems(this.lastRollN || 1));
     click('rrSkipBtn', () => this.skipRoll());
@@ -212,20 +214,31 @@ export class UI {
       evEl.innerHTML = `<div class="mc-head"><span>NEXT EVENT</span><em>IN ${fmtLeft(nx.start - Date.now())}</em></div><div class="ev-body"><div class="ev-txt"><b>${nx.name}</b><small>${nx.desc}</small></div></div>`;
     }
     this.fillPreviews(evEl);
-    // Login calendar (7 days, cycles)
+    // Login calendar (7 days, cycles): days 1-6 in two rows, the day 7 chest as a big tile on the right
     const cs = Prog.calendarState();
+    const reached = cs.avail ? cs.next - 1 : cs.cur;
+    const CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="square"/></svg>';
     let html = '';
     for (let d = 1; d <= 7; d++) {
-      const done = cs.avail ? d < cs.next : d <= cs.cur;
+      const done = d <= reached;
       const cur = cs.avail && d === cs.next;
       const r = CALENDAR[d - 1];
-      html += `<div class="dd ${done ? 'done' : ''} ${cur ? 'cur' : ''} ${d === 7 ? 'big' : ''}">${this.rewardIcon(r)}<b>${this.rewardShort(r)}</b><small>DAY ${d}</small></div>`;
+      const art = r.kind === 'coins' ? COINS_SVG : r.kind === 'token' ? TOKEN_SVG : r.kind === 'chest' ? CHEST_SVG : '<b class="dd-xp">XP</b>';
+      const amt = r.kind === 'chest' ? `${r.n}<em>+${r.tokens} ROLLS</em>` : r.kind === 'token' ? 'FREE ROLL' : r.kind === 'sp' ? `${r.n} XP` : r.n;
+      html += `<div class="dd ${done ? 'done' : ''} ${cur ? 'cur' : ''} ${d === 7 ? 'big' : ''} k-${r.kind}">
+        <span class="dd-day">${d === 7 ? 'DAY 7' : `DAY ${d}`}</span>
+        <span class="dd-art">${art}</span>
+        <b class="dd-amt">${amt}</b>
+        ${done ? `<span class="dd-ok">${CHECK}</span>` : ''}
+      </div>`;
     }
     $('dailyDays').innerHTML = html;
-    $('dailyStreak').textContent = `DAY ${Math.max(1, cs.avail ? cs.next : cs.cur)}`;
+    $('dailyProg').innerHTML = Array.from({ length: 7 }, (_, i) => `<i class="${i < reached ? 'on' : ''} ${cs.avail && i === cs.next - 1 ? 'now' : ''}"></i>`).join('');
+    $('dailyStreak').textContent = `STREAK ${reached}/7`;
     const btn = $('dailyBtn');
     btn.disabled = !cs.avail;
-    btn.textContent = cs.avail ? `CLAIM DAY ${cs.next}: ${Prog.label(CALENDAR[cs.next - 1])}` : 'COME BACK TOMORROW';
+    if (cs.avail) btn.innerHTML = `CLAIM DAY ${cs.next}<span>${Prog.label(CALENDAR[cs.next - 1])}</span>`;
+    else { const tm = new Date(); tm.setHours(24, 0, 0, 0); btn.innerHTML = `NEXT REWARD<span>${fmtLeft(tm - Date.now())}</span>`; }
     // Daily challenges
     const tomorrow = new Date(); tomorrow.setHours(24, 0, 0, 0);
     $('chalReset').textContent = `RESETS ${fmtLeft(tomorrow - Date.now())}`;
@@ -760,10 +773,11 @@ export class UI {
   renderShop() {
     const p = Save.p;
     const tab = this.shopTab;
-    this.tabs($('shopTabs'), [['roll', 'Item Roll'], ['jersey', 'Jerseys'], ['boots', 'Boots'], ['hair', 'Hairstyles'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes']], tab, (t) => { this.shopTab = t; this.renderShop(); });
+    this.tabs($('shopTabs'), [['roll', 'Item Roll'], ['cards', 'Cards'], ['jersey', 'Jerseys'], ['boots', 'Boots'], ['hair', 'Hairstyles'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes']], tab, (t) => { this.shopTab = t; this.renderShop(); });
     const grid = $('shopGrid');
     grid.innerHTML = '';
-    grid.classList.toggle('roll-mode', tab === 'roll');
+    grid.classList.toggle('roll-mode', tab === 'roll' || tab === 'cards');
+    if (tab === 'cards') { this.renderCardRolls(grid); return; }
     if (tab === 'roll') {
       const owned = p.powers.length, total = ITEM_KINDS.length;
       const odds = RARITY_ORDER.map((r) => {
@@ -961,11 +975,12 @@ export class UI {
   renderInventory() {
     const p = Save.p;
     const tab = this.invTab;
-    this.tabs($('invTabs'), [['powers', 'Items'], ['jersey', 'Jerseys'], ['boots', 'Boots'], ['hair', 'Style'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes']], tab, (t) => { this.invTab = t; this.renderInventory(); });
+    this.tabs($('invTabs'), [['powers', 'Items'], ['cards', 'Cards'], ['jersey', 'Jerseys'], ['boots', 'Boots'], ['hair', 'Style'], ['ball', 'Balls'], ['goalfx', 'Goal FX'], ['emote', 'Emotes']], tab, (t) => { this.invTab = t; this.renderInventory(); });
     const grid = $('invGrid');
     const extra = $('invExtra');
     grid.innerHTML = '';
     grid.classList.toggle('inv-items', tab === 'powers');
+    if (tab === 'cards') { this.renderCardInv(grid, extra); return; }
     if (tab === 'powers') {
       if (!this.invSel || !ITEMS[this.invSel]) this.invSel = p.powers[0];
       const k = this.invSel, it = ITEMS[k], own = Save.ownsPower(k), on = Save.powerOn(k);
@@ -1004,6 +1019,150 @@ export class UI {
       extra.innerHTML = `<span class="inv-count">Wheel ${p.eq.emotes.filter(Boolean).length}/8</span>`;
     } else extra.innerHTML = '';
     for (const it of CATALOG[tab]) if (Save.owns(tab, it.id)) grid.appendChild(this.cosmeticCard(tab, it, false));
+  }
+
+  // ---------------------------------------------------------------- cards
+  // Your own card, with a full-body render of your current look (cached per look)
+  myCard(cardId, opts = {}) {
+    const p = Save.p, st = p.stats || {};
+    return makeCard({ cardId: cardId || p.eq.card, name: p.name, stats: [st.goals || 0, st.assists || 0, st.saves || 0], avatar: opts.noAvatar ? null : this.cardAvatar(this.app.cos(), this.app.menuTeam === 1 ? 1 : 0) });
+  }
+
+  cardAvatar(cos, team) {
+    const key = `card|${cos.jersey}|${cos.boots}|${cos.hair}|${cos.hairColor}|${cos.skin}|${cos.eyeColor}|${cos.number}|${team}`;
+    if (!this.previewCache.has(key)) {
+      if (!this.studio) { try { this.studio = new PreviewStudio(); } catch (e) { this.studio = null; } }
+      if (!this.studio) return null;
+      try { this.previewCache.set(key, this.studio.character(cos, team, 'card')); } catch (e) { return null; }
+    }
+    const src = this.previewCache.get(key);
+    const c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    c.getContext('2d').drawImage(src, 0, 0);
+    return c;
+  }
+
+  renderCardRolls(grid) {
+    const p = Save.p;
+    const box = (kind) => {
+      const R = CARD_ROLLS[kind];
+      const odds = Object.keys(CARD_RARITY).filter((r) => R.odds[r] > 0).map((r) => `<div style="--rc:${CARD_RARITY[r].color}"><span>${CARD_RARITY[r].name}</span><b>${Math.round(R.odds[r] * 1000) / 10}%</b></div>`).join('');
+      return `<div class="cr-box ${kind === 'prem' ? 'prem' : ''}">
+        <div class="cr-head"><h3>${R.name} CARDS</h3><span>${CARDS.filter((c) => R.odds[c.rarity] > 0 && p.cards.includes(c.id)).length}/${CARDS.filter((c) => R.odds[c.rarity] > 0).length}</span></div>
+        <div class="cr-preview" data-pv="${kind}"></div>
+        <div class="cr-odds">${odds}</div>
+        <div class="cr-btns">
+          <button data-croll="${kind}" data-n="1" ${p.coins < R.cost ? 'class="cant"' : ''}>ROLL ×1<span><span class="coin"></span>${R.cost}</span></button>
+          <button data-croll="${kind}" data-n="10" ${p.coins < R.cost10 ? 'class="cant"' : ''}>ROLL ×10<span><span class="coin"></span>${R.cost10}</span></button>
+        </div></div>`;
+    };
+    grid.innerHTML = `<div class="cr-wrap">${box('std')}${box('prem')}</div>`;
+    const sample = { std: ['steel', 'blueprint', 'pearl'], prem: ['cosmic', 'holo', 'crown'] };
+    for (const kind of ['std', 'prem']) {
+      const row = grid.querySelector(`[data-pv="${kind}"]`);
+      for (const id of sample[kind]) row.appendChild(this.myCard(id));
+    }
+    grid.querySelectorAll('[data-croll]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.app.rollCards(b.dataset.croll, +b.dataset.n); }));
+  }
+
+  showCardReveal(res) {
+    const body = $('crvBody');
+    body.innerHTML = '';
+    body.classList.toggle('multi', res.length > 1);
+    res.forEach((r, i) => {
+      const w = document.createElement('div');
+      w.className = `crv-item ${r.isNew ? 'new' : 'dup'}`;
+      w.style.setProperty('--rc', CARD_RARITY[r.card.rarity].color);
+      w.style.animationDelay = `${i * 0.08}s`;
+      w.appendChild(this.myCard(r.card.id));
+      w.insertAdjacentHTML('beforeend', `<div class="crv-r">${CARD_RARITY[r.card.rarity].name}</div><div class="crv-n">${esc(r.card.name)}</div>
+        <div class="crv-s">${r.isNew ? 'NEW' : `DUPLICATE · <span class="coin"></span>+${r.refund}`}</div>`);
+      body.appendChild(w);
+    });
+    const fresh = res.filter((r) => r.isNew).length;
+    $('crvInfo').textContent = res.length > 1 ? `${fresh} NEW · ${res.length - fresh} DUPLICATE` : '';
+    this.modal('cardReveal', true);
+  }
+
+  renderCardInv(grid, extra) {
+    const p = Save.p;
+    extra.innerHTML = `<span class="inv-count"><b>${p.cards.length}</b>/${CARDS.length} cards</span>`;
+    const wrap = document.createElement('div');
+    wrap.className = 'card-grid';
+    const av = this.cardAvatar(this.app.cos(), this.app.menuTeam === 1 ? 1 : 0);
+    for (const c of CARDS) {
+      const own = p.cards.includes(c.id);
+      const t = document.createElement('button');
+      t.className = `card-tile ${own ? '' : 'locked'} ${p.eq.card === c.id ? 'eq' : ''}`;
+      t.style.setProperty('--rc', CARD_RARITY[c.rarity].color);
+      const st = p.stats || {};
+      let a = null;
+      if (own && av) { a = document.createElement('canvas'); a.width = av.width; a.height = av.height; a.getContext('2d').drawImage(av, 0, 0); }
+      t.appendChild(makeCard({ cardId: c.id, name: own ? p.name : '???', stats: [st.goals || 0, st.assists || 0, st.saves || 0], avatar: a }));
+      t.insertAdjacentHTML('beforeend', `<b>${own ? esc(c.name) : 'Locked'}</b><small>${p.eq.card === c.id ? 'EQUIPPED' : CARD_RARITY[c.rarity].name}</small>`);
+      t.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!own) { this.app.audio.beep(false); this.globalToast('Get it from Card Rolls in the Shop'); return; }
+        this.app.audio.click();
+        p.eq.card = c.id;
+        Save.save();
+        this.renderInventory();
+        this.app.onCosmeticsChanged();
+      });
+      wrap.appendChild(t);
+    }
+    grid.appendChild(wrap);
+  }
+
+  // Post-goal: scorer card slides in on the left; if you scored, your emote bar shows at the bottom
+  showGoalCard(p, mine) {
+    const cos = p.cos || {};
+    const cs = Array.isArray(cos.cs) ? cos.cs : [0, 0, 0];
+    const st = p.stats || {};
+    const stats = [(cs[0] || 0) + (st.goals || 0), (cs[1] || 0) + (st.assists || 0), (cs[2] || 0) + (st.saves || 0)];
+    const holder = $('gcCard');
+    holder.innerHTML = '';
+    holder.appendChild(makeCard({ cardId: cos.card || 'basic', name: p.name, stats, avatar: this.cardAvatar(cos, p.team) }));
+    $('gcTag').textContent = mine ? 'YOU SCORED' : 'GOAL SCORER';
+    $('goalCard').classList.add('show');
+    const bar = $('emoteBar');
+    bar.classList.remove('show');
+    if (!mine) return;
+    const ems = Save.p.eq.emotes;
+    bar.innerHTML = '<div class="eb-title">CELEBRATE</div>' + ems.map((id, i) => `<button data-em="${id || ''}" ${id ? '' : 'disabled'}><kbd>${i + 1}</kbd></button>`).join('');
+    bar.querySelectorAll('button').forEach((b) => {
+      if (b.dataset.em) b.appendChild(this.preview('emote', b.dataset.em));
+      b.addEventListener('click', (e) => { e.stopPropagation(); this.pickGoalEmote(b.dataset.em); });
+    });
+    this.emoteKeys = (e) => {
+      const n = /^Digit([1-8])$/.exec(e.code);
+      if (!n) return;
+      const id = ems[+n[1] - 1];
+      if (id) { e.preventDefault(); e.stopImmediatePropagation(); this.pickGoalEmote(id); }
+    };
+    window.addEventListener('keydown', this.emoteKeys, true);
+    bar.classList.add('show');
+  }
+
+  pickGoalEmote(id) {
+    if (!id) return;
+    this.app.audio.click();
+    this.app.sendEmote(id);
+    $('emoteBar').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.em === id));
+  }
+
+  hideGoalCard() {
+    $('goalCard').classList.remove('show');
+    $('emoteBar').classList.remove('show');
+    if (this.emoteKeys) { window.removeEventListener('keydown', this.emoteKeys, true); this.emoteKeys = null; }
+  }
+
+  // Stepped black bars sweep across the screen (phase transitions)
+  barWipe() {
+    const el = $('barWipe');
+    el.classList.remove('run');
+    void el.offsetWidth;
+    el.classList.add('run');
   }
 
   renderLocker() {
