@@ -1154,7 +1154,11 @@ class App {
       if (progress < 0.02) rig.replayStyle = (rig.replayStyle || 0) + (this._lastReplay !== this.replayStart ? 1 : 0);
       this._lastReplay = this.replayStart;
       rig.replay(dt, { x: frame.b[0], y: frame.b[1], z: frame.b[2] }, progress, side);
+    } else if (this.celebScorer(s, v)) {
+      const sc = this.celebScorer(s, v);
+      rig.celebrate(dt, sc.x, sc.y || 0, sc.z, sc.face || 0);
     } else if (me) {
+      if (rig.mode === 'celebrate') { rig.celebLook = null; rig.snapTo(me.x, me.y || 0, me.z); }
       const keeperSide = me.keeper && inOwnBox(me, 1) ? (me.team === 0 ? -1 : 1) : 0;
       rig.follow(dt, me.x, me.y || 0, me.z, { keeperSide });
       this.renderer.keeperSide = keeperSide;
@@ -1350,6 +1354,13 @@ class App {
       this.ui.showRoomPanel({ code: s.roomCode, players, isHost: s.isAuthority });
     } else this.ui.showRoomPanel(null);
     if (this.ui.isOpen('results') && s.intermission > 0) this.ui.setResNext(`Next match starts in ${Math.ceil(s.intermission)}…`);
+  }
+
+  // The scorer to frame during the celebration (goal phase and the scorer-card part of the kickoff)
+  celebScorer(s, v) {
+    if (s.mode === 'practice' || !this.goalInfo) return null;
+    if (v.phase !== 'goal' && !(v.phase === 'kickoff' && v.phaseT > MATCH.kickoffTime)) return null;
+    return s.playerById(this.goalInfo.scorer) || null;
   }
 
   updatePhaseAnnouncements(s, v) {

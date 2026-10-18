@@ -107,6 +107,22 @@ export class CameraRig {
     this.applyShake(dt);
   }
 
+  // Goal celebration: every player's camera swings round to face the scorer
+  celebrate(dt, x, y, z, faceYaw) {
+    this.mode = 'celebrate';
+    this.setLensShift(false);
+    this.time += dt;
+    const a = faceYaw + Math.sin(this.time * 0.35) * 0.5;
+    const want = new THREE.Vector3(x + Math.sin(a) * 6.5, y + 2.4, z + Math.cos(a) * 6.5);
+    if (this.cam.position.distanceTo(want) > 60) this.cam.position.copy(want);
+    const k = 1 - Math.exp(-dt * 3.2);
+    this.cam.position.lerp(want, k);
+    if (!this.celebLook) this.celebLook = new THREE.Vector3(x, y + 1.3, z);
+    this.celebLook.lerp(new THREE.Vector3(x, y + 1.3, z), 1 - Math.exp(-dt * 6));
+    this.cam.lookAt(this.celebLook);
+    this.applyShake(dt);
+  }
+
   orbit(dt, cx, cy, cz, radius, height, speed, lookY = 1.6, radiusZ = radius) {
     this.mode = 'orbit';
     this.setLensShift(false);

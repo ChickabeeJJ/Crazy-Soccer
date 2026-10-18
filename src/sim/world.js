@@ -820,6 +820,7 @@ export class World {
     // Phase timers
     if (this.phase === 'kickoff') {
       this.phaseT -= dt;
+      if (this.pendingReset != null && this.phaseT <= MATCH.kickoffTime) { const k = this.pendingReset; this.pendingReset = null; this.resetKickoff(k); }
       if (this.phaseT <= 0) { this.setPhase('play', 0); this.emit({ e: 'whistle', k: 'start' }); }
     } else if (this.phase === 'goal') {
       this.phaseT -= dt;
@@ -1369,8 +1370,14 @@ export class World {
   afterGoal() {
     if (this.overtime || this.lastChance) { this.endMatch(); return; }
     const conceded = this.lastGoal ? 1 - this.lastGoal.team : 0;
-    this.resetKickoff(conceded);
     const card = this.mode !== 'practice' && this.lastGoal && !this.lastGoal.own && this.lastGoal.scorer >= 0;
+    // With the scorer card up, everyone keeps celebrating where they are; the reset to kickoff
+    // positions happens under the bar wipe when the countdown starts
+    if (card) {
+      this.pendingReset = conceded;
+      const sc = this.byId.get(this.lastGoal.scorer);
+      for (const p of this.players) if (p.stun <= 0) setAnim(p, p === sc ? 'celebrate' : p.team === this.lastGoal.team ? 'cheer' : 'sad', MATCH.cardTime);
+    } else this.resetKickoff(conceded);
     this.setPhase('kickoff', this.mode === 'practice' ? 0.3 : MATCH.kickoffTime + (card ? MATCH.cardTime : 0));
   }
 
